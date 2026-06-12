@@ -1,0 +1,3 @@
+.omc/
+*.old.*
+node_modules/

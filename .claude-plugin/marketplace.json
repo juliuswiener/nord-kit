@@ -1,0 +1,226 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "nord",
+  "description": "Claude Code marketplace \u2014 personal skills, agents, a task-routing hook, a custom statusline, and MCP servers.",
+  "owner": {
+    "name": "Julius Brussee",
+    "email": "gyptii@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "nord-kit",
+      "description": "Personal Claude Code kit: 33 skills (multi-agent review/cleanup/plan/exec + router hook), 6 caveman agents, 5 commands, MCP (filesystem, exa, github, caveman-shrink).",
+      "version": "0.8.6",
+      "author": {
+        "name": "Julius Brussee",
+        "email": "gyptii@gmail.com"
+      },
+      "source": "./plugins/nord-kit",
+      "category": "productivity",
+      "tags": [
+        "skills",
+        "agents",
+        "mcp",
+        "multi-agent",
+        "statusline"
+      ]
+    },
+    {
+      "name": "oh-my-claudecode",
+      "description": "Claude Code native multi-agent orchestration with intelligent model routing, 28 agent variants, and 32 powerful skills. ",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/Yeachan-Heo/oh-my-claudecode.git"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "caveman",
+      "description": "Talk like caveman. Cut ~75% tokens. Keep all technical accuracy.",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/JuliusBrussee/caveman.git"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "claude-mem",
+      "description": "Persistent memory system for Claude Code - context compression across sessions",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/thedotmack/claude-mem.git",
+        "path": "plugin",
+        "ref": "main"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "superpowers",
+      "description": "Core skills library: TDD, debugging, collaboration patterns, and proven techniques",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/obra/superpowers.git"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "claude-session-driver",
+      "description": "Launch, control, and monitor other Claude Code sessions as workers via tmux",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/obra/claude-session-driver.git"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "double-shot-latte",
+      "description": "Stop 'Would you like me to continue?' interruptions. Automatically evaluates whether Claude should continue working usin",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/obra/double-shot-latte.git"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "github",
+      "description": "Official GitHub MCP server for repository management. Create issues, manage pull requests, review code, search repositor",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/claude-plugins-official.git",
+        "path": "external_plugins/github",
+        "ref": "main"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "claude-md-management",
+      "description": "Tools to maintain and improve CLAUDE.md files - audit quality, capture session learnings, and keep project memory curren",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/claude-plugins-official.git",
+        "path": "plugins/claude-md-management",
+        "ref": "main"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "skill-creator",
+      "description": "Create new skills, improve existing skills, and measure skill performance. Use when users want to create a skill from sc",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/claude-plugins-official.git",
+        "path": "plugins/skill-creator",
+        "ref": "main"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "claude-code-setup",
+      "description": "Analyze codebases and recommend tailored Claude Code automations such as hooks, skills, MCP servers, and subagents.",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/claude-plugins-official.git",
+        "path": "plugins/claude-code-setup",
+        "ref": "main"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "lua-lsp",
+      "description": "Lua language server for code intelligence",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/claude-plugins-official.git",
+        "path": "plugins/lua-lsp",
+        "ref": "main"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "rust-analyzer-lsp",
+      "description": "Rust language server for code intelligence and analysis",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/claude-plugins-official.git",
+        "path": "plugins/rust-analyzer-lsp",
+        "ref": "main"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "plugin-dev",
+      "description": "Comprehensive toolkit for developing Claude Code plugins. Includes 7 expert skills covering hooks, MCP integration, comm",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/claude-plugins-official.git",
+        "path": "plugins/plugin-dev",
+        "ref": "main"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "clangd-lsp",
+      "description": "C/C++ language server (clangd) for code intelligence",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/claude-plugins-official.git",
+        "path": "plugins/clangd-lsp",
+        "ref": "main"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "agent-sdk-dev",
+      "description": "Development kit for working with the Claude Agent SDK",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/claude-plugins-official.git",
+        "path": "plugins/agent-sdk-dev",
+        "ref": "main"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "circleback",
+      "description": "Circleback conversational context integration. Search and access meetings, emails, calendar events, and more.",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/circlebackai/claude-code-plugin.git",
+        "sha": "6369dec7da4059dd0a12cf1b62ba749799ee15ef"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "frontend-design",
+      "description": "Create distinctive, production-grade frontend interfaces with high design quality. Generates creative, polished code tha",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/claude-plugins-official.git",
+        "path": "plugins/frontend-design",
+        "ref": "main"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "create-worktrees",
+      "description": "Creates git worktrees for all open PRs or specific branches, handling branches with slashes, cleaning up stale worktrees",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/ccplugins/awesome-claude-code-plugins.git",
+        "path": "plugins/create-worktrees",
+        "ref": "main"
+      },
+      "category": "productivity"
+    },
+    {
+      "name": "claude-hud",
+      "description": "Real-time statusline showing context usage, active tools, running agents, and todo progress. Always visible below your i",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/jarrodwatts/claude-hud.git"
+      },
+      "category": "productivity"
+    }
+  ],
+  "version": "0.8.6"
+}

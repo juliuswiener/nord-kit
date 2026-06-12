@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "deal-finder",
+  "owner": "marketcheckhub",
+  "repo": "marketcheck-cowork-plugin",
+  "path": "plugins/dealer/skills/deal-finder",
+  "branch": "main",
+  "sha": "46b90fbe7ed486a895df75b70278030765cca40d",
+  "source": "manual"
+}

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "nord-kit",
+  "version": "0.8.6",
+  "description": "Personal Claude Code kit: multi-agent skills, task-routing hook, custom statusline (nord-hud), agents, and MCP servers.",
+  "author": {
+    "name": "Julius Brussee",
+    "email": "gyptii@gmail.com"
+  }
+}

@@ -7,9 +7,14 @@ canonical task-routing hook, a custom statusline (nord-hud), and MCP servers.
 
 ```sh
 claude plugin marketplace add juliuswiener/nord-kit
-claude plugin install nord-kit@nord
+claude plugin install nord-core@nord          # multi-agent skills, router, statusline (everyone)
+claude plugin install nord-ee@nord            # optional: KiCad/SPICE/EE/hardware suite
+claude plugin install nord-dev@nord           # optional: Rust/Python/Dart/Flutter helpers
 ```
 Then restart your Claude Code session (skills/hooks/statusline load at session start).
+
+The kit is split into three plugins so you only load the descriptions you need:
+**nord-core** (always), **nord-ee** (electronics), **nord-dev** (language helpers).
 
 ### Optional: enable the statusline (nord-hud)
 The nord-router hook auto-copies `nord-hud.mjs` to `~/.claude/hud/`. To use it, set in

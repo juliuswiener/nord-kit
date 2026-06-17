@@ -10,7 +10,7 @@
     {
       "name": "nord-kit",
       "description": "Personal Claude Code kit: 33 skills (multi-agent review/cleanup/plan/exec + router hook), 6 caveman agents, 5 commands, MCP (filesystem, exa, github, caveman-shrink).",
-      "version": "0.8.6",
+      "version": "0.9.0",
       "author": {
         "name": "Julius Brussee",
         "email": "gyptii@gmail.com"
@@ -222,5 +222,5 @@
       "category": "productivity"
     }
   ],
-  "version": "0.8.6"
+  "version": "0.9.0"
 }

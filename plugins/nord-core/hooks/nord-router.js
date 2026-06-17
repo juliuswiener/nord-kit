@@ -47,6 +47,12 @@ if (!routing.trim()) {
   ].join('\n');
 }
 
-const out = 'NORD ROUTER ACTIVE — follow this canonical tool routing (overrides ad-hoc choice among overlapping skills):\n\n' + routing;
+// Global behaviour rules (synced via nord-core).
+let behaviour = '';
+try { behaviour = fs.readFileSync(path.join(__dirname, '..', 'BEHAVIOUR.md'), 'utf8'); } catch (e) {}
+
+let out = '';
+if (behaviour.trim()) out += behaviour.trim() + '\n\n';
+out += 'NORD ROUTER ACTIVE — follow this canonical tool routing (overrides ad-hoc choice among overlapping skills):\n\n' + routing;
 process.stdout.write(out);
 process.exit(0);

@@ -1,6 +1,7 @@
 ---
 name: nord-plan
-description: Parallel multi-approach planning tournament — N planners draft independently through different lenses (MVP-first, risk-first, architecture-first), parallel judges score them with a hard on/off-task gate, then one final plan is synthesized from the winner grafting the best ideas of the runners-up. Use for "plan this with options", "multi-agent plan", "parallel plan", "give me planning options". Complements ralplan (sequential consensus debate) with a parallel tournament.
+description: "Parallel planning tournament: N lens-planners draft, judges score with on/off-task gate, synth winner + best-of-rest. Use for 'plan this with options', 'multi-agent plan', 'parallel plan'. Complements ralplan (sequential consensus)."
+
 ---
 
 # nord-plan — parallel planning tournament

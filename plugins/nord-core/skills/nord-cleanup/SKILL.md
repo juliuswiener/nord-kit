@@ -1,6 +1,7 @@
 ---
 name: nord-cleanup
-description: Multi-agent code cleanup — parallel detectors (dead code, duplication, AI-slop, over-abstraction, unused deps) fan out, each removal candidate is verified safe-to-remove (references + tests checked, conservative), producing a deletion-first plan. Use for "cleanup", "deslop", "remove dead code", "tidy this codebase".
+description: "Multi-agent cleanup: parallel detectors (dead code, duplication, AI-slop, over-abstraction, unused deps) + verify-safe-to-remove, deletion-first plan. Use for 'cleanup', 'deslop', 'remove dead code', 'tidy this codebase'."
+
 ---
 
 # nord-cleanup — multi-agent deletion-first cleanup

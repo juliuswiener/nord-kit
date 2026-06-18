@@ -1,6 +1,6 @@
 ---
 name: dart-expert
-description: Use when implementing dart functionality with production-grade patterns and safeguards.
+description: "Use when implementing Dart functionality with production-grade patterns and safeguards."
 metadata:
   hermes:
     tags: [codex-agent, languages-runtime]

@@ -1,7 +1,10 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "nord-dev",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "nord dev helpers: Rust (coder/tester/supervisor), Python (debugger/ticket-implementer), Dart, Flutter UI/UX, module organization.",
-  "author": { "name": "Julius Wiener", "email": "gyptii@gmail.com" }
+  "author": {
+    "name": "Julius Wiener",
+    "email": "gyptii@gmail.com"
+  }
 }

@@ -1,10 +1,7 @@
 ---
 name: sim
-description: >
-  Circuit simulation workflows — SPICE simulation via ngspice, confidence scoring,
-  RF chain analysis (scikit-rf), power/clock transient and AC analysis.
-  Trigger on: "simulate", "run simulation", "spice", "check stability", "ripple analysis".
-  Load the canonical sim skill from `project-skills/sim/SKILL.md`.
+description: "Circuit simulation: SPICE (ngspice), RF chain (scikit-rf), power/clock transient + AC. Triggers: simulate, run simulation, spice, check stability, ripple analysis."
+
 ---
 
 This is a repository-local compatibility entrypoint for the canonical simulation skill.

@@ -1,6 +1,7 @@
 ---
 name: datasheets
-description: Extract structured specifications from electronic component datasheet PDFs — pinouts, electrical characteristics, peripherals, topology, and features. Cache extractions per project for consumption by schematic and PCB analyzers. Primary consumer infrastructure for `kicad`, `emc`, `spice`, and `thermal` analyzers. Use this skill whenever the user asks to extract, verify, or read specs from a component datasheet; when analyzers need verified IC knowledge (EN pin thresholds, PG presence, USB peripheral speed); or when a review mentions datasheet coverage, extraction quality, or per-MPN specifications. Also triggers on "extract this datasheet", "what are the specs for MPN X", "verify datasheet extraction", or "check pin functions for part Y".
+description: "Extract structured specs from component datasheet PDFs: pinouts, electrical characteristics, peripherals, topology. Triggers: 'extract datasheet', specs for MPN X, verify extraction, check pin functions."
+
 ---
 
 # Datasheets Skill

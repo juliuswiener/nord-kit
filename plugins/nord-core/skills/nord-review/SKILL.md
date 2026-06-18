@@ -1,6 +1,7 @@
 ---
 name: nord-review
-description: Multi-dimension adversarial code review — parallel reviewers (correctness/security/performance/reuse) fan out, every finding is adversarially verified (majority-refute kill), then deduped and severity-ranked. Use for "deep review", "multi-agent review", "review my diff thoroughly", or before merging high-stakes changes.
+description: "Multi-dimension adversarial code review: parallel reviewers (correctness/security/performance/reuse), each finding adversarially verified, deduped + severity-ranked. Use for 'deep review', 'multi-agent review', 'review my diff thoroughly', pre-merge."
+
 ---
 
 # nord-review — multi-agent adversarial review

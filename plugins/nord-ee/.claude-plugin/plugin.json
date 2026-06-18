@@ -1,7 +1,10 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "nord-ee",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "nord EE/hardware suite: KiCad, SPICE, EMC, distributor search (DigiKey/Mouser/LCSC/element14), BOM, JLCPCB/PCBWay fab, Vivado.",
-  "author": { "name": "Julius Wiener", "email": "gyptii@gmail.com" }
+  "author": {
+    "name": "Julius Wiener",
+    "email": "gyptii@gmail.com"
+  }
 }

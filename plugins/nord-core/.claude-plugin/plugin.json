@@ -1,7 +1,10 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "nord-core",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "nord core: multi-agent skills (review/cleanup/plan/exec), task-routing hook, nord-hud statusline, brainstorm/audit, skill-authoring, MCP (filesystem/exa/github/caveman-shrink).",
-  "author": { "name": "Julius Wiener", "email": "gyptii@gmail.com" }
+  "author": {
+    "name": "Julius Wiener",
+    "email": "gyptii@gmail.com"
+  }
 }

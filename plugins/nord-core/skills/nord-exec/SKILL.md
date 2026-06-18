@@ -1,6 +1,7 @@
 ---
 name: nord-exec
-description: Execution router with explicit mode choice — picks deterministic parallel (Workflow), sequential-persistent (/loop or ralph), and optionally goal-gated (/goal) execution based on work shape. Use for "execute this batch", "run this work-list", "apply X across N files/items", or when you want to choose between a parallel vs looping executor. Not for exploratory work needing judgment (use ralph/team/autopilot).
+description: "Execution router: parallel batch (Workflow), sequential (/loop or ralph), optional /goal-gate. Use for 'execute this batch', 'run this work-list', 'apply X across N files'. Not for exploratory work needing judgment."
+
 ---
 
 # nord-exec — execution router (parallel | sequential | goal-gated)

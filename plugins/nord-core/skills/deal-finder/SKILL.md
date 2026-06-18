@@ -1,11 +1,6 @@
 ---
 name: deal-finder
-description: >
-  Best-deal sourcing and negotiation leverage. Triggers: "find me the best deal",
-  "cheapest option near me", "best price on a", "deal finder",
-  "is this a good price", "should I buy now or wait", "compare deals",
-  "negotiate this price", "find a car for my customer", sourcing best-priced
-  vehicles, validating deal fairness, building negotiation leverage with market data.
+description: "Best-deal sourcing + negotiation leverage. Triggers: 'find me the best deal', 'cheapest near me', 'is this a good price', 'buy now or wait', 'compare deals', 'negotiate', sourcing/validating vehicle deals."
 version: 0.1.0
 ---
 

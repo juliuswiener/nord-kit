@@ -1,13 +1,7 @@
 ---
 name: design_wizard
-description: >
-  Interactive circuit design wizard — a guided, step-by-step console workflow
-  that takes users from a blank slate to a quote-ready KiCad project. Covers
-  requirements capture, AI-driven IC selection, research-backed BOM assembly,
-  manufacturing preferences, schematic generation, and PCB layout guidance.
-  Trigger on phrases like "new design", "start a project", "design wizard",
-  "circuit wizard", "help me design", "I want to build", "new board",
-  "new circuit", or "walk me through".
+description: "Interactive guided circuit-design wizard: requirements to IC selection to BOM to schematic to PCB, quote-ready KiCad. Triggers: 'new design', 'start a project', 'design wizard', 'help me design', 'I want to build', 'new board/circuit'."
+
 ---
 
 # Circuit Design Wizard

@@ -1,6 +1,7 @@
 ---
 name: scrutinizing-projects
-description: Use when asked to critique, audit, or review a codebase for architectural rot, accumulated residues, unclear naming, suboptimal design, or fitness as a base for future extension. Produces a single critique file plus a chat TL;DR. Triggers include "review my project", "audit this codebase", "is this well structured", "find tech debt", "code smells", "should we rewrite", "is this a good base for X".
+description: "Quick single-pass codebase critique: architectural rot, tech debt, code smells, naming, fitness as a base. Use for 'review my project', 'audit this codebase', 'find tech debt', 'should we rewrite'."
+
 ---
 
 # Scrutinizing Projects

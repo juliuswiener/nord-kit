@@ -1,13 +1,7 @@
 ---
 name: flutter-ui-ux
-description: |
-  Comprehensive Flutter UI/UX development skill for creating beautiful, responsive, and animated mobile applications. Use when user asks to:
-  (1) Build Flutter UI components or screens
-  (2) Implement animations and transitions
-  (3) Design responsive layouts
-  (4) Create custom widgets and themes
-  (5) Optimize UI performance and accessibility
-  Triggers: "create Flutter UI", "build Flutter screen", "Flutter animations", "responsive Flutter layout", "custom Flutter widgets", "Flutter theme design"
+description: "Flutter UI/UX: components, screens, animations, responsive layouts, custom widgets/themes, performance + accessibility. Triggers: 'create/build Flutter UI/screen', 'Flutter animations', 'responsive Flutter layout', 'custom Flutter widgets', 'Flutter theme'."
+
 ---
 
 # Flutter UI/UX Development

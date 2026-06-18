@@ -1,6 +1,7 @@
 ---
 name: advanced-skill-authoring
-description: Use when authoring or revising a skill and needing patterns beyond the basics — structure choice (XML tags vs markdown), tool-preference phrasing, composition with other loaded skills, post-deployment compliance monitoring, or choosing between skill/hook/CLAUDE.md/slash-command/subagent mechanisms.
+description: "Patterns for authoring/revising skills beyond basics: structure (XML vs markdown), tool-preference phrasing, composition, compliance monitoring, choosing skill vs hook vs CLAUDE.md vs command/subagent. Use when writing or revising a skill."
+
 ---
 
 # Advanced Skill Authoring

@@ -1,6 +1,6 @@
 ---
 name: adversarial-brainstorm
-description: Use for open-ended "how could we build/design/approach X" questions where a single first-draft answer is not enough. Fans out N persona-ideators to diverge, runs a red-team that tries to KILL each idea (majority-kill drops it), has champions steelman the survivors, then synthesizes a ranked, decision-ready shortlist plus hybrids. A dialectic engine, not a list generator. Heavier than a normal answer; use it when the idea space is wide and the cost of a mediocre direction is real.
+description: "Dialectic idea engine: persona ideators diverge, red-team kills weak ideas (majority-kill), champions steelman survivors, ranked shortlist + hybrids. Use for open 'how could we build/design/approach X' when one draft isn't enough."
 triggers:
   - adversarial brainstorm
   - brainstorm team

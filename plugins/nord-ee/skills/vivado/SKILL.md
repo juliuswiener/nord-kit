@@ -1,11 +1,7 @@
 ---
 name: vivado
-description: >
-  Xilinx/AMD Vivado FPGA build workflow -- batch-mode TCL scripting, ADI HDL
-  reference design integration, Zynq-7000/MPSoC block design, IP builds,
-  synthesis, implementation, and bitstream generation. Use for any Zynq or
-  UltraScale+ design that incorporates ADI transceivers or follows the ADI
-  HDL reference design pattern.
+description: "Xilinx/AMD Vivado FPGA build: batch TCL, ADI HDL reference designs, Zynq-7000/MPSoC block design, synth/impl/bitstream. Triggers: Vivado, Zynq, UltraScale+, ADI transceiver/HDL, FPGA build."
+
 ---
 
 ## Environment Setup

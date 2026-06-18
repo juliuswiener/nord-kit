@@ -1,6 +1,7 @@
 ---
 name: multi-agent-codebase-audit
-description: Use when needing a full architectural audit of a codebase — pre-release, pre-handover, due diligence, acquisition review, quarterly health check, or "is this safe to build on." Fans out 12+ parallel specialist agents across architecture, code quality, tests, dependencies, security, performance, observability, CI/CD, APIs, data/schema, docs, and resilience, with adversarial verification of high-severity findings, then synthesizes a severity-ranked report. Heavier than `scrutinizing-projects`; use that for a quick single-pass critique.
+description: "Full architectural audit: 12+ parallel specialists (architecture/quality/tests/deps/security/perf/observability/CI/APIs/data/docs/resilience) + adversarial verify, severity-ranked. Use for pre-release, handover, due-diligence, 'is this safe to build on'. Heavier than scrutinizing-projects."
+
 ---
 
 # Multi-Agent Codebase Audit

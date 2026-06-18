@@ -1,6 +1,7 @@
 ---
 name: module-organization
-description: Organize modules vertically by feature domain, not horizontally by language construct. Use when creating new modules, reorganizing code, or deciding where to put types and functions. Based on Gabriella Gonzalez's Haskell module organization guidelines.
+description: "Organize modules vertically by feature domain, not horizontally by language construct. Use when creating new modules, reorganizing code, or deciding where to put types and functions."
+
 ---
 
 # Module Organization Guidelines

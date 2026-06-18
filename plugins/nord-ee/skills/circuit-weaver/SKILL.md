@@ -1,10 +1,7 @@
 ---
 name: circuit-weaver
-description: >
-  Circuit Weaver main entry point. Routes to new design (wizard + research-driven IC selection + 
-  passive generation + schematic generation) or opens existing design for review/modification.
-  Trigger on: "design a circuit", "new design", "design wizard", "circuit-weaver", or 
-  when user provides a design directory path.
+description: "Circuit Weaver entry point: new design (wizard + IC selection + passives + schematic gen) or open existing for review. Triggers: 'design a circuit', 'new design', 'circuit-weaver', a design directory path."
+
 ---
 
 # Circuit Weaver — Main Entry Skill

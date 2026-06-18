@@ -1,10 +1,7 @@
 ---
 name: ee
-description: >
-  Electrical and electronic engineering reference — circuit analysis, component
-  selection, power supply design, signal integrity, RF, thermal, EMC, and test
-  & measurement. Use for design questions, calculations, component vetting, and
-  first-principles analysis.
+description: "Electrical/electronic engineering reference: circuit analysis, component selection, power supply, signal integrity, RF, thermal, EMC, test & measurement. Triggers: EE design questions, calculations, component vetting."
+
 ---
 
 ## Core Circuit Laws

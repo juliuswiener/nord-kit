@@ -1,6 +1,6 @@
 ---
 name: ideation-lab
-description: Use for open "let us explore / generate ideas for X" work where the goal is a rich, research-informed idea space discovered together — NOT a ranked decision, a critique, or a plan. A generative roundtable that alternates collaborative discussion with online research over several rounds (discuss → research → discuss → research → discuss), growing a shared idea board instead of filtering it, then maps the landscape and emits a ralplan-ready brief. Generative, not adversarial. Hand the output to ralplan afterwards.
+description: "Generative idea-exploration roundtable (discuss<->research rounds) growing a shared idea board, then a ralplan-ready brief. Use for 'explore/generate ideas for X'; generative not ranked/critique. Hand output to ralplan."
 triggers:
   - ideate
   - generate ideas

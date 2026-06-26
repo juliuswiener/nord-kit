@@ -42,6 +42,7 @@ if (!routing.trim()) {
     'DEBUG: causal->trace | single->debugger agent.',
     'AUDIT: full->multi-agent-codebase-audit | quick->scrutinizing-projects.',
     'RESEARCH: web+docs->external-context | codebase->nord-research (or sciomc) | fallback->native WebSearch.',
+    'WEB-DATA/READ: read-router picks paradigm | normal page->web-scrape (Crawl4AI local) | anti-bot->web-scrape --stealth | PDF/doc->doc-extract (MinerU) | visual/charts->pixel-read. Sensitive=local only.',
     'VERIFY->verify. MEMORY->claude-mem mem-search. PRIME->deepinit.',
     'EE->kicad/spice/digikey/bom (nord-ee). RUST->rust-coder. PYTHON->python-ticket-implementer.',
   ].join('\n');

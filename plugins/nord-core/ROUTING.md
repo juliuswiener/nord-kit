@@ -13,6 +13,7 @@ do not improvise among duplicates. (Injected each session by the nord-router Ses
 | **Debug** | `trace` (causal, competing hypotheses) | debugger agent (single) | systematic-debugging |
 | **Audit** | `multi-agent-codebase-audit` (full architectural) | `scrutinizing-projects` (quick single-pass) | adversarial-codebase-autopsy (removed) |
 | **Research** | `external-context` (web + docs, parallel doc-specialists) | `nord-research` (codebase, parallel scientists + cross-validate) · native WebSearch/WebFetch | research, autoresearch |
+| **Web data / Read** | `read-router` (pick paradigm per URL/file) → `web-scrape` (Crawl4AI local) · `doc-extract` (MinerU PDF) · `pixel-read` (visual) | `web-scrape --stealth` (anti-bot/login) · Firecrawl MCP (external, last resort) | raw WebFetch on a PDF, screenshotting normal pages |
 | **Verify** | `verify` (before claiming done) | — | — |
 | **Memory** | claude-mem `mem-search` (past work) | `wiki` (durable notes) | — |
 | **Prime codebase** | `deepinit` | claude-mem `learn-codebase` | — |

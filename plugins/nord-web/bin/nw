@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# nw — nord-web tool dispatcher. Stable CLI over the local tool venvs.
+# Venvs live in $NORD_WEB_TOOLS (default ~/02_Software/nord-web-tools), created by setup.sh.
+# Subcommands: scrape <url> | doc <file> | pixel <url|file> | doctor
+set -euo pipefail
+
+TOOLS="${NORD_WEB_TOOLS:-$HOME/02_Software/nord-web-tools}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+scrape_py="$HERE/scrape.py"
+SCRAPE_VENV="$TOOLS/scrape-venv"
+MINERU_VENV="$TOOLS/mineru-venv"
+PIXEL_VENV="$TOOLS/pixel-venv"
+
+die() { echo "nw: $*" >&2; exit 2; }
+
+cmd="${1:-}"; shift || true
+case "$cmd" in
+  scrape)
+    [ -x "$SCRAPE_VENV/bin/python" ] || die "scrape-venv missing ($SCRAPE_VENV) — run nord-web/bin/setup.sh"
+    exec "$SCRAPE_VENV/bin/python" "$scrape_py" "$@"
+    ;;
+  doc)
+    [ -x "$MINERU_VENV/bin/mineru" ] || die "mineru-venv missing ($MINERU_VENV) — run nord-web/bin/setup.sh"
+    # nw doc <pdf> [outdir]   -> markdown under outdir (default ./mineru-out)
+    src="${1:?usage: nw doc <pdf> [outdir]}"; out="${2:-./mineru-out}"
+    # ROCm: gfx1030 needs the 10.3.0 override on some stacks; harmless otherwise.
+    export HSA_OVERRIDE_GFX_VERSION="${HSA_OVERRIDE_GFX_VERSION:-10.3.0}"
+    export MINERU_DEVICE_MODE="${MINERU_DEVICE_MODE:-cuda}"  # torch-rocm presents as cuda
+    "$MINERU_VENV/bin/mineru" -p "$src" -o "$out" "${@:3}"
+    echo "$out"
+    ;;
+  pixel)
+    [ -x "$PIXEL_VENV/bin/pixelshot" ] || die "pixel-venv missing ($PIXEL_VENV) — run nord-web/bin/setup.sh"
+    # nw pixel <url|pdf|html> [outdir]  -> tiled JPEGs; prints tile paths for Read.
+    src="${1:?usage: nw pixel <url|pdf|html> [outdir]}"; out="${2:-./pixel-tiles}"
+    "$PIXEL_VENV/bin/pixelshot" --wait-network-idle -o "$out" "$src" >&2
+    # surface produced tiles (Claude reads these as images)
+    find "$out" -type f \( -name '*.jpg' -o -name '*.jpeg' \) | sort
+    ;;
+  doctor)
+    echo "NORD_WEB_TOOLS=$TOOLS"
+    for v in scrape-venv mineru-venv pixel-venv; do
+      if [ -x "$TOOLS/$v/bin/python" ]; then echo "  [ok] $v"; else echo "  [--] $v MISSING"; fi
+    done
+    ;;
+  *)
+    die "usage: nw {scrape|doc|pixel|doctor} ..."
+    ;;
+esac

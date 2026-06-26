@@ -58,22 +58,52 @@ async def crawl_url(url, raw, stealth_evasion):
     return _pick_md(res.markdown, raw)
 
 
+# Bot-wall / block markers — if a plain fetch returns these (or nothing), escalate to stealth.
+_WALL_MARKERS = (
+    "enable javascript", "verify you are human", "are you a robot", "captcha",
+    "checking your browser", "just a moment", "access denied", "403 forbidden",
+    "cloudflare", "ddos protection", "request blocked", "unusual traffic",
+)
+
+
+def is_wall(text):
+    """True if the result looks like a block page or empty — worth a stealth retry."""
+    if text is None:
+        return True
+    t = text.strip()
+    if not t:
+        return True
+    low = t.lower()
+    return any(m in low for m in _WALL_MARKERS)
+
+
+def fetch_stealth(args):
+    try:
+        html = stealth_fetch_html(args.url)                   # sync, completes before asyncio
+        return asyncio.run(html_to_md(html, args.raw))
+    except Exception as e:
+        print(f"[stealth] invisible_playwright unavailable ({e}); "
+              f"falling back to Crawl4AI evasion", file=sys.stderr)
+        return asyncio.run(crawl_url(args.url, args.raw, stealth_evasion=True))
+
+
 def get_markdown(args):
     if args.stealth:
-        try:
-            html = stealth_fetch_html(args.url)               # sync, completes before asyncio
-            return asyncio.run(html_to_md(html, args.raw))
-        except Exception as e:
-            print(f"[stealth] invisible_playwright unavailable ({e}); "
-                  f"falling back to Crawl4AI evasion", file=sys.stderr)
-            return asyncio.run(crawl_url(args.url, args.raw, stealth_evasion=True))
-    return asyncio.run(crawl_url(args.url, args.raw, stealth_evasion=False))
+        return fetch_stealth(args)
+    # Default: plain local fetch, auto-escalate to stealth once on a block/empty result.
+    text = asyncio.run(crawl_url(args.url, args.raw, stealth_evasion=False))
+    if not args.no_escalate and is_wall(text):
+        print("[escalate] plain fetch looks blocked/empty — retrying with --stealth", file=sys.stderr)
+        return fetch_stealth(args)
+    return text
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("url")
-    ap.add_argument("--stealth", action="store_true")
+    ap.add_argument("--stealth", action="store_true", help="force stealth fetch (skip plain)")
+    ap.add_argument("--no-escalate", action="store_true",
+                    help="plain only; do not auto-retry stealth on a block/empty result")
     ap.add_argument("--out")
     ap.add_argument("--raw", action="store_true")
     args = ap.parse_args()

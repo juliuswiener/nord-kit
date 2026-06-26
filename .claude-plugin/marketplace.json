@@ -48,7 +48,7 @@
     {
       "name": "nord-web",
       "description": "nord web-data layer: read-router (paradigm per URL/file), web-scrape (Crawl4AI local+stealth), doc-extract (MinerU ROCm), pixel-read (pixelrag visual). Local-first, data-sovereign.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "source": "./plugins/nord-web",
       "category": "productivity",
       "tags": [

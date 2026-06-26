@@ -4,14 +4,14 @@ Status: ▢ todo · ◐ doing · ✓ done · ⚠ blocked/decision
 
 ## Phase 1 — Sofort-Cleanup
 
-- ▢ **1.1** Baseline-Backup: `git -C nord-kit checkout -b skillset-curation`; settings.json kopieren nach `$JOBDIR/tmp/settings.bak.json`.
+- ✓ **1.1** Baseline-Backup: `git -C nord-kit checkout -b skillset-curation`; settings.json kopieren nach `$JOBDIR/tmp/settings.bak.json`.
   - verify: branch aktiv, backup existiert.
-- ▢ **1.2** Router-Tote finden: grep ROUTING.md + nord-router.js nach Skill-Namen, gegen reale enabled-Skills + geplante prüfen.
+- ✓ **1.2** Router-Tote finden: grep ROUTING.md + nord-router.js nach Skill-Namen, gegen reale enabled-Skills + geplante prüfen.
   - verify: Liste toter Refs (deep-research, rust-coder, python-*, kicad/spice, systematic-debugging…).
-- ▢ **1.3** ROUTING.md anpassen: tote Refs entweder (a) auf existierende mappen oder (b) als „Phase 4 pending" markieren. Keine Lüge im Router.
+- ✓ **1.3** ROUTING.md anpassen: tote Refs entweder (a) auf existierende mappen oder (b) als „Phase 4 pending" markieren. Keine Lüge im Router.
   - verify: jede Tabellenzeile zeigt auf ladbaren oder explizit-pending Skill.
 - ⚠ **1.4** autopsy-Entscheidung (offen) — NICHT löschen bis geklärt. Default: behalten.
-- ▢ **1.5** Commit Phase 1.
+- ✓ **1.5** Commit Phase 1.
   - **GATE:** ROUTING.md sauber, committet.
 
 ## Phase 2 — nord-mem

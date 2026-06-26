@@ -34,17 +34,17 @@ try {
 if (!routing.trim()) {
   routing = [
     'NORD ROUTER — canonical task routing. Pick the named tool; do not improvise among duplicates.',
-    'PLAN: default->nord-plan (parallel tournament) | vague/high-stakes->nord-plan --consensus | pin requirements first->nord-interview.',
-    'BRAINSTORM: decide->adversarial-brainstorm | explore->ideation-lab.',
+    'PLAN: default->nord-plan (parallel tournament) | vague/high-stakes->nord-plan --consensus | pin requirements first->nord-requirements.',
+    'BRAINSTORM: decide->brainstorm-adversarial | explore->brainstorm.',
     'EXECUTE: completion->ralph | parallel->team | full idea->code->autopilot | one file->executor.',
     'REVIEW: deep->nord-review | quick->/code-review | security->/security-review.',
     'CLEANUP: multi-agent->nord-cleanup | quick->/simplify.',
     'DEBUG: causal->trace | single->debugger agent.',
-    'AUDIT: full->multi-agent-codebase-audit | quick->scrutinizing-projects.',
-    'RESEARCH: web+docs->external-context | codebase->nord-research (or sciomc) | fallback->native WebSearch.',
-    'WEB-DATA/READ: read-router picks paradigm | normal page->web-scrape (Crawl4AI local) | anti-bot->web-scrape --stealth | PDF/doc->doc-extract (MinerU) | visual/charts->pixel-read. Sensitive=local only.',
+    'AUDIT: full->codebase-audit | quick->scrutinize-code.',
+    'RESEARCH: web+docs->external-context | codebase->nord-codebase-research (or sciomc) | fallback->native WebSearch.',
+    'WEB-DATA/READ: read-router picks paradigm | normal page->web-scrape (Crawl4AI local) | anti-bot->web-scrape --stealth | PDF/doc->pdf-extract (MinerU) | visual/charts->visual-read. Sensitive=local only.',
     'VERIFY->verify. MEMORY->claude-mem mem-search. PRIME->deepinit.',
-    'EE->kicad/spice/digikey/bom (nord-ee). RUST->rust-coder. PYTHON->python-ticket-implementer.',
+    'EE->kicad-analyze/spice-sim/digikey-search/bom-manager (nord-ee). RUST->rust-coder. PYTHON->python-ticket-implementer.',
   ].join('\n');
 }
 

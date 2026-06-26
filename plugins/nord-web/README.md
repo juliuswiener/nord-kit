@@ -9,8 +9,8 @@ per URL/file and pulls content on-device — no external API, content never leav
 |---|---|---|
 | `read-router` | classify each input, hand off to the right reader | (router, no fetch) |
 | `web-scrape` | web page → clean markdown | Crawl4AI (local) + optional stealth |
-| `doc-extract` | PDF/Office/scanned → markdown + tables | MinerU (torch-ROCm, AMD GPU) |
-| `pixel-read` | render to images when layout IS the meaning | pixelrag `pixelshot` |
+| `pdf-extract` | PDF/Office/scanned → markdown + tables | MinerU (torch-ROCm, AMD GPU) |
+| `visual-read` | render to images when layout IS the meaning | pixelrag `pixelshot` |
 
 Cost order: text markdown (scrape/doc) ≪ pixel. Default to text; escalate to stealth or pixel
 lazily, only when the cheap rung returns empty or layout-bound meaning is lost.
@@ -42,7 +42,7 @@ chromium (`playwright install chromium` if `crawl4ai-setup` skips it). pixelrag 
 ## Sovereignty
 
 Sensitive material (legal/tax/client/internal): use only `web-scrape` (incl. `--stealth`) and
-`doc-extract` / `pixel-read` — all fully on-device. Never route sensitive inputs to an external
+`pdf-extract` / `visual-read` — all fully on-device. Never route sensitive inputs to an external
 scrape/search API. Firecrawl/external is a non-sensitive last-resort fallback only.
 
 ## Not installed (by design)

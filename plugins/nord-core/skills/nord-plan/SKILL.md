@@ -194,7 +194,7 @@ Execution modes (ralph, autopilot, team, nord-exec) spin up heavy multi-agent or
 
 Gate fires when **all three** conditions hold:
 
-1. An execution keyword is present: `ralph`, `autopilot`, `team`, `nord-exec`, `ultrawork`, `ultrapilot`
+1. An execution keyword is present: `ralph`, `autopilot`, `team`, `nord-execute`, `ultrawork`, `ultrapilot`
 2. Prompt is ≤ 15 effective words (stop-words excluded)
 3. NO concrete anchor is detected
 

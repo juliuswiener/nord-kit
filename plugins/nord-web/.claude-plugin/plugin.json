@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "nord-web",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "nord web-data layer: read-router (pick paradigm per URL/file), web-scrape (Crawl4AI local + stealth), doc-extract (MinerU ROCm PDF->markdown), pixel-read (pixelrag visual). Local-first, data-sovereign. Tools live in $NORD_WEB_TOOLS (default ~/02_Software/nord-web-tools).",
   "author": {
     "name": "Julius Wiener",

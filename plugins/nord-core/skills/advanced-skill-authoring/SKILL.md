@@ -166,6 +166,131 @@ Before writing a skill, verify a skill is the right primitive.
 
 ---
 
+## 6. Extracting Skills from Sessions
+
+Use this when a session produced a repeatable, hard-won workflow worth capturing. The canonical implementation is `oh-my-claudecode:skillify` (deprecated alias: `learner`). The patterns below apply whenever you draft a skill file directly.
+
+### Quality Gate — ALL three must be true
+
+| Clause | Question | Required answer |
+|---|---|---|
+| Not-googleable | Could someone find this in 5 min with a search engine? | **No** |
+| Codebase-specific | Does this reference actual files, errors, or patterns from this project? | **Yes** |
+| Hard-won effort | Did this take real debugging, design, or operational effort to discover? | **Yes** |
+
+If any clause fails, document in normal prose (comments, README, ADR) — not a skill.
+
+### Anti-Patterns — do NOT extract
+
+- Generic programming patterns (belong in docs)
+- Refactoring techniques (universal; not codebase-specific)
+- Library usage examples (belong in library docs)
+- Type definitions or boilerplate
+- Anything a junior dev could Google in 5 minutes
+
+### Session Analysis Checklist
+
+Before drafting, extract:
+1. **Repeatable task** — what specific task did the session accomplish?
+2. **Inputs** — what does the skill consumer need to supply?
+3. **Ordered steps** — what did you actually do, in sequence?
+4. **Success criteria** — how do you know it worked?
+5. **Constraints / pitfalls** — what breaks if you deviate?
+6. **Verification evidence** — what output confirmed success?
+7. **Best save location** — user-level or project-level (see Save-Path below)?
+
+### Expertise vs. Workflow Classification
+
+Before writing the body, classify the learning:
+
+| Type | Definition | File suffix convention |
+|---|---|---|
+| **Expertise** | Domain knowledge, gotcha, pattern, heuristic — can be updated as understanding deepens | `{topic}-expertise.md` |
+| **Workflow** | Operational procedure, fixed step sequence — stability is a feature | `{topic}-workflow.md` |
+
+This separation lets expertise evolve independently without destabilising frozen procedures.
+
+### Skill Body Template
+
+```markdown
+---
+name: <skill-name>
+description: <one-line description>
+triggers:
+  - <trigger-1>
+  - <trigger-2>
+---
+
+# [Skill Name]
+
+## The Insight
+What is the underlying PRINCIPLE you discovered? Not the code — the mental model.
+
+## Why This Matters
+What goes wrong if you don't know this? What symptom brought you here?
+
+## Recognition Pattern
+How do you know when this skill applies? What are the signs?
+
+## The Approach
+The decision-making heuristic, not just code. How should Claude THINK about this problem class?
+```
+
+**Key:** A skill is reusable if Claude can apply it to NEW situations, not just identical ones. Prefer mental-model framing over copy-paste code blocks.
+
+### Save-Path Decision Rule
+
+| Scope | Path | When |
+|---|---|---|
+| **User-level** | `${CLAUDE_CONFIG_DIR:-~/.claude}/skills/omc-learned/<skill-name>.md` | Truly portable insight — applies across projects |
+| **Project-level** | `.omc/skills/<skill-name>.md` | Codebase-local gotcha; commit with the repo so the team keeps it |
+
+**Worktree caveat:** uncommitted project-level skills are worktree-local. If the worktree is deleted before the skill is committed or copied to a user-level directory, the skill is lost.
+
+### YAML Frontmatter — Required
+
+Every learned skill file **must** start with YAML frontmatter so flat-file discovery can load it. Never emit plain markdown without frontmatter.
+
+Minimum required:
+
+```yaml
+---
+name: <skill-name>
+description: <one-line description>
+triggers:
+  - <trigger-1>
+  - <trigger-2>
+---
+```
+
+### Open-Questions Flag
+
+If the workflow still has unresolved branching decisions, name them explicitly **before** drafting the skill body. Fuzzy extractions produce unreliable skills. Surface ambiguity as open questions; resolve them (or scope the skill narrowly) before writing.
+
+### Self-Improving Skill Architecture (Learner Pattern)
+
+For skills that encode accumulating domain knowledge, split the body into two sections with explicit stability contracts:
+
+```markdown
+## Expertise
+> This section contains domain knowledge that improves over time.
+> It CAN be updated when new patterns are discovered.
+
+[Heuristics, gotchas, decision guides]
+
+---
+
+## Workflow
+> This section contains the stable extraction procedure.
+> It should NOT be updated during improvement cycles.
+
+[Fixed ordered steps]
+```
+
+**Why this works:** Expertise evolves (new patterns surface); Workflow must stay stable (self-modification of procedures introduces drift). The Expertise/Workflow split lets a skill update itself safely — only the knowledge half changes, the procedure half is frozen. This is a general skill-architecture pattern for any self-improving skill, not just learner.
+
+---
+
 ## When NOT to Use This Skill
 
 - You're authoring your first skill — start with `superpowers:writing-skills`.

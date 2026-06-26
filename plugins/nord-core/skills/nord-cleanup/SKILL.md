@@ -30,6 +30,8 @@ const DETECTORS = [
   { key:'ai-slop',          prompt:'AI-generated slop: redundant comments restating code, needless defensive cruft, ceremonial wrappers, dead scaffolding.' },
   { key:'over-abstraction', prompt:'Premature/single-use abstraction, indirection with one caller, config for things that never vary.' },
   { key:'unused-deps',      prompt:'Unused imports and package dependencies.' },
+  { key:'ui-design',          prompt:'UI/design defaults: body text set at 11-12px without dense-data rationale, shadow on every surface (logo, card, background, icon), repetitive eyebrow/title/description/extra-<p> hierarchy stuffing, default AI palette (#3B82F6) without brand rationale, enforced uniform 3/4-col grids ignoring rhythm or emphasis, extreme gradients without brand ownership.' },
+  { key:'boundary-violations', prompt:'Hidden coupling, misplaced responsibilities, wrong-layer imports, cross-layer side effects — code that violates its architectural boundary.' },
 ]
 const CAND_SCHEMA = { type:'object', properties:{ candidates:{ type:'array', items:{ type:'object',
   properties:{ file:{type:'string'}, lines:{type:'string'}, what:{type:'string'}, why:{type:'string'} },
@@ -48,3 +50,82 @@ const verified = await parallel(cands.map(c => () =>
 const safe = verified.filter(Boolean).filter(c => c.safeToRemove)
 return { totalCandidates: cands.length, safeToRemove: safe.length, plan: safe }
 ```
+
+## When Not to Use
+
+Do not invoke nord-cleanup when:
+- the task is primarily a new feature build or product change
+- the user wants a broad redesign instead of an incremental cleanup pass
+- the request is a generic refactor with no simplification or slop intent
+- behavior is too unclear to protect with tests or a concrete verification plan
+
+## Phase 0 — Behavior Lock (before Detect)
+
+Before running the parallel detectors, establish a safety baseline:
+
+1. Identify the behavioral contract: public APIs, expected outputs, test coverage.
+2. Run the narrowest existing regression tests for the target scope.
+3. If tests cannot run first, record an explicit verification plan before touching code — what to check, how, and when.
+
+## `--review` Mode
+
+Reviewer-only pass — no file edits. Use for writer/reviewer separation after cleanup is drafted.
+
+Inspect the cleanup plan, changed files, and regression coverage for:
+
+1. Leftover dead code or unused exports
+2. Duplicate logic that should have been consolidated
+3. Needless wrappers or abstractions that still blur boundaries
+4. Missing tests or weak verification for preserved behavior
+5. Cleanup that appears to have changed behavior without intent
+
+Produce a reviewer verdict with required follow-ups. Hand needed changes to a separate writer pass — do not fix and approve in one step.
+
+## Sequential Apply Passes (after VerifySafe)
+
+Run one smell-focused pass at a time. Re-verify after each pass. Do not bundle unrelated refactors.
+
+- **Pass 1** — Dead code deletion
+- **Pass 2** — Duplicate removal
+- **Pass 3** — Naming and error-handling cleanup
+- **Pass 4** — Test reinforcement: add or strengthen tests to lock the surviving behavior
+
+## Quality Gates (after each pass)
+
+After every pass:
+- Run lint and typecheck for the touched area
+- Run unit/integration tests
+- Run existing static or security checks when available
+- Gate fails → fix the issue or back out the risky cleanup; never force it through
+
+## Scoped File-List Semantics
+
+When `args.target` is an explicit file list, the workflow is bounded to those files. Do not silently expand a file-list scope into broader cleanup work unless the user explicitly asks for it.
+
+## UI/Design Reviewer Checklist
+
+Applies when the `ui-design` detector fires. Use as review prompts, not absolute bans — keep intentional brand, accessibility, product-density, or design-system choices that have a clear rationale.
+
+- **Body text sizing:** flag text at 11-12px; Korean body copy generally needs ≥14px unless a validated dense-data exception applies.
+- **Shadow restraint:** question box shadows on every surface, logo, background, card, or icon; keep shadows only where they clarify elevation or interaction.
+- **Content hierarchy:** remove repetitive eyebrow/title/description/extra `<p>` stuffing when the title already carries the message.
+- **Palette rationale:** challenge default AI blue/purple palettes, especially Tailwind-like `#3B82F6`, when no brand or system rationale exists.
+- **Layout rhythm:** avoid overly perfect 3- or 4-column uniform grids when rhythm, emphasis, asymmetry, or varied card weights would serve better.
+- **Gradient restraint:** tone down extreme gradients unless the brand deliberately owns that visual language.
+
+## Final Report Fields
+
+Always report:
+- **Changed files**
+- **Simplifications**
+- **Behavior lock / verification run** — which tests ran or what was explicitly recorded before editing
+- **Remaining risks**
+
+## Ralph Integration
+
+When Ralph invokes nord-cleanup as a post-pass cleanup step:
+- Run in standard mode (not `--review`) on the Ralph session's changed files only
+- Caller (Ralph) re-runs regression verification after nord-cleanup completes
+- `--review` remains a reviewer-only follow-up mode, not the default Ralph integration path
+
+Invoke: `Skill("nord-cleanup")` scoped to session changed files only.

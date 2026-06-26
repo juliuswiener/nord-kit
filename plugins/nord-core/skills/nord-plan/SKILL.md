@@ -1,6 +1,7 @@
 ---
 name: nord-plan
-description: "Parallel planning tournament: N lens-planners draft, judges score with on/off-task gate, synth winner + best-of-rest. Use for 'plan this with options', 'multi-agent plan', 'parallel plan'. Complements ralplan (sequential consensus)."
+description: "Parallel planning tournament: N lens-planners draft, judges score with on/off-task gate, synth winner + best-of-rest. Add --consensus for sequential Planner→Architect→Critic validation after tournament. Use for 'plan this with options', 'multi-agent plan', 'parallel plan'. Complements ralplan (sequential consensus)."
+argument-hint: "[--consensus [--deliberate] [--interactive]] <task>"
 
 ---
 
@@ -47,7 +48,12 @@ const PLAN_SCHEMA = { type:'object', properties:{
   taskRestatement:{type:'string', description:'the task in ONE sentence, your own words'},
   outOfScope:{type:'array', items:{type:'string'}, description:'2-3 things explicitly NOT part of this task'},
   summary:{type:'string'}, steps:{type:'array', items:{type:'string'}},
-  risks:{type:'array', items:{type:'string'}}, tradeoffs:{type:'string'} },
+  risks:{type:'array', items:{type:'string'}}, tradeoffs:{type:'string'},
+  principles:{type:'array', items:{type:'string'}, description:'3-5 guiding principles (--consensus mode)'},
+  decisionDrivers:{type:'array', items:{type:'string'}, description:'top 3 decision drivers (--consensus mode)'},
+  viableOptions:{type:'array', items:{type:'object', properties:{name:{type:'string'},pros:{type:'array',items:{type:'string'}},cons:{type:'array',items:{type:'string'}}}}, description:'>=2 viable options with pros/cons (--consensus mode)'},
+  preMortem:{type:'array', items:{type:'string'}, description:'3 failure scenarios (--deliberate mode)'},
+  testPlan:{type:'object', properties:{unit:{type:'string'},integration:{type:'string'},e2e:{type:'string'},observability:{type:'string'}}, description:'unit/integration/e2e/observability (--deliberate mode)'} },
   required:['taskRestatement','outOfScope','summary','steps'] }
 const SCORE_SCHEMA = { type:'object', properties:{
   onTask:{type:'boolean', description:'true ONLY if the plan addresses the requested task, not some other repo concern'},
@@ -76,3 +82,66 @@ const final = await agent(`Synthesize ONE final implementation plan for THIS TAS
       { label:'synthesize', phase:'Synthesize', schema:PLAN_SCHEMA })
 return { winningLens: winner.lens, ranked: scored.map(s => ({ lens:s.lens, onTask:s.onTask, score:s.score, eff:s.eff })), plan: final }
 ```
+
+## --consensus Mode (post-tournament validation)
+
+`--consensus` adds a sequential Planner→Architect→Critic loop **after** the parallel tournament. Default path (no flag) = tournament only, unchanged.
+
+**Trigger**: pass `--consensus` flag.
+
+**Steps** (run after synthesis returns `final`):
+
+1. **Planner** receives the tournament `final` plan as its starting draft. Planner MUST produce a compact **RALPLAN-DR summary** alongside the revised plan containing:
+   - **Principles** (3-5)
+   - **Decision Drivers** (top 3)
+   - **Viable Options** (>=2) with bounded pros/cons for each; if only one option remains, explicit invalidation rationale for alternatives
+   - In deliberate mode: **pre-mortem** (3 failure scenarios) and **expanded test plan** (unit / integration / e2e / observability)
+
+2. **Architect** reviews for architectural soundness — `Task(subagent_type="oh-my-claudecode:architect", ...)`. Review MUST include: strongest steelman antithesis against the favored option, at least one meaningful tradeoff tension, and (when possible) a synthesis path. **Await completion before step 3. Do NOT run steps 2 and 3 in parallel.**
+
+3. **Critic** evaluates against quality criteria — `Task(subagent_type="oh-my-claudecode:critic", ...)`. Run only after step 2 completes. Critic MUST verify: principle-option consistency, fair alternative exploration, risk mitigation clarity, testable acceptance criteria, concrete verification steps. Critic MUST explicitly reject shallow alternatives, driver contradictions, vague risks, or weak verification. In deliberate mode, Critic MUST reject missing/weak pre-mortem or missing/weak expanded test plan.
+
+4. **Re-review loop** (max 5 iterations): If Critic rejects, collect Architect + Critic feedback → Planner revises → return to step 2. Repeat until Critic approves or 5 iterations reached. At max iterations, present best version via `AskUserQuestion` noting consensus was not reached.
+
+5. **Apply improvements**: Merge accepted Architect + Critic suggestions into the plan. Final consensus output MUST include an **ADR** section:
+   - **Decision** — what was chosen
+   - **Drivers** — which decision drivers were decisive
+   - **Alternatives considered** — options evaluated with reasons not chosen
+   - **Why chosen** — argument for the selected option
+   - **Consequences** — positive and negative outcomes
+   - **Follow-ups** — open questions or future work
+
+6. **Persist** final plan to `.omc/plans/ralplan-<timestamp>.md` (exact naming required — `autopilot`'s glob `.omc/plans/ralplan-*.md` depends on it).
+
+7. **Approval routing** — use `AskUserQuestion` (never plain text) with options:
+   - **Approve execution via team** (Recommended) — invokes `Skill("oh-my-claudecode:team")` with the plan path
+   - **Approve execution via ralph** — invokes `Skill("oh-my-claudecode:ralph")` with the plan path
+   - **Request changes** — return to step 1 with user feedback
+   - **Reject** — discard plan entirely
+   On approve, invoke the chosen execution skill. Do NOT implement directly in the planning agent. Before approval, mark plan `pending approval` and MUST NOT mutate files, commit, push, or delegate implementation.
+
+   If `--interactive` is NOT set: output final plan marked `pending approval`, skip step 7 prompt, and stop without auto-executing.
+
+## --deliberate Flag
+
+Auto-enabled when `--consensus` is active AND any of these signals are detected: auth/security, migrations, destructive/irreversible changes, production incidents, compliance/PII, public API breakage. Manually forced with `--deliberate`.
+
+In deliberate mode:
+- Planner MUST include `preMortem` (exactly 3 failure scenarios) in the RALPLAN-DR summary
+- Planner MUST include `testPlan` with unit / integration / e2e / observability coverage
+- Architect MUST explicitly flag principle violations
+- Critic MUST reject if `preMortem` is missing, has fewer than 3 scenarios, or scenarios are too generic; MUST reject if `testPlan` is missing or lacks any of the four coverage areas
+
+## Quality Floors
+
+Apply in **--consensus mode** (Critic enforces):
+
+| Check | Floor | Reject if |
+|---|---|---|
+| File/path citations | 80% of steps name a file or path | < 80% steps cite a concrete file/path |
+| Acceptance criteria testability | All criteria are concrete and verifiable | Any criterion is non-testable (vague terms like "fast", "better", "improved") |
+| Viable options | ≥ 2 options OR explicit invalidation rationale | Single option with no rationale |
+| Pre-mortem (deliberate) | 3 distinct failure scenarios | < 3 or scenarios are generic/trivial |
+| Test plan (deliberate) | All four areas covered | Missing unit, integration, e2e, or observability |
+
+These floors are Critic-enforced within the re-review loop. Architect feedback is advisory; Critic verdict is binding.

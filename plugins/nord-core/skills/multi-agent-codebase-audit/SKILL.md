@@ -110,7 +110,7 @@ Phase 5: SYNTHESIS (1 agent, blocking after 2+3+4)
 | 2 | Code Quality & Smells | `code-reviewer` | Complexity hotspots, duplication, dead code, god classes, TODO age |
 | 3 | Test Health | `test-engineer` | Coverage by tier, flakiness, isolation, mock drift, untested critical paths |
 | 4 | Dependencies & Supply Chain | (general) | Versions, CVEs, licenses, abandoned packages, lockfile drift |
-| 5 | Security | `security-reviewer` | Secrets, OWASP patterns, crypto, authn/authz centralization |
+| 5 | Security | `security-reviewer` | Secrets (current + git history), OWASP A01–A10 full coverage, crypto, authn/authz centralization, dependency audit (npm/pip/cargo/govulncheck); findings prioritized by severity × exploitability × blast-radius |
 | 6 | Performance & Scalability | (general) | Algorithmic hotspots, N+1, sync I/O, index coverage, bundle size |
 | 7 | Observability & Operations | (general) | Logging coverage, metrics, tracing, health checks, idempotency |
 | 8 | Build, CI/CD & Release | (general) | Pipeline correctness, reproducibility, deploy, rollback, FF hygiene |
@@ -121,6 +121,28 @@ Phase 5: SYNTHESIS (1 agent, blocking after 2+3+4)
 | 13 | **Stated vs Actual Drift** | `architect` | **Claims in docs vs reality in code** — architecture drift, quality-bar drift, API/schema drift, stalled migrations, doc rot, compliance-claim drift |
 
 Plus meta-lanes M1 (Vital Signs + Intent Extraction), M2 (Blast Radius), M3 (Synthesis), M4 (Adversarial Verification — runs per finding, not as a separate phase).
+
+### Lane 5 Security — Extended Scope
+
+Beyond the basic OWASP pattern scan, the security lane MUST:
+
+1. **Git-history secrets scan** — `git log -p | grep -iE 'api[_-]?key|password|secret|token'` to surface secrets committed then later removed. Complements current-code grep.
+2. **Current-code secrets grep** — `grep -rniE 'api[_-]?key|password|secret|token'` across source files (exclude `node_modules`, `.git`, test fixtures).
+3. **Dependency audit** — run whichever tools apply to the project: `npm audit`, `pip-audit`, `cargo audit`, `govulncheck`. Flag CRITICAL and HIGH CVEs.
+4. **OWASP Top 10 (A01–A10) full checklist** — every category evaluated, not just pattern-matched:
+   - A01 Broken Access Control — authorization on every route, CORS configured
+   - A02 Cryptographic Failures — strong algorithms (AES-256, RSA-2048+), secrets in env vars, PII encrypted
+   - A03 Injection (SQL/NoSQL/Command/XSS) — parameterized queries, input sanitization, output escaping
+   - A04 Insecure Design — threat modeling, secure design patterns
+   - A05 Security Misconfiguration — defaults changed, debug disabled, security headers set
+   - A06 Vulnerable Components — dependency audit, no CRITICAL/HIGH CVEs in runtime deps
+   - A07 Authentication Failures — bcrypt/argon2 hashing, secure sessions, JWT validation
+   - A08 Software & Data Integrity Failures — signed updates, verified CI/CD pipelines
+   - A09 Security Logging & Monitoring Failures — security events logged, monitoring in place
+   - A10 SSRF — URL validation, allowlists for outbound requests
+
+   Each finding includes: location (`file:line`), OWASP category, severity, exploitability (remote/local, authed/unauthed), blast-radius, and a secure-code remediation example in the same language as the vulnerable code.
+5. **Prioritization** — rank by `severity × exploitability × blast-radius`, not severity alone. A remotely exploitable unauthenticated SQLi with full DB access outranks a local-only information disclosure even if both are labeled HIGH.
 
 **Intent flows everywhere.** Phase 1 produces a structured `intent` object (purpose, non-goals, stated architecture, stated quality bar, known debt, constraints, in-flight migrations) extracted from README/ARCHITECTURE/ADRs/CONTRIBUTING/design docs. Every lane evaluates findings against this — a "best practice violation" the docs accept is not a finding; a "violation of what the docs claim" is. Lane 13 explicitly hunts for the latter.
 
@@ -157,8 +179,18 @@ The workflow returns structured data. **You (the invoking agent) then write thre
 | File | Audience | Contents |
 |---|---|---|
 | `findings.json` | LLM / tooling | All findings + triage + parallelization + vitals + blast, machine-readable |
-| `report.md` | Engineers reading async | Full report: verdict, executive summary, every finding with evidence, hotspot map, methodology |
+| `report.md` | Engineers reading async | Full report: verdict, executive summary, every finding with evidence, hotspot map, methodology, security remediation timelines |
 | `summary.md` | Decision-maker, 30-second scan | `report.summary_markdown` verbatim — verdict, Top 3, bucket counts, no-brainer list, quick-win groups, needs-decision options |
+
+**Security remediation timelines** — the synthesis agent MUST include this table in `report.md` whenever the security lane returns findings:
+
+| Timeline | Applies to |
+|---|---|
+| **Immediate** | Exposed secrets (rotate before anything else) |
+| **24 h** | CRITICAL vulnerabilities (RCE, unauthenticated data breach, credential theft) |
+| **1 week** | HIGH vulnerabilities (exploitable under specific conditions, serious impact) |
+| **1 month** | MEDIUM vulnerabilities (limited impact or hard to exploit) |
+| **Backlog** | LOW / best-practice violations (schedule when convenient) |
 
 ## Post-audit triage
 

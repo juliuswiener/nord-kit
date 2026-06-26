@@ -41,9 +41,9 @@ if (!routing.trim()) {
     'CLEANUP: multi-agent->nord-cleanup | quick->/simplify.',
     'DEBUG: causal->trace | single->debugger agent.',
     'AUDIT: full->multi-agent-codebase-audit | quick->scrutinizing-projects.',
-    'RESEARCH: web->deep-research | codebase->sciomc | docs->external-context.',
+    'RESEARCH: web+docs->external-context | codebase->sciomc | fallback->native WebSearch.',
     'VERIFY->verify. MEMORY->claude-mem mem-search. PRIME->deepinit.',
-    'EE->kicad/spice/digikey/bom + hardware-systematic-component-review. RUST->rust-coder. PYTHON->python-ticket-implementer.',
+    'EE->kicad/spice/digikey/bom (nord-ee). RUST->rust-coder. PYTHON->python-ticket-implementer.',
   ].join('\n');
 }
 

@@ -12,11 +12,11 @@ do not improvise among duplicates. (Injected each session by the nord-router Ses
 | **Cleanup** | `nord-cleanup` (multi-agent safe-delete) | `/simplify` (quick quality) | ai-slop-cleaner (superseded) |
 | **Debug** | `trace` (causal, competing hypotheses) | debugger agent (single) | systematic-debugging |
 | **Audit** | `multi-agent-codebase-audit` (full architectural) | `scrutinizing-projects` (quick single-pass) | adversarial-codebase-autopsy (removed) |
-| **Research** | `deep-research` (web) | `sciomc` (codebase) · `external-context` (docs) | research, autoresearch |
+| **Research** | `external-context` (web + docs, parallel doc-specialists) | `sciomc` (codebase) · native WebSearch/WebFetch | research, autoresearch |
 | **Verify** | `verify` (before claiming done) | — | — |
 | **Memory** | claude-mem `mem-search` (past work) | `wiki` (durable notes) | — |
 | **Prime codebase** | `deepinit` | claude-mem `learn-codebase` | — |
-| **EE / hardware** | `kicad`/`spice`/`digikey`/`bom`/… + `hardware-systematic-component-review` | — | — |
+| **EE / hardware** | `kicad`/`spice`/`digikey`/`bom`/… (nord-ee) | `ee` (design), `emc`, `datasheets` | — |
 | **Rust** | `rust-coder` (+ `rust-unit-tester`) | — | — |
 | **Python** | `python-ticket-implementer` (+ `python-debugger`) | — | — |
 

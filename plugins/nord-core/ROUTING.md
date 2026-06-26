@@ -5,14 +5,14 @@ do not improvise among duplicates. (Injected each session by the nord-router Ses
 
 | Task | Default | When other | Do NOT use |
 |---|---|---|---|
-| **Plan** | `omc plan` (clear scope) | `ralplan` (vague/high-stakes, sequential consensus) · `nord-plan` (want parallel options/tournament) | make-plan, writing-plans, sw-planner, task_planner |
+| **Plan** | `nord-plan` (parallel lens tournament) | `nord-plan --consensus` (vague/high-stakes → sequential Planner/Architect/Critic + ADR) · `nord-interview` (pin vague requirements first) | omc plan, ralplan, make-plan, writing-plans, sw-planner, task_planner |
 | **Brainstorm** | `adversarial-brainstorm` (decide between ideas) | `ideation-lab` (explore idea space) | superpowers brainstorming |
 | **Execute** | `nord-exec` (choose mode: parallel batch / `/loop` / ralph, optional `/goal`-gate) | `ralph` (completion loop) · `team` (parallel+coordination) · `autopilot` (full idea→code) · executor agent (one file) | do, executing-plans, subagent-driven-development |
 | **Review** | `nord-review` (deep multi-agent) | `/code-review` (quick diff) · `/security-review` | elite-code-reviewer, requesting-code-review |
 | **Cleanup** | `nord-cleanup` (multi-agent safe-delete) | `/simplify` (quick quality) | ai-slop-cleaner (superseded) |
 | **Debug** | `trace` (causal, competing hypotheses) | debugger agent (single) | systematic-debugging |
 | **Audit** | `multi-agent-codebase-audit` (full architectural) | `scrutinizing-projects` (quick single-pass) | adversarial-codebase-autopsy (removed) |
-| **Research** | `external-context` (web + docs, parallel doc-specialists) | `sciomc` (codebase) · native WebSearch/WebFetch | research, autoresearch |
+| **Research** | `external-context` (web + docs, parallel doc-specialists) | `nord-research` (codebase, parallel scientists + cross-validate) · native WebSearch/WebFetch | research, autoresearch |
 | **Verify** | `verify` (before claiming done) | — | — |
 | **Memory** | claude-mem `mem-search` (past work) | `wiki` (durable notes) | — |
 | **Prime codebase** | `deepinit` | claude-mem `learn-codebase` | — |

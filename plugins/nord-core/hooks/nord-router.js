@@ -34,14 +34,14 @@ try {
 if (!routing.trim()) {
   routing = [
     'NORD ROUTER — canonical task routing. Pick the named tool; do not improvise among duplicates.',
-    'PLAN: clear->omc plan | vague/high-stakes->ralplan | parallel options->nord-plan.',
+    'PLAN: default->nord-plan (parallel tournament) | vague/high-stakes->nord-plan --consensus | pin requirements first->nord-interview.',
     'BRAINSTORM: decide->adversarial-brainstorm | explore->ideation-lab.',
     'EXECUTE: completion->ralph | parallel->team | full idea->code->autopilot | one file->executor.',
     'REVIEW: deep->nord-review | quick->/code-review | security->/security-review.',
     'CLEANUP: multi-agent->nord-cleanup | quick->/simplify.',
     'DEBUG: causal->trace | single->debugger agent.',
     'AUDIT: full->multi-agent-codebase-audit | quick->scrutinizing-projects.',
-    'RESEARCH: web+docs->external-context | codebase->sciomc | fallback->native WebSearch.',
+    'RESEARCH: web+docs->external-context | codebase->nord-research (or sciomc) | fallback->native WebSearch.',
     'VERIFY->verify. MEMORY->claude-mem mem-search. PRIME->deepinit.',
     'EE->kicad/spice/digikey/bom (nord-ee). RUST->rust-coder. PYTHON->python-ticket-implementer.',
   ].join('\n');

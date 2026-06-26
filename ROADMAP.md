@@ -97,7 +97,7 @@ nur bei omc-disable, und das killt CLI-Loops+Multi-Model. Gleiche Falle wie clau
 - **Gate:** Jeder migrierte Skill lädt aus nord-core + läuft (Pfade/Agent-Refs gefixt).
   oh-my-claudecode disabled. Router-Debug/Verify/Prime/Research-Defaults aufgelöst.
 
-### Phase 4 — nord-dev/ee aktivieren  ◐
+### Phase 4 — nord-dev/ee aktivieren  ✓ DEPLOYED
 rust/python Skills erstellen, nord-dev + nord-ee aktivieren.
 - **Gate:** rust-coder/python-ticket-implementer laden. kicad/spice/digikey auflösbar.
   Router-Tabelle 100% grün.

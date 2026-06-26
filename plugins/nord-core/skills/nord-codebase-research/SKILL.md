@@ -115,6 +115,10 @@ export const meta = {
 const goal          = (args && args.goal)          || 'the stated research goal'
 const sessionId     = (args && args.sessionId)     || `research-${Date.now().toString(36)}`
 const autoMode      = (args && args.autoMode)      || false
+// EXPERIMENTAL (default OFF): args.cheapGather routes non-opus investigate stages to a $0 bridge
+// worker; cross-validate stays frontier. Confident-wrong floor applies (../gate-loop/references/
+// gate-pattern.md). Keep OFF until a no-regression A/B vs the haiku/sonnet baseline.
+const cheapGather   = (args && args.cheapGather)   || false
 const resumeStages  = (args && args.resumeStages)  || []
 
 // --- Schemas ---
@@ -252,7 +256,7 @@ QUALITY GATE (schema-validated; findings that fail are DROPPED):
   - Every finding must have >= 1 evidence entry with an absolute file path (starts with /)
   - Every finding must have confidence: HIGH | MEDIUM | LOW
   - No speculative findings without direct code evidence`,
-      { label: `investigate:${s.name}`, phase: 'Investigate', model: s.model, schema: FINDING_SCHEMA }
+      { label: `investigate:${s.name}`, phase: 'Investigate', model: (cheapGather && s.model !== 'opus') ? 'qwen3.6-plus' : s.model, schema: FINDING_SCHEMA }
     ).then(r => ({ ...(r || { stageId: s.id, findings: [] }), stageName: s.name, stageTier: s.tier, stageModel: s.model }))
   )
 )

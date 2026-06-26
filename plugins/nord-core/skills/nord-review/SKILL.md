@@ -65,6 +65,10 @@ export const meta = {
   ],
 }
 const target = (args && args.target) || 'the current git diff (run: git diff HEAD)'
+// EXPERIMENTAL (default OFF): args.cheapGather pins the GATHER lane (per-dimension review) to a $0
+// bridge worker; adversarial Verify stays on the frontier. No-runtime-gate skill → confident-wrong
+// floor applies (see ../gate-loop/references/gate-pattern.md). Keep OFF until a no-regression A/B.
+const cheapGather = !!(args && args.cheapGather)
 const DIMENSIONS = [
   { key: 'correctness', prompt: 'Logic bugs, off-by-one, null/undefined, error handling, race conditions, broken edge cases. Also: lsp_diagnostics MUST have been run on every modified file before this review — any type error is CRITICAL.' },
   { key: 'security',    prompt: 'Injection, authz/authn gaps, secret leakage, unsafe deserialization, path traversal, SSRF.' },
@@ -80,7 +84,7 @@ const VERDICT_SCHEMA = { type:'object', properties:{ isReal:{type:'boolean'}, co
 const results = await pipeline(
   DIMENSIONS,
   d => agent(`Review ${target} for ${d.key} issues. ${d.prompt} Report concrete findings with exact file:line and a one-line fix. Annotate each finding with severity (critical/high/medium/low) AND confidence (high/medium/low). No praise, no nits.`,
-        { label:`review:${d.key}`, phase:'Review', schema:FINDINGS_SCHEMA }),
+        { label:`review:${d.key}`, phase:'Review', schema:FINDINGS_SCHEMA, ...(cheapGather ? { model:'qwen3.6-plus' } : {}) }),
   (review, d) => parallel(((review && review.findings) || []).map(f => () =>
     agent(`Adversarially verify this ${d.key} finding — actively try to REFUTE it. Default isReal=false if uncertain or unreproducible. Finding: "${f.title}" at ${f.file}:${f.line||'?'} — ${f.detail}`,
           { label:`verify:${f.file}`, phase:'Verify', schema:VERDICT_SCHEMA })

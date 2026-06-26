@@ -36,10 +36,19 @@ for the persistent/verified variant. Stop when the goal/criteria are met.
 ## Step 3 — verify
 Confirm against the `/goal` (if set) or the success criteria before claiming done.
 
+**Per-item deterministic gate (preferred).** Give an item a `gate` = a single command whose exit code
+is the verdict (`{id, task, files?, gate:"pytest -q tests/test_x.py"}`). The batch then runs that
+command and treats **exit 0 = pass**, non-zero = **fail** (no LLM judge — see
+`../gate-loop/references/gate-pattern.md`). A gated item that fails is returned with
+`escalate:"gate-loop"` — hand it to the `gate-loop` skill (cheap worker + gate + frontier escalation)
+rather than retrying blindly here. An item with **no `gate` is marked `unverified`**, never reported as
+green. Gated verify uses a `qwen3.6-plus` runner → needs CC launched through the bridge (see
+`../../WORKERS.md`); without a bridge, pass items without `gate` (they'll be `unverified`).
+
 ```javascript
 export const meta = {
   name: 'nord-exec',
-  description: 'Deterministic parallel batch executor (implement -> verify per item)',
+  description: 'Deterministic parallel batch executor (implement -> per-item gate: exit code, else UNVERIFIED)',
   phases: [
     { title: 'Execute', detail: 'one agent per work item' },
     { title: 'Verify', detail: 'confirm each item works' },
@@ -49,16 +58,30 @@ const items = (args && args.items) || []
 const isolate = !!(args && args.isolate)   // default false: edit real repo (disjoint files)
 if (!items.length) { log('nord-exec: pass args.items = [{id, task, files?}]'); return { error: 'no items' } }
 const R = { type:'object', properties:{ done:{type:'boolean'}, summary:{type:'string'}, filesTouched:{type:'array', items:{type:'string'}} }, required:['done','summary'] }
-const V = { type:'object', properties:{ passed:{type:'boolean'}, reason:{type:'string'} }, required:['passed','reason'] }
+// gated verify = exit code is the verdict (no LLM judge). Gateless = UNVERIFIED, never a false green.
+const G = { type:'object', properties:{ exitCode:{type:'number'}, tail:{type:'string'} }, required:['exitCode'] }
 const results = await pipeline(
   items,
   (it) => agent(`Implement this task fully and correctly:\n${it.task}\n${it.files ? ('Likely files: ' + JSON.stringify(it.files)) : ''}\nMake the actual edits. Report what you did and which files you touched.`,
     { label:`exec:${it.id||''}`, phase:'Execute', schema:R, ...(isolate ? { isolation:'worktree' } : {}) }),
-  (res, it) => agent(`Verify the change for task "${it.task}" actually works — build/test/inspect the relevant files. passed=false if incomplete, broken, or not done. Implementer report: ${JSON.stringify(res)}`,
-    { label:`verify:${it.id||''}`, phase:'Verify', schema:V })
-    .then(v => ({ id: it.id, ...res, verify: v }))
+  (res, it) => {
+    if (it.gate) {  // deterministic gate: run the command, exit code = verdict (gate-pattern.md)
+      return agent(`Run EXACTLY this command and report only its result — do NOT fix anything:\n${it.gate}\nReturn {exitCode (the shell exit status), tail (last ~15 lines of output)}.`,
+        { label:`gate:${it.id||''}`, phase:'Verify', schema:G, model:'qwen3.6-plus' })
+        .then(g => { const ok = !!g && g.exitCode === 0
+          return { id: it.id, ...res, gate: it.gate, status: ok ? 'pass' : 'fail', exitCode: g && g.exitCode, gateTail: g && g.tail } })
+    }
+    return Promise.resolve({ id: it.id, ...res, status: 'unverified' })  // no gate -> not a green
+  }
 )
 const flat = results.filter(Boolean)
-const failed = flat.filter(r => !(r.verify && r.verify.passed))
-return { total: items.length, passed: flat.length - failed.length, failed: failed.map(f => ({ id:f.id, reason: f.verify && f.verify.reason })), results: flat }
+const failed = flat.filter(r => r.status === 'fail')         // gate red -> hand to gate-loop
+const unverified = flat.filter(r => r.status === 'unverified')
+return {
+  total: items.length,
+  passed: flat.filter(r => r.status === 'pass').length,
+  failed: failed.map(f => ({ id:f.id, exitCode:f.exitCode, tail:f.gateTail, escalate:'gate-loop' })),
+  unverified: unverified.map(u => u.id),
+  results: flat,
+}
 ```

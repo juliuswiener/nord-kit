@@ -59,6 +59,13 @@ Status: ▢ todo · ◐ doing · ✓ done · ⚠ blocked/decision
   - **GATE:** Router 100% auflösbar, ein Namespace, omc+claude-mem disabled.
 - ▢ **4.5** SKILLSET-CURATION.md Status finalisieren, push nach origin.
 
+## Status 2026-06-26 (autonom abgearbeitet)
+- Phase 1 ✓ · Phase 2 SKIP (claude-mem behalten) · Phase 3 = omc-FORK+MERGE statt -migration ✓ · Phase 4 nord-dev ✓ enabled
+- M1-M9 ✓ alle Merges in nord-core (commit c61ebe5)
+- Fork juliuswiener/oh-my-claudecode gepusht (ed522837): 40→34 skills, runtime repointed
+- nord-kit branch `skillset-curation` (6 commits, NICHT auf main/gepusht)
+- OFFEN (global, user-gated): nord-kit→main push (propagiert alle Geräte), marketplace refresh, plugin update nord-core + oh-my-claudecode, install nord-ee
+
 ## Loop-Disziplin
 - /compact alle 8 Turns.
 - Gate = deterministisch (Skill lädt / Hook feuert / JSON valide / grep=0). Kein Self-Verify.

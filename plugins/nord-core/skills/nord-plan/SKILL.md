@@ -245,3 +245,21 @@ Bypass: prefix the original message with `force:` or `!` (e.g., `force: ralph fi
 **Bypass**:
 - `force: ralph refactor the auth module`
 - `! autopilot optimize everything`
+
+## Quality techniques (adopted)
+Apply to every plan (grafted from make-plan / writing-plans / task_planner):
+- **Phase 0 — doc discovery first.** Read docs/examples/existing patterns; build an "Allowed APIs" list
+  citing sources; flag non-existent/deprecated APIs. Fact-gathering subagents MUST return sources + exact
+  signatures/paths + copy-ready snippet locations + confidence/gaps — reject & redeploy any that conclude
+  without sources.
+- **Frame steps as "COPY exact pattern from file:lines"**, not "transform existing code". Ban invented
+  APIs / undocumented params.
+- **No placeholders.** Ban TBD/TODO/"add error handling"/"similar to Task N"; each code step shows actual
+  code + exact command + expected output.
+- **Per-task Interfaces block** (Consumes/Produces, exact signatures+types) + **Global Constraints header**
+  (version floors / naming / platform rules, once, applied to all).
+- **Bite-sized TDD steps** with `- [ ]`: failing test → confirm fail → minimal impl → confirm pass → commit.
+- **Master-ticket fields**: Definition of Done, Interface Contracts, NFRs (security/perf/logging),
+  PR-reviewer checklist, "blueprint not production code".
+- **Post-plan self-review**: spec-coverage gap scan, placeholder scan, cross-task type/name consistency.
+- **`--interactive`**: ask targeted questions for critical gaps, STOP before generating.

@@ -85,3 +85,19 @@ return {
   results: flat,
 }
 ```
+
+## Execution discipline (adopted)
+Grafted from subagent-driven-development / executing-plans / claude-mem:do:
+- **Durable progress ledger.** Write completed items to `$(git rev-parse --git-path nord-exec)/progress.md`
+  so a resume after `/compact` does NOT re-dispatch done tasks (keeper had no resume-safety).
+- **Two-stage review when no deterministic gate.** First spec-compliance, then code-quality — richer
+  fallback than pass/fail when an item has no `gate` (instead of just UNVERIFIED).
+- **File-based handoffs.** Pass task-brief / report / review-diff as files, not pasted into the controller
+  context, to keep it clean on big batches.
+- **Per-role model.** Cheapest tier ($0 bridge worker) for mechanical 1-2 file transcription; capable
+  model for review/design. State the model explicitly per role.
+- **Never implement on main/master** without explicit user consent — branch first.
+- **Pre-flight + stop-and-ask.** Review the plan critically first; on a blocker (missing dep, unclear
+  instruction, repeated verify-fail) STOP and ask, don't guess.
+- **Anti-pattern grep + source-citing.** After a phase, grep for the plan's known-bad patterns; copy
+  patterns from docs and verify an API exists before assuming it.

@@ -286,6 +286,16 @@ The last message MUST contain the full structured deliverable below. Do not put 
 [severity] file:line — title (reason for low confidence)
 ```
 
+---
+
+## When to request review + feedback triage (adopted)
+Grafted from superpowers:requesting-code-review:
+- **Cadence**: request a review after EACH task in subagent-driven dev, after a major feature, before merge
+  to main, when stuck, and before a large refactor.
+- **Feedback triage** (for the author receiving these findings): fix **Critical** immediately, **Important**
+  before proceeding, note **Minor** for later — and push back with reasoning if the reviewer is wrong
+  (don't perform agreement).
+
 **Positive Observations** (1-3; omit section only if genuinely nothing merits noting)
 - [What was done well]
 

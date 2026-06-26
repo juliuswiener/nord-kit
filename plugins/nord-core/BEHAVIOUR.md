@@ -13,6 +13,15 @@ live here instead of per-device `~/.claude/CLAUDE.md`.
 - Keep secrets out of git — use `${ENV}` placeholders in committed config, real keys in each
   device's `~/.claude/settings.json` `env`.
 
+## Skill/tool policy — adopt-in-place, one hand
+- **nord IS the single home.** Don't install/stack external plugins for capabilities — high skill count +
+  overlap degrades tool-selection (≤3-5 rule). When a technique/strategy/skill/MCP elsewhere is useful,
+  **adopt it INTO nord** (reimplement in our style/infra, like gate-loop), then disable/uninstall the source.
+- **Graft, don't vendor-dump.** Take the best techniques into the matching nord keeper skill; never copy a
+  whole foreign plugin (its hooks/agents/MCP/scripts) just to relocate it.
+- **One canonical skill per function.** If two skills overlap, merge the best of both into one nord skill
+  and disable the other (`permissions.deny`/`skillOverrides`/`enabledPlugins:false` — these survive updates).
+
 ## Cheap-worker substrate
 - nord's cheap-worker seams (gate-loop; optionally nord-execute + review/audit/research gather lanes)
   route `model:` ids through `claude_bridge` (:8318). Launch CC with

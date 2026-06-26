@@ -113,3 +113,12 @@ Do not rank-and-cull in the presentation — that is `brainstorm-adversarial`'s 
 ## Customizing lenses
 
 `THINKERS` is a plain array at the top of `lab.workflow.js`. Edit briefs or add lenses, then re-invoke `Workflow({ scriptPath })`. Resume an interrupted run with `resumeFromRunId` — unchanged agents return from cache.
+
+## Techniques (adopted)
+Grafted from superpowers:brainstorming:
+- **Decompose oversized topics first.** If the topic is too large, split into independent sub-projects
+  BEFORE deep exploration — don't refine a too-large space.
+- **Synthesis may offer 2-3 concrete approaches**, each with trade-offs + a recommendation — not only
+  themes/tensions/decisions (still generative, just more actionable for the handoff).
+- **Visual companion (just-in-time).** When a fork is clearer shown than told, offer a browser-based
+  mockup/diagram/layout comparison — own message, on user consent.

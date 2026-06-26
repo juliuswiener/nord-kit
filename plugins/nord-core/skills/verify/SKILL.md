@@ -45,3 +45,13 @@ Report only what was actually verified — no speculation about what "should" pa
 ```
 
 If verdict is FAIL or INCOMPLETE, state the concrete next step to close the gap.
+
+## Rigor rules (adopted)
+Grafted from oh-my-claudecode:verify / verification-before-completion:
+- **Iron Law**: no completion claim without a verification command run **fresh in THIS message**. Stale or
+  previous-run output does not count.
+- **Verify delegated/agent work via VCS diff** (`git diff`), not the agent's own success report.
+- **Regression red-green**: to prove a test catches the bug — write test, run pass, revert the fix, run
+  MUST-FAIL, restore fix, run pass.
+- **Requirements check**: re-read the plan/spec, build a line-by-line checklist, verify each item, report gaps.
+- **Linter ≠ build.** A passing linter is not a passing compiler/build — never substitute one for the other.

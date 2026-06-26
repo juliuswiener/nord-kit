@@ -6,9 +6,24 @@ description: "Patterns for authoring/revising skills beyond basics: structure (X
 
 # Advanced Skill Authoring
 
-**REQUIRED BACKGROUND:** `superpowers:writing-skills` — the basics, TDD methodology, and CSO.
+Self-contained — nord's single home for skill authoring (foundation + advanced patterns).
 
-This skill fills five gaps in that foundation. The patterns here have **not** been adversarially eval-tested with subagents (in violation of the parent skill's own Iron Law). Treat as starting hypotheses; run baselines for anything you depend on.
+## 0. Foundation (adopted from writing-skills)
+The basics this skill builds on (grafted so it stands alone):
+- **A skill = a focused capability**: `SKILL.md` with YAML frontmatter (`name`, `description`, optional
+  `triggers`) + concise body. Name = gerund-first (`writing-plans`). Description = when it fires (symptoms),
+  NOT a workflow summary (else the body is skipped).
+- **Concise output (CSO).** Body is reference the model reads under load — terse, scannable, no filler.
+  Tables/lists over prose. Every line earns its tokens.
+- **TDD for skills (the Iron Law).** Before trusting a skill, pressure-test it: write 3+ representative
+  prompts, run in a fresh session, confirm the right behavior fires; adversarially test that adjacent
+  prompts don't mis-trigger it. A skill with no eval evidence is a hypothesis, not a validated tool.
+- **Plugin distribution**: a plugin's skills live in `<plugin>/skills/<name>/SKILL.md`, auto-discovered
+  (no ZIP/packaging — scan for SKILL.md); add an optional `version:` frontmatter field for plugin skills;
+  test locally via `cc --plugin-dir /path/to/plugin`.
+
+The five sections below fill gaps beyond the basics. These patterns are **not** adversarially eval-tested —
+treat as starting hypotheses; run baselines for anything you depend on.
 
 ---
 
@@ -293,7 +308,6 @@ For skills that encode accumulating domain knowledge, split the body into two se
 
 ## When NOT to Use This Skill
 
-- You're authoring your first skill — start with `superpowers:writing-skills`.
-- You need testing methodology — see `testing-skills-with-subagents.md` in that skill.
-- You need persuasion-principle background — see `persuasion-principles.md` there.
-- You're modifying the superpowers core skills — that repo requires eval evidence for any skill-content change; the patterns here are starting points, not validated replacements.
+- You just need to drop a quick note — document in prose (comments/README/ADR), not a skill (see §6 quality gate).
+- You want to extract a skill from a session automatically — use `oh-my-claudecode:skillify`.
+- You want to find/install an existing skill instead of authoring — use `search-skills` / `install-skill`.

@@ -170,7 +170,7 @@ Before writing a skill, verify a skill is the right primitive.
 
 Use this when a session produced a repeatable, hard-won workflow worth capturing. The canonical implementation is `oh-my-claudecode:skillify` (deprecated alias: `learner`). The patterns below apply whenever you draft a skill file directly.
 
-### Quality Gate — ALL three must be true
+### Quality Gate — ALL three MUST be true
 
 | Clause | Question | Required answer |
 |---|---|---|
@@ -210,6 +210,10 @@ Before writing the body, classify the learning:
 
 This separation lets expertise evolve independently without destabilising frozen procedures.
 
+### Open-Questions Flag
+
+If the workflow still has unresolved branching decisions, name them explicitly **before** drafting the skill body. Fuzzy extractions produce unreliable skills. Surface ambiguity as open questions; resolve them (or scope the skill narrowly) before writing.
+
 ### Skill Body Template
 
 ```markdown
@@ -242,14 +246,14 @@ The decision-making heuristic, not just code. How should Claude THINK about this
 
 | Scope | Path | When |
 |---|---|---|
-| **User-level** | `${CLAUDE_CONFIG_DIR:-~/.claude}/skills/omc-learned/<skill-name>.md` | Truly portable insight — applies across projects |
-| **Project-level** | `.omc/skills/<skill-name>.md` | Codebase-local gotcha; commit with the repo so the team keeps it |
+| **User-level** | `${CLAUDE_CONFIG_DIR:-~/.claude}/skills/<slug>/SKILL.md` | Truly portable insight — applies across projects |
+| **Project-level** | `.claude/skills/<slug>/SKILL.md` | Codebase-local gotcha; commit with the repo so the team keeps it |
 
 **Worktree caveat:** uncommitted project-level skills are worktree-local. If the worktree is deleted before the skill is committed or copied to a user-level directory, the skill is lost.
 
 ### YAML Frontmatter — Required
 
-Every learned skill file **must** start with YAML frontmatter so flat-file discovery can load it. Never emit plain markdown without frontmatter.
+Every learned skill file **must** start with YAML frontmatter so directory-based discovery can load it. Never emit plain markdown without frontmatter.
 
 Minimum required:
 
@@ -262,10 +266,6 @@ triggers:
   - <trigger-2>
 ---
 ```
-
-### Open-Questions Flag
-
-If the workflow still has unresolved branching decisions, name them explicitly **before** drafting the skill body. Fuzzy extractions produce unreliable skills. Surface ambiguity as open questions; resolve them (or scope the skill narrowly) before writing.
 
 ### Self-Improving Skill Architecture (Learner Pattern)
 

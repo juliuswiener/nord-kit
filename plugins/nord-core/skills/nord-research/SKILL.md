@@ -208,14 +208,14 @@ Decompose into 3-7 INDEPENDENT investigation stages. Rules:
 ${resumeStages.length > 0 ? `Already completed stage ids (skip these): ${resumeStages.join(', ')}` : ''}
 
 Output structured JSON with exactly the stages array.`,
-  { label: 'decompose', phase: 'Decompose', schema: STAGES_SCHEMA }
+  { label: 'decompose', phase: 'Decompose', model: 'sonnet', schema: STAGES_SCHEMA }
 )
 
 const stages = decomp.stages.filter(s => !resumeStages.includes(s.id))
 
 // ── Phase 2: Parallel investigation (cap 16 concurrent) ───────────────────────
 const stageResults = await parallel(
-  stages.slice(0, 16).map(s => () =>
+  stages.slice(0, 16).map(s => () => // 16 deliberate (resource budget)
     agent(
       `[RESEARCH_STAGE:${s.id}] CODEBASE INVESTIGATION — local analysis only, NO web search.
 Use Read, Bash (grep, find, git log, wc), and file analysis. Never fetch URLs.
@@ -226,32 +226,43 @@ Focus:      ${s.focus}
 Hypothesis: ${s.hypothesis || 'None stated — discover what is actually present'}
 Scope:      ${s.scope || 'Entire codebase'}
 
-Investigate thoroughly. For each finding output:
+Investigate thoroughly. Return a JSON object matching this schema (output mode: JSON — no free-text tags):
 
-[FINDING:${s.id}-N] <descriptive title>
-<detailed analysis: what you found, what it means, how it works>
-[/FINDING]
-[EVIDENCE:${s.id}-N]
-- File: <ABSOLUTE path — relative paths fail the quality gate>
-- Lines: <start-end with 5-line context window where relevant>
-- Content:
-  \`\`\`
-  <exact excerpt>
-  \`\`\`
-[/EVIDENCE]
-[CONFIDENCE:HIGH|MEDIUM|LOW]
-<reasoning: why this confidence level, what would change it>
+{
+  "stageId": ${s.id},
+  "findings": [
+    {
+      "id": "<stageId-N>",              // e.g. "${s.id}-1", "${s.id}-2"
+      "title": "<concise descriptive title>",
+      "analysis": "<detailed: what you found, what it means, how it works>",
+      "evidence": [
+        {
+          "file": "<ABSOLUTE path — required; relative paths fail quality gate>",
+          "lines": "<start-end>",
+          "content": "<exact excerpt, 5-line context window where relevant>"
+        }
+      ],
+      "confidence": "HIGH|MEDIUM|LOW",
+      "confidenceReason": "<why this confidence; what would change it>"
+    }
+  ]
+}
 
-QUALITY GATE (enforced post-processing; findings that fail are DROPPED):
-  - Every [FINDING] must have >= 1 [EVIDENCE] block
-  - Every [EVIDENCE] must have an absolute file path starting with /
-  - Every [FINDING] must have a [CONFIDENCE] tag
-  - No speculative findings without direct evidence`,
+QUALITY GATE (schema-validated; findings that fail are DROPPED):
+  - Every finding must have >= 1 evidence entry with an absolute file path (starts with /)
+  - Every finding must have confidence: HIGH | MEDIUM | LOW
+  - No speculative findings without direct code evidence`,
       { label: `investigate:${s.name}`, phase: 'Investigate', model: s.model, schema: FINDING_SCHEMA }
     ).then(r => ({ ...(r || { stageId: s.id, findings: [] }), stageName: s.name, stageTier: s.tier, stageModel: s.model }))
   )
 )
 
+// ── MID-EXECUTION CHECKPOINT: persist partial state before cross-validation ───────
+// After Phase 2 completes and BEFORE cross-validation runs, the orchestrating agent
+// must write per-stage markdown + a partial state.json (status: 'in_progress') so
+// a crash here leaves a resumable session. See 'Post-Pipeline Steps → Write Session State'
+// for the exact format; emit status:'in_progress' and omit verification/totalFindings fields.
+// ────────────────────────────────────────────────────────────────────────────────
 // ── Phase 3: Cross-validation (sequential, after all parallel) ────────────────
 const allFindings = stageResults.flatMap(r => (r && r.findings) || [])
 
@@ -279,7 +290,7 @@ Cross-validate for:
 
 Decide which findings to drop (weakest side of a contradiction, or quality violations).
 Output [VERIFIED] if no significant contradictions, [CONFLICTS:<list of finding ids>] otherwise.`,
-  { label: 'cross-validate', phase: 'Verify', schema: VERIFY_SCHEMA }
+  { label: 'cross-validate', phase: 'Verify', model: 'sonnet', schema: VERIFY_SCHEMA }
 )
 
 // ── Quality gate: filter findings ─────────────────────────────────────────────
@@ -309,6 +320,27 @@ return {
 ---
 
 ## Post-Pipeline Steps (mandatory)
+
+### 0. Mid-Pipeline Checkpoint (write BEFORE Workflow returns)
+
+After Phase 2 parallel results arrive and BEFORE cross-validation runs, write partial state so a crash leaves a resumable session:
+
+```bash
+# Per-stage markdown — one file per stage
+for each stageResult: write ".omc/research/$SESSION_ID/stages/stage-<id>.md" with raw findings JSON
+
+# Partial state.json with status: in_progress
+cat > ".omc/research/$SESSION_ID/state.json" << 'EOF'
+{
+  "id": "<sessionId>",
+  "goal": "<goal>",
+  "status": "in_progress",
+  "stages": [ ... each with status:"complete" and findingsCount ],
+  "verification": { "status": "pending" },
+  "updatedAt": "<ISO>"
+}
+EOF
+```
 
 ### 1. Write Session State
 
@@ -398,28 +430,37 @@ If max iterations hit without a promise: write partial report, emit `[PROMISE:RE
 
 ---
 
-## Tag Extraction & Quality Gate
+## Output Mode: JSON Schema (not free-text tags)
 
-Agents output structured tags. Extract with:
+Stage agents return structured JSON validated against `FINDING_SCHEMA` — NOT free-text `[FINDING]`/`[EVIDENCE]`/`[CONFIDENCE]` tags. The schema is the single source of truth; no regex extraction is performed.
 
-```
-// Finding
-/\[FINDING:(\w[\w-]*)\]\s*(.*?)\n([\s\S]*?)\[\/FINDING\]/g
+Expected agent response shape:
 
-// Evidence
-/\[EVIDENCE:(\w[\w-]*)\]([\s\S]*?)\[\/EVIDENCE\]/g
-
-// Confidence
-/\[CONFIDENCE:(HIGH|MEDIUM|LOW)\]\s*([\s\S]*?)(?=\[|$)/g
+```json
+{
+  "stageId": 2,
+  "findings": [
+    {
+      "id": "2-1",
+      "title": "Auth tokens stored in localStorage",
+      "analysis": "...",
+      "evidence": [
+        { "file": "/abs/path/src/auth.ts", "lines": "45-52", "content": "..." }
+      ],
+      "confidence": "HIGH",
+      "confidenceReason": "Direct code evidence at cited lines"
+    }
+  ]
+}
 ```
 
 Quality gate — a finding is DROPPED if ANY of these fail:
 
 | Check | Requirement |
 |---|---|
-| Evidence present | >= 1 `[EVIDENCE]` block |
-| Absolute path | `evidence.file` starts with `/` |
-| Confidence stated | `[CONFIDENCE:HIGH|MEDIUM|LOW]` present |
+| Evidence present | `evidence` array length >= 1 |
+| Absolute path | `evidence[].file` starts with `/` |
+| Confidence stated | `confidence` is `HIGH`, `MEDIUM`, or `LOW` |
 | Reproducible | Another agent could verify from file + lines alone |
 
 Dropped findings are counted (`droppedFindings`) but never shown in the report.

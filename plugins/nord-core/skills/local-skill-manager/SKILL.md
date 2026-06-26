@@ -34,19 +34,19 @@ Show all skills organized by scope.
 **Output format:**
 ```
 USER SKILLS (~/.claude/skills/):
-| Name              | Description                        | Scope |
-|-------------------|------------------------------------|-------|
-| error-handler     | Fix aiohttp proxy crash on ...     | user  |
+| Name              | Description                        | Quality | Usage | Scope |
+|-------------------|------------------------------------|---------|-------|-------|
+| error-handler     | Fix aiohttp proxy crash on ...     | N/A     | N/A   | user  |
 
 PROJECT SKILLS (.claude/skills/):
-| Name              | Description                        | Scope   |
-|-------------------|------------------------------------|---------|
-| test-runner       | Run integration suite with ...     | project |
+| Name              | Description                        | Quality | Usage | Scope   |
+|-------------------|------------------------------------|---------|-------|---------|
+| test-runner       | Run integration suite with ...     | N/A     | N/A   | project |
 
 SUMMARY: 3 user | 2 project | 5 total
 ```
 
-Fallback: show "N/A" when frontmatter field is missing.
+Fallback: show "N/A" when frontmatter field (including Quality/Usage stats) is missing.
 
 ---
 
@@ -204,10 +204,14 @@ Path:        ~/.claude/skills/custom-logger/SKILL.md
 Description: Structured JSON logging for this service
 Triggers:    log, logger, logging
 Arg hint:    <level> [message]
+Quality:     N/A
+Usage:       N/A
 
 --- CONTENT ---
 [full markdown body]
 ```
+
+Fallback: show "N/A" for Quality and Usage when stats are not available.
 
 If not found: suggest `search`.
 
@@ -265,10 +269,11 @@ Same as `scan` — count and list all found skills in both scopes with name, des
 Ask what to do next:
 1. Add new skill — invoke `add` wizard
 2. List all skills with details — invoke `list`
-3. Import skill from URL — fetch content, validate frontmatter, ask scope, write
-4. Done
+3. Scan conversation for skill-worthy patterns — analyze current context for repeatable workflows; route to `nord-core:advanced-skill-authoring` §6 (Extracting Skills from Sessions) for extraction
+4. Import skill from URL or pasted content — validate frontmatter, ask scope, write
+5. Done
 
-**Import flow:** Ask for URL or pasted content → validate YAML frontmatter → ask scope → write to chosen dir. Reject malformed frontmatter with specific error.
+**Import flow:** Ask user whether to provide a URL or paste content directly. For URL: fetch and validate. For paste: accept raw markdown. In both cases: validate YAML frontmatter → ask scope → write to chosen dir. Reject malformed frontmatter with specific error.
 
 ---
 

@@ -101,7 +101,7 @@ return { winningLens: winner.lens, ranked: scored.map(s => ({ lens:s.lens, onTas
 
 3. **Critic** evaluates against quality criteria — `Task(subagent_type="oh-my-claudecode:critic", ...)`. Run only after step 2 completes. Critic MUST verify: principle-option consistency, fair alternative exploration, risk mitigation clarity, testable acceptance criteria, concrete verification steps. Critic MUST explicitly reject shallow alternatives, driver contradictions, vague risks, or weak verification. In deliberate mode, Critic MUST reject missing/weak pre-mortem or missing/weak expanded test plan.
 
-4. **Re-review loop** (max 5 iterations): If Critic rejects, collect Architect + Critic feedback → Planner revises → return to step 2. Repeat until Critic approves or 5 iterations reached. At max iterations, present best version via `AskUserQuestion` noting consensus was not reached.
+4. **Re-review loop** (max 5 iterations): If Critic returns ANY non-APPROVE verdict (ITERATE or REJECT), collect Architect + Critic feedback → Planner revises → return to step 2. Repeat until Critic approves or 5 iterations reached. At max iterations, present best version via `AskUserQuestion` noting consensus was not reached.
 
 5. **Apply improvements**: Merge accepted Architect + Critic suggestions into the plan. Final consensus output MUST include an **ADR** section:
    - **Decision** — what was chosen
@@ -116,6 +116,7 @@ return { winningLens: winner.lens, ranked: scored.map(s => ({ lens:s.lens, onTas
 7. **Approval routing** — use `AskUserQuestion` (never plain text) with options:
    - **Approve execution via team** (Recommended) — invokes `Skill("oh-my-claudecode:team")` with the plan path
    - **Approve execution via ralph** — invokes `Skill("oh-my-claudecode:ralph")` with the plan path
+   - **Compact then return for execution approval** — invokes compact to shrink accumulated planning context, then re-presents the pending-approval plan without auto-executing (recommended when context is 50%+ full after planning)
    - **Request changes** — return to step 1 with user feedback
    - **Reject** — discard plan entirely
    On approve, invoke the chosen execution skill. Do NOT implement directly in the planning agent. Before approval, mark plan `pending approval` and MUST NOT mutate files, commit, push, or delegate implementation.
@@ -139,9 +140,108 @@ Apply in **--consensus mode** (Critic enforces):
 | Check | Floor | Reject if |
 |---|---|---|
 | File/path citations | 80% of steps name a file or path | < 80% steps cite a concrete file/path |
-| Acceptance criteria testability | All criteria are concrete and verifiable | Any criterion is non-testable (vague terms like "fast", "better", "improved") |
+| Acceptance criteria testability | ≥ 90% of criteria are concrete and verifiable | < 90% criteria concrete/verifiable (vague terms like "fast", "better", "improved" without metrics) |
 | Viable options | ≥ 2 options OR explicit invalidation rationale | Single option with no rationale |
 | Pre-mortem (deliberate) | 3 distinct failure scenarios | < 3 or scenarios are generic/trivial |
 | Test plan (deliberate) | All four areas covered | Missing unit, integration, e2e, or observability |
 
 These floors are Critic-enforced within the re-review loop. Architect feedback is advisory; Critic verdict is binding.
+
+## Plan Output Format
+
+Required sections per mode:
+
+| Mode | Required sections |
+|---|---|
+| Tournament (default) | `taskRestatement`, `outOfScope`, `summary`, `steps`, `risks`, `tradeoffs` |
+| Consensus (`--consensus`) | All tournament sections + **RALPLAN-DR summary** (Principles, Decision Drivers, Viable Options) + **ADR** (Decision, Drivers, Alternatives considered, Why chosen, Consequences, Follow-ups) |
+| Deliberate (`--deliberate`) | All consensus sections + **pre-mortem** (3 failure scenarios) + **expanded test plan** (unit / integration / e2e / observability) |
+
+Plans are saved to `.omc/plans/ralplan-<timestamp>.md` (naming required — autopilot glob `.omc/plans/ralplan-*.md` depends on it). Drafts go to `.omc/drafts/`.
+
+## State Persistence (nord-native, no omc dep)
+
+In `--consensus` mode, manage lifecycle state via a plain JSON file — no `state_write` MCP required:
+
+- **On entry**: create `.omc/state/nord-plan-<slug>.json` with `{ "active": true, "phase": "planning", "slug": "<slug>", "startedAt": "<iso-timestamp>" }`
+- **On approval handoff** (→ ralph/team): set `active: false` (do NOT delete — execution mode may reference it)
+- **On reject or error/abort**: delete the file entirely
+
+`<slug>` = first 3 meaningful words of the task, lowercased, hyphenated (e.g., `add-user-auth`).
+
+This replaces `state_write`/`state_clear` from omc — nord-plan is self-contained and carries no omc state-hook dependency.
+
+## Provider Overrides (optional)
+
+`--architect codex` and `--critic codex` swap a Claude pass for a Codex pass in consensus mode:
+
+```
+nord-plan --consensus --architect codex "task"
+nord-plan --consensus --critic codex "task"
+nord-plan --consensus --architect codex --critic codex "task"
+```
+
+Implementation: invoke `omc ask codex --agent-prompt <role> "<full review prompt>"` for that step.
+If `omc ask codex` is unavailable, briefly note the fallback and continue with default Claude for that stage — do NOT abort.
+
+## Pre-Execution Gate
+
+### Why the Gate Exists
+
+Execution modes (ralph, autopilot, team, nord-exec) spin up heavy multi-agent orchestration. Vague requests like `ralph improve the app` give agents no bounded target — cycles waste on scope discovery that belongs in planning. The gate intercepts underspecified execution requests and redirects them through `nord-plan --consensus`.
+
+### Gate Logic
+
+Gate fires when **all three** conditions hold:
+
+1. An execution keyword is present: `ralph`, `autopilot`, `team`, `nord-exec`, `ultrawork`, `ultrapilot`
+2. Prompt is ≤ 15 effective words (stop-words excluded)
+3. NO concrete anchor is detected
+
+**Concrete anchors — any ONE passes the gate:**
+
+| Anchor type | Example |
+|---|---|
+| File path | `src/hooks/bridge.ts` or any `/`-containing path |
+| Issue / PR number | `#42`, `PR-123` |
+| camelCase symbol | `processKeywordDetector` |
+| PascalCase symbol | `UserModel` |
+| snake_case symbol | `user_model` |
+| Test runner invocation | `npm test`, `pytest`, `cargo test` |
+| Numbered steps | `1. Add X\n2. Test Y` |
+| Acceptance criteria block | `acceptance criteria:` or `ac:` followed by content |
+| Error reference | `TypeError`, `AssertionError`, stack-trace fragment |
+| Code block | fenced ` ``` ` block with content |
+| Escape prefix | `force:` or `!` anywhere before the execution keyword |
+
+### On Gate Fire
+
+Redirect to `nord-plan --consensus` with a brief explanation:
+
+> "Prompt is underspecified for direct execution — routing through nord-plan consensus to scope the work first."
+
+Bypass: prefix the original message with `force:` or `!` (e.g., `force: ralph fix it`).
+
+### Gate Does NOT Fire
+
+- Any concrete anchor present (one is enough)
+- `--consensus` already requested (already in planning mode)
+- Explicitly called as `nord-plan` (planning, not execution)
+
+### Good vs Bad Prompts
+
+**Passes** (concrete anchor present):
+- `ralph fix src/hooks/bridge.ts:326` — file path
+- `autopilot implement #42` — issue number
+- `team add validation to processKeywordDetector` — camelCase symbol
+- `ralph do:\n1. Add input validation\n2. Write tests` — numbered steps
+
+**Gated** (redirected to nord-plan --consensus):
+- `ralph fix this`
+- `autopilot build the app`
+- `team improve performance`
+- `ralph add authentication`
+
+**Bypass**:
+- `force: ralph refactor the auth module`
+- `! autopilot optimize everything`

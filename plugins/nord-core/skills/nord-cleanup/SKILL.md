@@ -32,6 +32,7 @@ const DETECTORS = [
   { key:'unused-deps',      prompt:'Unused imports and package dependencies.' },
   { key:'ui-design',          prompt:'UI/design defaults: body text set at 11-12px without dense-data rationale, shadow on every surface (logo, card, background, icon), repetitive eyebrow/title/description/extra-<p> hierarchy stuffing, default AI palette (#3B82F6) without brand rationale, enforced uniform 3/4-col grids ignoring rhythm or emphasis, extreme gradients without brand ownership.' },
   { key:'boundary-violations', prompt:'Hidden coupling, misplaced responsibilities, wrong-layer imports, cross-layer side effects — code that violates its architectural boundary.' },
+  { key:'missing-tests',      prompt:'Behavior not covered by tests: uncovered public functions, edge cases with no assertions, weak regression surface for the changed area.' },
 ]
 const CAND_SCHEMA = { type:'object', properties:{ candidates:{ type:'array', items:{ type:'object',
   properties:{ file:{type:'string'}, lines:{type:'string'}, what:{type:'string'}, why:{type:'string'} },
@@ -51,6 +52,15 @@ const safe = verified.filter(Boolean).filter(c => c.safeToRemove)
 return { totalCandidates: cands.length, safeToRemove: safe.length, plan: safe }
 ```
 
+## When to Use
+
+Use this skill when:
+- the user explicitly says `deslop`, `anti-slop`, or `AI slop`
+- the request is to clean up or refactor code that feels noisy, repetitive, or overly abstract
+- follow-up implementation left duplicate logic, dead code, wrapper layers, boundary leaks, or weak regression coverage
+- the user wants a reviewer-only anti-slop pass via `--review`
+- the goal is simplification and cleanup, not new feature delivery
+
 ## When Not to Use
 
 Do not invoke nord-cleanup when:
@@ -58,6 +68,20 @@ Do not invoke nord-cleanup when:
 - the user wants a broad redesign instead of an incremental cleanup pass
 - the request is a generic refactor with no simplification or slop intent
 - behavior is too unclear to protect with tests or a concrete verification plan
+
+## Execution Posture
+
+These fire every turn:
+
+- Preserve behavior unless the user explicitly asks for behavior changes.
+- Lock behavior with focused regression tests first whenever practical.
+- Write a cleanup plan before editing code.
+- Prefer deletion over addition.
+- Reuse existing utilities and patterns before introducing new ones.
+- Avoid new dependencies unless the user explicitly requests them.
+- Keep diffs small, reversible, and smell-focused.
+- Stay concise and evidence-dense: inspect, edit, verify, and report.
+- Treat new user instructions as local scope updates without dropping earlier non-conflicting constraints.
 
 ## Phase 0 — Behavior Lock (before Detect)
 
@@ -71,15 +95,20 @@ Before running the parallel detectors, establish a safety baseline:
 
 Reviewer-only pass — no file edits. Use for writer/reviewer separation after cleanup is drafted.
 
-Inspect the cleanup plan, changed files, and regression coverage for:
+1. **Do not start by editing files.**
+2. Review the cleanup plan, changed files, and regression coverage.
+3. Check specifically for:
+   - leftover dead code or unused exports
+   - duplicate logic that should have been consolidated
+   - needless wrappers or abstractions that still blur boundaries
+   - missing tests or weak verification for preserved behavior
+   - cleanup that appears to have changed behavior without intent
+4. Produce a reviewer verdict with required follow-ups.
+5. Hand needed changes back to a separate writer pass instead of fixing and approving in one step.
 
-1. Leftover dead code or unused exports
-2. Duplicate logic that should have been consolidated
-3. Needless wrappers or abstractions that still blur boundaries
-4. Missing tests or weak verification for preserved behavior
-5. Cleanup that appears to have changed behavior without intent
+## Cleanup Plan Before Code
 
-Produce a reviewer verdict with required follow-ups. Hand needed changes to a separate writer pass — do not fix and approve in one step.
+Before applying any removals, produce and present a plan ordered safest-deletion-first. The plan must list: smell category, file(s), specific item to remove, and risk per item. Apply only after the plan is presented and (if not `--fix`) confirmed.
 
 ## Sequential Apply Passes (after VerifySafe)
 
@@ -108,7 +137,7 @@ Applies when the `ui-design` detector fires. Use as review prompts, not absolute
 
 - **Body text sizing:** flag text at 11-12px; Korean body copy generally needs ≥14px unless a validated dense-data exception applies.
 - **Shadow restraint:** question box shadows on every surface, logo, background, card, or icon; keep shadows only where they clarify elevation or interaction.
-- **Content hierarchy:** remove repetitive eyebrow/title/description/extra `<p>` stuffing when the title already carries the message.
+- **Content hierarchy:** remove repetitive eyebrow/title/description/extra `<p>` stuffing when the title already carries the message; avoid generic emoji badges unless they are part of the product voice.
 - **Palette rationale:** challenge default AI blue/purple palettes, especially Tailwind-like `#3B82F6`, when no brand or system rationale exists.
 - **Layout rhythm:** avoid overly perfect 3- or 4-column uniform grids when rhythm, emphasis, asymmetry, or varied card weights would serve better.
 - **Gradient restraint:** tone down extreme gradients unless the brand deliberately owns that visual language.

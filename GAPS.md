@@ -1,3 +1,9 @@
+# Gap Audit — RESOLVED in nord-core 1.3.1 (round-2 fixes applied 2026-06-26)
+
+All A (bugs) + B (regressions) fixed. C (omc-runtime drops): state→.omc/state file done for plan+interview; companyContext skipped by design; provider-overrides documented.
+
+---
+
 # Gap Audit — nord skills vs omc originals (8 independent auditors, 2026-06-26)
 
 Each auditor grounded in skill-as-prompt quality first, then compared nord vs pristine omc 4.14.7.

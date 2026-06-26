@@ -38,8 +38,13 @@ For trivial changes (single-line typo fix, no behavior change): Stage 0 is a qui
 
 `--plan` — input is a plan/proposal/spec, not code. Skip the JS pipeline; use the Plan Review Protocol below instead.
 `--quality-strategy` / `--release-readiness` — run pipeline normally, then append Quality-Strategy assessment.
+`--api-contract` — or auto-detect when the diff touches public API surfaces (routes, exported types, OpenAPI specs). Run pipeline normally, then append API-Contract assessment (see section below).
 `--fix` — apply confirmed findings after pipeline (existing behavior).
 `--comment` — post findings as inline PR comments (existing behavior).
+
+### lsp_diagnostics Mandate (pre-pipeline)
+
+Run `lsp_diagnostics` on every modified file before launching the 4-dimension pipeline. Any type error returned is automatically a CRITICAL finding — inject it directly into the correctness dimension results; it does NOT need adversarial verify to be included.
 
 ### Discovery / Filtering Separation Doctrine
 
@@ -61,19 +66,20 @@ export const meta = {
 }
 const target = (args && args.target) || 'the current git diff (run: git diff HEAD)'
 const DIMENSIONS = [
-  { key: 'correctness', prompt: 'Logic bugs, off-by-one, null/undefined, error handling, race conditions, broken edge cases.' },
+  { key: 'correctness', prompt: 'Logic bugs, off-by-one, null/undefined, error handling, race conditions, broken edge cases. Also: lsp_diagnostics MUST have been run on every modified file before this review — any type error is CRITICAL.' },
   { key: 'security',    prompt: 'Injection, authz/authn gaps, secret leakage, unsafe deserialization, path traversal, SSRF.' },
   { key: 'performance', prompt: 'N+1, needless allocation, sync-in-hot-path, missing indexes, accidental O(n^2).' },
-  { key: 'reuse',       prompt: 'Duplicated logic, reinvented stdlib/lib, needless abstraction, simpler equivalent.' },
+  { key: 'reuse',       prompt: 'Duplicated logic, reinvented stdlib/lib, needless abstraction, simpler equivalent. SOLID violations: SRP (single reason to change?), OCP (extend without modifying?), LSP (substitutability?), ISP (minimal interfaces?), DIP (depend on abstractions?). Anti-patterns: God Object, magic numbers, copy-paste duplication, shotgun surgery, feature envy. Complexity thresholds: flag any function >50 lines, cyclomatic complexity >10, or nesting depth >4.' },
 ]
 const FINDINGS_SCHEMA = { type:'object', properties:{ findings:{ type:'array', items:{ type:'object',
   properties:{ file:{type:'string'}, line:{type:'number'}, severity:{type:'string', enum:['critical','high','medium','low']},
-  title:{type:'string'}, detail:{type:'string'}, fix:{type:'string'} }, required:['file','severity','title','detail'] } } }, required:['findings'] }
+  confidence:{type:'string', enum:['high','medium','low']},
+  title:{type:'string'}, detail:{type:'string'}, fix:{type:'string'} }, required:['file','severity','confidence','title','detail'] } } }, required:['findings'] }
 const VERDICT_SCHEMA = { type:'object', properties:{ isReal:{type:'boolean'}, confidence:{type:'string', enum:['high','medium','low']}, reason:{type:'string'} }, required:['isReal','reason'] }
 
 const results = await pipeline(
   DIMENSIONS,
-  d => agent(`Review ${target} for ${d.key} issues. ${d.prompt} Report concrete findings with exact file:line and a one-line fix. No praise, no nits.`,
+  d => agent(`Review ${target} for ${d.key} issues. ${d.prompt} Report concrete findings with exact file:line and a one-line fix. Annotate each finding with severity (critical/high/medium/low) AND confidence (high/medium/low). No praise, no nits.`,
         { label:`review:${d.key}`, phase:'Review', schema:FINDINGS_SCHEMA }),
   (review, d) => parallel(((review && review.findings) || []).map(f => () =>
     agent(`Adversarially verify this ${d.key} finding — actively try to REFUTE it. Default isReal=false if uncertain or unreproducible. Finding: "${f.title}" at ${f.file}:${f.line||'?'} — ${f.detail}`,
@@ -92,8 +98,8 @@ return { count: confirmed.length, findings: confirmed }
 
 ### Phase A — Self-Audit
 
-Re-evaluate each CRITICAL/HIGH confirmed finding before output:
-1. Confidence: HIGH / MEDIUM / LOW
+Re-evaluate each CRITICAL/HIGH confirmed finding before output. Use the `confidence` field from FINDINGS_SCHEMA (high/medium/low):
+1. Confidence: HIGH / MEDIUM / LOW (matches the schema field — low-confidence CRITICAL/HIGH findings do NOT block the verdict; move them to Open Questions)
 2. "Could the author immediately refute this with context I'm missing?" YES / NO
 3. "Is this a genuine flaw or a stylistic preference?" FLAW / PREFERENCE
 
@@ -130,6 +136,17 @@ ADVERSARIAL mode: assume more hidden problems; hunt actively; challenge every de
 apply guilty-until-proven-innocent to unchecked claims; expand scope to adjacent code.
 
 Report operating mode (THOROUGH / ADVERSARIAL) and reason in final output.
+
+### Phase D — Gap Analysis
+
+After Phases A–C, explicitly hunt for what is MISSING (not just what is wrong):
+
+1. "What would break this?" — failure modes not covered by the diff
+2. "What edge case isn't handled?" — inputs, states, or sequences outside the happy path
+3. "What assumption could be wrong?" — implicit dependencies, environment expectations, data shape assumptions
+4. "What was conveniently left out?" — requirements, error paths, or side effects the author may have deferred
+
+Output goes directly to the **What's Missing** section of the final output.
 
 ### Role-Based Lenses
 
@@ -202,14 +219,71 @@ Include risk-tier in final output.
 
 ---
 
+## API-Contract Review
+
+Triggered by `--api-contract` or auto-detected when the diff touches routes, exported types, OpenAPI/GraphQL schemas, client SDKs, or versioned protocol surfaces. Run after the normal pipeline; append to output.
+
+- **Breaking changes**: removed or renamed fields/endpoints, changed types, altered semantics, removed error codes
+- **Versioning**: is there a version bump (semver / URL version / header) for any incompatible change?
+- **Error semantics**: consistent error codes, meaningful messages, no leaking of internals; same error shape as existing API?
+- **Backward compatibility**: can existing callers continue without changes? If not, is a migration path documented?
+- **Spec / doc updates**: are new or changed contracts reflected in OpenAPI specs, GraphQL schema, or API docs?
+
+Flag any breaking change as CRITICAL unless a migration path is explicitly provided.
+
+---
+
+## Failure Modes To Avoid
+
+- **Rubber-stamping**: approving without running lsp_diagnostics or opening referenced files. Always verify.
+- **Manufactured outrage**: inventing problems to seem thorough. If something is correct, say so. Credibility depends on accuracy.
+- **Vague rejections**: "this could be better" is not a finding. Always include file:line, severity, and a concrete fix.
+- **Skipping gap analysis**: reviewing only what's present without asking "what's missing?" Phase D is mandatory, not optional.
+- **Single-perspective tunnel vision**: each role-based lens (Security / New Hire / Ops) reveals a different class of issue. Run all three.
+- **Simulating only 2-3 tasks**: simulate EVERY task / step, not just a sample. Surface-only simulation passes plans that fail in execution.
+- **Severity inflation**: rating a missing JSDoc as CRITICAL. Reserve CRITICAL for security vulnerabilities, data loss, and financial impact.
+- **Pre-filtering during discovery**: dropping findings because they seem minor. Recall is the reviewer's responsibility; precision belongs to adversarial-verify.
+
+---
+
 ## Final Output Additions
 
-Append after the confirmed findings list:
+The last message MUST contain the full structured deliverable below. Do not put substantive findings only in earlier messages or tool commentary; repeat the final structure in the last message.
+
+---
+
+**Verdict**
+- Code review: `APPROVE` / `REQUEST CHANGES` / `COMMENT`
+- Plan review (--plan): `REJECT` / `REVISE` / `ACCEPT-WITH-RESERVATIONS` / `ACCEPT`
+
+**Overall Assessment** (2-3 sentences)
+
+**Confirmed Findings** (severity-grouped: critical → low)
+```
+[SEVERITY | confidence] file:line — title. fix.
+```
+
+**What's Missing** (Phase D gap analysis output — explicit list)
+- [Gap 1: what would break this?]
+- [Gap 2: unhandled edge case]
+- [Gap 3: assumption that could be wrong]
+- [Gap 4: what was left out?]
+
+**Multi-Perspective Notes** (concerns not captured in the dimension findings)
+- Security Engineer: [trust boundaries, unvalidated input, exploitable surface]
+- New Hire: [unclear context, assumed knowledge, followability]
+- Ops Engineer: [scale, failure blast radius, dependency failure behavior]
+(For plan reviews substitute: Executor / Stakeholder / Skeptic)
+
+**Verdict Justification** — why this verdict; what must change for an upgrade; operating mode (THOROUGH / ADVERSARIAL) + reason if escalated; any Realist Check recalibrations with "Mitigated by: ..." statements
 
 **Open Questions** (low-confidence findings — surfaced, not blocking):
 ```
 [severity] file:line — title (reason for low confidence)
 ```
+
+**Positive Observations** (1-3; omit section only if genuinely nothing merits noting)
+- [What was done well]
 
 **Operating Mode**: THOROUGH or ADVERSARIAL — reason if escalated
 

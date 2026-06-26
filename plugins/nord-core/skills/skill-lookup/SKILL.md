@@ -1,73 +1,36 @@
 ---
 name: skill-lookup
-description: "Search/retrieve/install Agent Skills from the prompts.chat registry (MCP). Use to find skills, browse catalogs, install a skill, extend capabilities."
+description: "Find + install Agent Skills from the prompts.chat registry via MCP (search_skills/get_skill). Use to discover/install an existing skill before hand-rolling one. Requires the prompts.chat MCP connected."
 license: MIT
 ---
 
-## Workflow
+# skill-lookup
 
-1. Search for skills matching the user's request using `search_skills`
-2. Present results with title, description, author, and file list
-3. If the user picks a skill, retrieve it with `get_skill` to get all files
-4. Install by saving files to `.claude/skills/{slug}/` and verify the SKILL.md exists
-5. Confirm installation and explain what the skill does and when it activates
+Search the prompts.chat registry and install a skill instead of writing one from scratch.
+
+**Prereq:** the prompts.chat MCP must be connected (provides `search_skills`, `get_skill`). If those
+tools are absent, say so and stop — do not fabricate results.
+
+## Flow
+1. **Search** — `search_skills({ query, limit, category?, tag? })` with keywords from the request.
+   `limit` default 10 (max 50); optional `category` slug ("coding", "automation"), `tag` slug.
+2. **Present** — per hit: title, description, author, file list (SKILL.md + refs/scripts), category/tags.
+   Zero hits → broaden the query once, then report "nothing found". Never invent skills.
+3. **Retrieve** — on user pick: `get_skill({ id })` → metadata + all file contents.
+4. **Install** — choose scope deliberately:
+   - project → `.claude/skills/{slug}/` · global → `~/.claude/skills/{slug}/`
+   - If `{slug}/` already exists, confirm overwrite — never clobber silently.
+   - Write `SKILL.md` + every accompanying file to the chosen dir.
+5. **Verify** — read back `SKILL.md`, confirm frontmatter intact, state what it does + when it triggers.
+   Skills load at session start → tell the user to restart for it to activate.
 
 ## Example
-
 ```
-search_skills({"query": "code review", "limit": 5, "category": "coding"})
-get_skill({"id": "abc123"})
+search_skills({ "query": "code review", "limit": 5, "category": "coding" })
+get_skill({ "id": "abc123" })
 ```
 
-## Available Tools
-
-Use these prompts.chat MCP tools:
-
-- `search_skills` - Search for skills by keyword
-- `get_skill` - Get a specific skill by ID with all its files
-
-## How to Search for Skills
-
-Call `search_skills` with:
-
-- `query`: The search keywords from the user's request
-- `limit`: Number of results (default 10, max 50)
-- `category`: Filter by category slug (e.g., "coding", "automation")
-- `tag`: Filter by tag slug
-
-Present results showing:
-- Title and description
-- Author name
-- File list (SKILL.md, reference docs, scripts)
-- Category and tags
-- Link to the skill
-
-## How to Get a Skill
-
-Call `get_skill` with:
-
-- `id`: The skill ID
-
-Returns the skill metadata and all file contents:
-- SKILL.md (main instructions)
-- Reference documentation
-- Helper scripts
-- Configuration files
-
-## How to Install a Skill
-
-When the user asks to install a skill:
-
-1. Call `get_skill` to retrieve all files
-2. Create the directory `.claude/skills/{slug}/`
-3. Save each file to the appropriate location:
-   - `SKILL.md` → `.claude/skills/{slug}/SKILL.md`
-   - Other files → `.claude/skills/{slug}/{filename}`
-4. Read back `SKILL.md` to verify the frontmatter is intact
-
-## Guidelines
-
-- Always search before suggesting the user create their own skill
-- Present search results in a readable format with file counts
-- When installing, confirm the skill was saved successfully
-- Explain what the skill does and when it activates
+## Rules
+- Search before suggesting the user author a new skill.
+- Never overwrite an existing skill dir without confirmation.
+- Don't claim install success until `SKILL.md` is read back from disk.

@@ -1,6 +1,6 @@
 ---
 name: dart-expert
-description: "Use when implementing Dart functionality with production-grade patterns and safeguards."
+description: "Production Dart (3.x): null safety, async/streams, sealed classes + exhaustive pattern matching, records, Result-style errors, isolates, testing. Use when writing/reviewing Dart domain logic, packages, CLIs, serialization, or concurrency (non-UI)."
 metadata:
   hermes:
     tags: [codex-agent, languages-runtime]
@@ -9,55 +9,41 @@ metadata:
 
 # Dart Expert
 
-## Focus Areas
+Modern Dart (3.x) for language/domain logic. For Flutter widgets/UI use **flutter-ui-ux**.
 
-- Dart language features and syntax
-- Null safety and type system
-- Asynchronous programming with futures and streams
-- Dart VM optimization techniques
-- Effective use of Dart core libraries
-- Writing platform-independent Flutter code
-- State management in Dart
-- Parsing and working with JSON data
-- Testing Dart code with unit and widget tests
-- Code analysis and linting in Dart
+## Defaults
+- Sound null safety: avoid `!` (bang) and unchecked `as`. Prefer `?.`, `??`, and `late` only when init is guaranteed. A `!` that throws is a bug you chose.
+- Immutability: `final` by default, `const` constructors for value types, `copyWith` for updates.
+- Records for lightweight multi-return: `(int, String) f() => (1, "ok");` — name fields when not positional: `({int code, String msg})`.
+- Sealed classes + exhaustive `switch` for closed state, instead of enum-with-data or inheritance trees:
+  ```dart
+  sealed class Result<T> {}
+  class Ok<T>  extends Result<T> { final T value;      Ok(this.value); }
+  class Err<T> extends Result<T> { final Object error; Err(this.error); }
+  // compiler errors if a case is missed:
+  final msg = switch (r) { Ok(:final value) => '$value', Err(:final error) => 'fail: $error' };
+  ```
 
-## Approach
+## Errors
+- Model expected failures as data (`Result`/sealed); throw only for programmer errors / truly exceptional cases.
+- No bare `catch (e)` that swallows — catch specific types, rethrow with context, or convert to `Err`.
+- `Future` errors: `await` inside `try`; don't mix `.then` chains with `await`. Unawaited futures = silent failures → mark `unawaited(...)` deliberately.
 
-- Embrace Dart's type system with null safety
-- Use async/await for asynchronous code
-- Optimize code for Dart VM performance
-- Organize and document code for readability
-- Employ effective error handling techniques
-- Utilize Dart's collections and core libraries
-- Apply clean architecture principles
-- Implement consistent state management
-- Leverage code generation for boilerplate reduction
-- Regularly profile and benchmark code
+## Async / concurrency
+- `async/await` over raw `Future.then`. `Future.wait([...])` for parallel, never a sequential `await` loop.
+- Streams: `await for` to consume; choose broadcast vs single-subscription deliberately; always cancel subscriptions.
+- CPU-heavy work off the event loop: `Isolate.run(() => heavy())` (Dart 2.19+). Isolates don't share memory — pass plain data.
 
-## Quality Checklist
+## Packages / serialization
+- JSON: generate with `json_serializable`/`freezed`; don't hand-write `fromJson` for non-trivial models.
+- `freezed` for sealed unions + `copyWith` + equality in one.
+- Public API: `///` docs, honest `@experimental`/`@visibleForTesting`, semver.
 
-- Ensure code follows Dart style guide
-- Achieve high unit and widget test coverage
-- Validate code with static analysis tools like dartanalyzer
-- Optimize imports and control dependencies
-- Review code for thread safety in asynchronous operations
-- Ensure proper use of state management solutions
-- Confirm cross-platform functionality
-- Use const constructors and immutable data structures where possible
-- Validate JSON parsing and serialization logic
-- Confirm code readability and maintainability
+## Testing
+- `package:test` (`group`/`test`/`expect` matchers). Mock with `mocktail` (no codegen) or `mockito`.
+- Test the `Err`/failure branches, not just happy path. `fakeAsync` for timer/stream timing.
 
-## Output
-
-- Well-documented Dart codebase with comments
-- Efficient Dart applications with minimal latency
-- Robust error handling and logging
-- Comprehensive test suite with various test types
-- Clean and consistent coding style
-- Detailed profiling reports and performance benchmarks
-- Optimized and analyzed code with no major lint issues
-- Portable and maintainable cross-platform applications
-- Consistent use of state management techniques
-- Continuous integration setup for ongoing quality assurance
-
+## Checklist before done
+- `dart analyze` clean (warnings as errors); `dart format` applied.
+- No bare `!`/`as` without a guard; no swallowed exceptions; no unawaited futures.
+- Public symbols documented; tests cover error branches.

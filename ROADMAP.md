@@ -82,8 +82,10 @@ trace (Debug), verify (Verify), deepinit (Prime), sciomc + external-context (Res
 Risikoarm. Router an Realität angleichen, tote globale Skills entscheiden.
 - **Gate:** ROUTING.md referenziert nur auflösbare (enabled-or-soon) Skills. nord-kit committet.
 
-### Phase 2 — nord-mem  ▢
-claude-mem forken, 5 Dubletten droppen, Engine erhalten.
+### Phase 2 — nord-mem  ✓ SKIPPED (Entscheidung 2026-06-26)
+ENTFÄLLT. Engine = vendorter Node/Bun-Daemon (worker-service.cjs), thedotmack-hardcoded,
+aktiv entwickelt → Fork = Wartungslast + Update-Bruchrisiko. Nur make-plan/do echte Dubletten,
+beide schon Router-blacklisted. smart-explore/pathfinder eigenständig nützlich. → claude-mem bleibt.
 - **Gate:** Memory-Injection feuert (SessionStart-Hook + mcp-search) OHNE aktives claude-mem.
   `make-plan`/`do`/`smart-explore` nicht mehr ladbar. claude-mem disabled.
 

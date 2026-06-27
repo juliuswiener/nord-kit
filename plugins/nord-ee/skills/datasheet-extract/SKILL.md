@@ -64,29 +64,46 @@ This skill owns:
    - For every critical field (pin N = name/function, Vmax/Vmin/Vref, key application/topology values),
      substring/near-match the value (and ideally the pin name or parameter symbol) against the extracted
      text of the cited PDF page (`pdftotext -f <page> -l <page>` / the MinerU text, not from memory).
-   - **Match** → keep the field. **No match** → the field is a likely hallucination: drop it OR mark it
-     `"verified": false` so consumers can down-weight it; never cache an unmatched field as authoritative.
-   - **Source unavailable** (scanned/garbled PDF, lossy extraction) → mark the field
-     `"verified": "source_unavailable"` and FLAG, do **not** drop — a correct extraction false-negated by a
-     bad text layer must not vanish (a respin caused by a missing pin is worse than a flagged uncertainty).
-     Distinguish "refuted by source" from "source unavailable".
-4. Extraction is scored; if score ≥ 6.0, cached. (Score = coverage. The M8 gate is a separate, prior
-   correctness check — a high coverage score on hallucinated fields must NOT pass.)
+   - Assign each field an **evidence grade** (below) based on what the datasheet ACTUALLY says, and store
+     it on the field as `"evidence"`. Grade drives both correctness (the M8 gate) and the coverage score.
+   - **Source unavailable** (scanned/garbled PDF, lossy extraction) → grade `source_unavailable` and FLAG,
+     do **not** drop — a correct extraction false-negated by a bad text layer must not vanish (a respin from
+     a missing pin is worse than a flagged uncertainty). Distinguish `conflicts` (refuted by source) from
+     `source_unavailable` (couldn't read).
+4. Extraction is scored from the per-field grades (below); if score ≥ 6.0, cached. The M8 gate is a prior
+   correctness check — fields graded `conflicts` are dropped/flagged and earn NO coverage credit, so a high
+   score on hallucinated fields cannot pass.
 5. Consumers query via `datasheet_features.py`.
 
-## Quality score scale (anchor — what the number means)
+## Per-field evidence grade (anchor — tied to what the datasheet says, NOT a vibe)
 
-The 0–10 quality score is a COVERAGE measure (how complete the extraction is), not a correctness measure
-(M8 above gates correctness). Anchored bands:
+Every extracted field carries `"evidence"` = one of these concrete states. The grade is decided by the
+datasheet text, with the exact citation:
 
-- **9–10** — pinout + electrical chars + application/topology + SPICE-relevant params all present and
-  source-grounded. Full-trust extraction.
-- **7–9** — pinout + electrical chars present; some application/SPICE detail missing. Solid for most checks.
-- **6–7 (cache floor)** — core pinout + key ratings present; partial elsewhere. Usable, flag the gaps.
-- **4–6** — sparse; major sections missing. Below cache floor → re-extract more pages before relying on it.
-- **0–4** — near-empty / failed extraction. Do not cache; fall back to heuristics and say so.
+| grade | meaning — what the datasheet actually shows | example (store value + cite) |
+|---|---|---|
+| `explicit` | exact value + units stated in a spec table / labeled pinout / typical-application figure | `Vref = 1.229 V` (Electrical Char. table, p.6) · `pin 3 = GND` (pinout, p.1) · `Cin = 10 µF X5R required` (Typical App, p.12) · "12 V @ 30 mA out with 100 µF cap" stated in the app circuit |
+| `conditional` | stated but as a **range / min-typ-max / condition-dependent**, no single fixed value | `Iq = 5–18 µA (typ 8 µA over temp)` · `Vout adjustable 0.8–5.5 V via divider` |
+| `derived` | NOT stated directly; computed from other stated values/a datasheet formula | `Vout ≈ 12 V` derived from `Vref·(1+R1/R2)` with R's read from the app circuit — mark it derived, not explicit |
+| `not_mentioned` | field simply absent from the datasheet → **omit / null, never guess** | (no thermal-pad spec on this part) → field omitted |
+| `conflicts` | extracted value does NOT substring-match the cited page (likely hallucination) | drop or flag; earns no score |
+| `source_unavailable` | the relevant page is a scan / garbled / unreadable text layer | flag, keep for re-extraction; earns no score |
 
-A field that fails the M8 source-grounding gate does not earn coverage credit — correctness gates score.
+Report uses the grade verbatim so a consumer sees "Vref 1.229 V (explicit, p.6)" vs "Vout ~12 V (derived)"
+vs "thermal limit (not_mentioned)" — never a bare number with unknown provenance.
+
+## Coverage score 0–10 (aggregate of the grades above)
+
+The score is COVERAGE, computed from how many critical fields reached a trustworthy grade — NOT a
+correctness measure (correctness is the per-field grade itself). Critical fields = pinout, abs-max +
+key electrical (V/I/Vref), topology/application values, SPICE-relevant params.
+
+- Each critical field: `explicit` = full credit, `conditional`/`derived` = half credit, `not_mentioned`
+  = no credit (real gap), `conflicts`/`source_unavailable` = no credit (untrusted).
+- **9–10** — nearly all critical fields `explicit`; the part is fully characterised from the datasheet.
+- **6–7 (cache floor)** — core pinout + key ratings `explicit`; the rest `conditional`/`derived`/missing.
+- **4–6** — major sections `not_mentioned` or only `derived`. Below floor → re-extract more pages first.
+- **0–4** — near-empty / mostly `source_unavailable`. Don't cache; fall back to heuristics and say so.
 
 ## When to trigger this skill
 

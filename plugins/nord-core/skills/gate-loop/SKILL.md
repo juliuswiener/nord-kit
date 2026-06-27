@@ -77,3 +77,58 @@ before 3 reds. (A lateral tier is a wash; you/Opus are the genuinely stronger ti
 
 Rule: the gate exit code is the truth. Never report green unless you ran the gate and saw exit 0 in
 this session.
+
+---
+
+## PRD mode (multi-story persistence) — the ralph/team/autopilot engine
+
+For a goal too big for one gate, decompose into a **PRD** = a list of stories, each with its OWN
+deterministic gate, then run the single-story loop above per story until ALL are green. The
+`gate-persist` Stop-hook (registered) enforces persistence: it refuses to let the session quit while
+stories are red, bumps the iteration counter, and forces escalation — replacing omc's persistent-mode +
+LLM-reviewer with a deterministic-gate loop, no judge (per `references/gate-pattern.md`).
+
+### State contract (single-writer — do not violate)
+- **`.omc/prd.json` — SKILL-owned (you).** The story SSOT. Stories live ONLY here (NOT mirrored into
+  state.json). Fields per story: `id`, `desc`, `gate` (deterministic cmd, exit 0 = done), `passes` (bool —
+  true ONLY after you re-ran THAT gate to exit 0 this session), `redCount` (int — ++ on red, reset 0 on
+  green), `escalated` (bool — true on the green that follows a frontier fix after ≥3 reds; reset false on a
+  normal green), `files?` (string[], team-mode disjointness), `lastFail?` (one-line carry-over, overwrite each red).
+- **`.omc/state/<mode>-state.json` — MIXED, single-writer-per-field.** SKILL writes `mode`, `active`
+  (true@start / false@complete+cancel), `max`, `startedAt`, optional `session_id`. **The gate-persist HOOK
+  owns `iteration` + `updatedAt` — you init `iteration:0` at start and NEVER bump it** (double-count
+  otherwise). NO embedded stories.
+- nord-hud reads both (read-only). Keep the flat `.omc/state/<mode>-state.json` path.
+
+### 0. Decompose (frontier = you)
+Split the goal into stories and write `<repo>/.omc/prd.json`:
+```json
+{ "goal": "<goal>", "stories": [
+  { "id": "s1", "desc": "<one acceptance criterion>", "gate": "pytest -q tests/test_x.py", "passes": false, "redCount": 0, "escalated": false },
+  { "id": "s2", "desc": "...", "gate": "ruff check . && pytest -q tests/test_y.py", "passes": false, "redCount": 0, "escalated": false }
+] }
+```
+Every story's `gate` MUST be a deterministic, **runnable** command — at decompose time verify each gate
+parses / its test path exists (a non-existent or flaky gate never goes green → the hook blocks until the
+cap). A story with no runnable gate is NOT a story; fold it in or make it a real gate
+(e.g. placeholder check `! grep -rnE "TODO|\.skip\(" src`). Prefer a **middle gate** (target + sibling
+tests), not a single test. Then write the state file:
+`.omc/state/<mode>-state.json` = `{ "mode":"<ralph|team|autopilot>", "active":true, "iteration":0, "max":<max(12, 6*stories)>, "startedAt":"<iso>" }`
+(write prd.json BEFORE flipping `active:true`).
+
+### 1. Drive
+- **ralph / autopilot (sequential):** for each `passes:false` story, run the §1 single-story loop
+  (gate-worker → run its gate → escalate to frontier after 3 reds). On exit 0 set `passes:true` + reset
+  `redCount:0`; on red `redCount++` + set `lastFail`. **Never write `iteration` — the hook does.**
+- **team (parallel):** dispatch INDEPENDENT stories (disjoint `files`) concurrently — one gate-worker each
+  via `parallel()` / multiple Task spawns — gate each independently. Shared-file stories run sequentially.
+- Re-read prd.json each round (resume-safe: a `passes:true` story is skipped — survives `/compact` + restart).
+
+### 2. Complete
+Done only when ALL stories `passes:true` AND you re-ran each gate to exit 0 THIS session. Set
+`active:false`. Report per story (gate → PASS / round-count) + cumulative diff. If the hook's iteration
+cap is hit first, it allows the stop — report the still-red stories + next step. `nord-core:cancel` aborts.
+
+**Why over a PRD + LLM-reviewer:** the story gate is a deterministic command, not a reviewer agent —
+objectively done, no judge in the $0 loop; cheap workers do the volume, frontier escalates on stall; the
+hook guarantees it can't quit early AND can't loop forever (iteration cap + 2h staleness + safety bypasses).

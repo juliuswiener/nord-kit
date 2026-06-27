@@ -56,20 +56,25 @@ This skill owns:
 1. User runs an analyzer or requests extraction.
 2. This skill checks the cache (`<project>/datasheets/extracted/<MPN>.json`).
 3. On cache miss / stale / low score: Claude reads selected PDF pages and extracts structured data.
-3.5. **Source-grounding gate (M8 — run before scoring/caching).** This skill is the trust anchor for the
-   whole EE chain — a hallucinated pin/Vref/Vmax here silently poisons kicad-analyze, emc-precheck,
-   spice-sim, and bom. Quality scoring measures COVERAGE, not correctness, and `datasheet_verify.py` only
-   cross-checks against schematic USAGE — neither checks the **source PDF**. So gate each extracted field
-   against the page it claims to come from:
-   - For every critical field (pin N = name/function, Vmax/Vmin/Vref, key application/topology values),
-     substring/near-match the value (and ideally the pin name or parameter symbol) against the extracted
-     text of the cited PDF page (`pdftotext -f <page> -l <page>` / the MinerU text, not from memory).
-   - Assign each field an **evidence grade** (below) based on what the datasheet ACTUALLY says, and store
-     it on the field as `"evidence"`. Grade drives both correctness (the M8 gate) and the coverage score.
-   - **Source unavailable** (scanned/garbled PDF, lossy extraction) → grade `source_unavailable` and FLAG,
-     do **not** drop — a correct extraction false-negated by a bad text layer must not vanish (a respin from
-     a missing pin is worse than a flagged uncertainty). Distinguish `conflicts` (refuted by source) from
-     `source_unavailable` (couldn't read).
+3.5. **Source-grounding gate (M8 — SCRIPT-ENFORCED, run before scoring/caching).** This skill is the trust
+   anchor for the whole EE chain — a hallucinated pin/Vref/Vmax here silently poisons kicad-analyze,
+   emc-precheck, spice-sim, and bom. Quality scoring measures COVERAGE, not correctness, and
+   `datasheet_verify.py` only cross-checks against schematic USAGE — neither checks the **source PDF**.
+   Gate every extracted field against the datasheet's own text, deterministically:
+   1. Get the source text with **MinerU** (NOT `pdftotext` — datasheet specs live in TABLES/figures that a
+      flat text layer mangles or drops). Run nord-web's reader once:
+      `bash <nord-web>/bin/nw doc <datasheet.pdf>` → markdown under `./mineru-out/<name>/`.
+   2. Run the verifier: `python scripts/datasheet_source_verify.py <MPN>.json --markdown <mineru.md> --write`.
+      It substring/numeric-matches each critical field (pin names, Vmax/Vmin/Vref, application caps) against
+      the MinerU markdown and stamps an `evidence` grade per field + a `meta.source_grounding` summary.
+      Exit 1 if any field is `conflicts`.
+   - **explicit** = value found in the markdown. **conflicts** = markdown present but value NOT found →
+     likely hallucination OR a table-extraction miss → FLAGGED (exit 1), a human/LLM eyeballs it vs the PDF
+     page; never auto-dropped. **source_unavailable** = MinerU produced no usable text (scanned image-only
+     PDF) → FLAG, do **not** treat as verified and do **not** drop (a correct extraction false-negated by a
+     bad scan must not vanish — a respin from a missing pin is worse than a flagged uncertainty).
+   - Keep `conflicts` (checked & wrong) distinct from `source_unavailable` (couldn't check) — the script
+     already separates them and so must the report.
 4. Extraction is scored from the per-field grades (below); if score ≥ 6.0, cached. The M8 gate is a prior
    correctness check — fields graded `conflicts` are dropped/flagged and earn NO coverage credit, so a high
    score on hallucinated fields cannot pass.

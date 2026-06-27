@@ -1107,6 +1107,31 @@ EVALUATOR_REGISTRY = {
 }
 
 
+def _evidence_grade(run):
+    """Deterministic provenance grade from the run's status (canonical vocab —
+    see nord BEHAVIOUR.md). The status was set by the evaluate_* comparison, so
+    the grade is a fact, not an LLM judgement:
+      pass  -> explicit   (sim ran, matched the calculated value within tolerance)
+               BUT a result resting on a generic/ideal/approximate model is only
+               indicative -> derived.
+      warn/
+      fail  -> conflicts  (sim ran and DISAGREED with the calc — a real
+                           discrepancy; flag, never drop)
+      skip  -> source_unavailable (no simulator / unsimulatable — couldn't check;
+                           this is INCOMPLETE, not a pass)
+    """
+    status = run.get("status", "skip")
+    if status == "skip":
+        return "source_unavailable"
+    if status in ("warn", "fail"):
+        return "conflicts"
+    # status == "pass"
+    note = (run.get("model_note") or "").lower()
+    if any(w in note for w in ("generic", "approximate", "ideal", "heuristic")):
+        return "derived"
+    return "explicit"
+
+
 def build_report(simulation_runs):
     """Build the final simulation report from a list of individual results.
 
@@ -1116,10 +1141,12 @@ def build_report(simulation_runs):
     Returns:
         Report dict with summary statistics and individual results
     """
-    # Add 'reference' convenience field (e.g. "R5/C3") from components list
+    # Add 'reference' convenience field (e.g. "R5/C3") from components list,
+    # and stamp the deterministic evidence grade (provenance) on every run.
     for run in simulation_runs:
         if "reference" not in run and "components" in run:
             run["reference"] = "/".join(run["components"])
+        run["evidence_grade"] = _evidence_grade(run)
 
     counts = {"pass": 0, "warn": 0, "fail": 0, "skip": 0}
     for run in simulation_runs:
@@ -1165,6 +1192,7 @@ def build_report(simulation_runs):
             "rule_id": "SP-FAIL" if status == "fail" else "SP-WARN",
             "severity": severity,
             "confidence": "deterministic",
+            "evidence_grade": run.get("evidence_grade", "conflicts"),
             "evidence_source": "heuristic_rule",
             "category": "simulation",
             "summary": (

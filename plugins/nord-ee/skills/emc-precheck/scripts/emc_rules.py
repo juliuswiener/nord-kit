@@ -284,11 +284,36 @@ def _normalize_severity(sev):
     return _EMC_SEVERITY_MAP.get(sev, _EMC_SEVERITY_MAP.get(sev.upper(), 'info'))
 
 
+def _emc_evidence_grade(confidence, title, description):
+    """Deterministic provenance grade (canonical vocab — see nord BEHAVIOUR.md).
+      geometric/topology rule measured from the layout (confidence=deterministic
+        or datasheet-backed)            -> explicit
+      analytical emission/PDN FORMULA estimate (confidence=heuristic)
+                                        -> derived
+      a check that could not run because data was missing (no --full coords,
+        no simulator)                   -> source_unavailable (a coverage_gap;
+                                           must NOT read as PASS — C rule)
+    Note: there is no `conflicts` here — an EMC rule firing is the violation
+    itself, it does not contradict an external source.
+    """
+    text = (str(title) + ' ' + str(description)).lower()
+    if any(k in text for k in (
+        'not available', 'requires --full', '--full flag', 'data not included',
+        'run the pcb analyzer', 'could not', 'not provided', 'no return path',
+        'enable ', 'install ngspice', 'no simulator',
+    )):
+        return 'source_unavailable'
+    if confidence == 'heuristic':
+        return 'derived'
+    return 'explicit'
+
+
 def _make_finding(category, severity, rule_id, title, description,
                   recommendation='', components=None, nets=None,
                   confidence='deterministic',
                   evidence_source=None, fix_params=None,
                   report_section=None, impact=None, standard_ref=None,
+                  evidence_grade=None,
                   **extra):
     """Build a standardized EMC finding dict with rich format fields.
 
@@ -301,6 +326,7 @@ def _make_finding(category, severity, rule_id, title, description,
         'severity': _normalize_severity(severity),
         'rule_id': rule_id,
         'confidence': confidence,
+        'evidence_grade': evidence_grade or _emc_evidence_grade(confidence, title, description),
         'title': title,
         'description': description,
         'components': components if components is not None else [],

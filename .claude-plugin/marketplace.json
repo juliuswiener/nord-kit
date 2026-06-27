@@ -23,7 +23,7 @@
     {
       "name": "nord-ee",
       "description": "nord EE/hardware suite: KiCad, SPICE, EMC, distributor search, BOM, JLCPCB/PCBWay, Vivado.",
-      "version": "1.2.4",
+      "version": "1.2.5",
       "source": "./plugins/nord-ee",
       "category": "productivity",
       "tags": [

@@ -13,8 +13,8 @@ INPUT: `<goal>` (work-list of independent items).
 
 ## Run
 1. **Preflight** the bridge (gate-loop §0).
-2. **Decompose** into `.omc/prd.json` stories, each with a deterministic `gate` AND a `files` list (the
-   files it touches — used for disjointness). Write `.omc/state/team-state.json`
+2. **Decompose** into `.nord/prd.json` stories, each with a deterministic `gate` AND a `files` list (the
+   files it touches — used for disjointness). Write `.nord/state/team-state.json`
    `{mode:"team",active:true,iteration:0,max:<max(12,6*stories)>,startedAt:"<iso>"}` (write prd.json first).
 3. **Drive parallel:** dispatch stories whose `files` are **disjoint** concurrently — one `gate-worker`
    (qwen3.6-plus) per story via `parallel()` / multiple Task spawns in one message. Stories that share

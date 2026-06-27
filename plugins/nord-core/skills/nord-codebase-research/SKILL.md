@@ -34,7 +34,7 @@ Decomposes a codebase research goal into independent hypotheses, routes each to 
 | `/nord-core:nord-codebase-research AUTO: <goal>` | Fully autonomous until `[PROMISE:RESEARCH_COMPLETE]` |
 | `/nord-core:nord-codebase-research status` | Show current session progress from state.json |
 | `/nord-core:nord-codebase-research resume [<session-id>]` | Resume most-recent (or named) interrupted session |
-| `/nord-core:nord-codebase-research list` | List all sessions in `.omc/research/` |
+| `/nord-core:nord-codebase-research list` | List all sessions in `.nord/research/` |
 | `/nord-core:nord-codebase-research report <session-id>` | Regenerate report from existing session state |
 | `/nord-core:nord-codebase-research cancel` | Cancel current session (preserves state for resume) |
 
@@ -46,10 +46,10 @@ Decomposes a codebase research goal into independent hypotheses, routes each to 
 
 Parse `args` before touching the Workflow:
 
-- **`status`** — `cat .omc/research/$(ls -t .omc/research | head -1)/state.json` and display progress.
-- **`list`** — `ls -lt .omc/research/` + read each `state.json` for id/goal/status summary; display table.
-- **`resume [id]`** — load `.omc/research/<id>/state.json` (or most-recent if id omitted); restore `goal`, `sessionId`, completed stage ids; pass to Workflow as `args`.
-- **`report <id>`** — read `.omc/research/<id>/state.json` + all stage markdown files; generate report inline without re-running Workflow.
+- **`status`** — `cat .nord/research/$(ls -t .nord/research | head -1)/state.json` and display progress.
+- **`list`** — `ls -lt .nord/research/` + read each `state.json` for id/goal/status summary; display table.
+- **`resume [id]`** — load `.nord/research/<id>/state.json` (or most-recent if id omitted); restore `goal`, `sessionId`, completed stage ids; pass to Workflow as `args`.
+- **`report <id>`** — read `.nord/research/<id>/state.json` + all stage markdown files; generate report inline without re-running Workflow.
 - **`cancel`** — write `"status": "cancelled"` into the current `state.json`. Stop.
 - **`AUTO: <goal>`** — strip prefix, set `autoMode: true`, proceed to Workflow.
 - **anything else** — treat entire input as `goal`, `autoMode: false`.
@@ -72,9 +72,9 @@ Before invoking Workflow, create the session directory:
 
 ```bash
 SESSION_ID="research-$(date +%Y%m%d)-$(openssl rand -hex 3)"
-mkdir -p ".omc/research/$SESSION_ID/stages"
-mkdir -p ".omc/research/$SESSION_ID/findings/raw"
-mkdir -p ".omc/research/$SESSION_ID/findings/verified"
+mkdir -p ".nord/research/$SESSION_ID/stages"
+mkdir -p ".nord/research/$SESSION_ID/findings/raw"
+mkdir -p ".nord/research/$SESSION_ID/findings/verified"
 ```
 
 Pass `sessionId` to Workflow via `args`.
@@ -331,10 +331,10 @@ After Phase 2 parallel results arrive and BEFORE cross-validation runs, write pa
 
 ```bash
 # Per-stage markdown — one file per stage
-for each stageResult: write ".omc/research/$SESSION_ID/stages/stage-<id>.md" with raw findings JSON
+for each stageResult: write ".nord/research/$SESSION_ID/stages/stage-<id>.md" with raw findings JSON
 
 # Partial state.json with status: in_progress
-cat > ".omc/research/$SESSION_ID/state.json" << 'EOF'
+cat > ".nord/research/$SESSION_ID/state.json" << 'EOF'
 {
   "id": "<sessionId>",
   "goal": "<goal>",
@@ -352,7 +352,7 @@ After Workflow returns, persist state before presenting results:
 
 ```bash
 # Write state.json
-cat > ".omc/research/$SESSION_ID/state.json" << 'EOF'
+cat > ".nord/research/$SESSION_ID/state.json" << 'EOF'
 {
   "id": "<sessionId>",
   "goal": "<goal>",
@@ -370,9 +370,9 @@ cat > ".omc/research/$SESSION_ID/state.json" << 'EOF'
 EOF
 
 # Write per-stage markdown
-for each stage result: write ".omc/research/$SESSION_ID/stages/stage-<id>.md"
-# Write verified findings: ".omc/research/$SESSION_ID/findings/verified/findings.md"
-# Write report: ".omc/research/$SESSION_ID/report.md"
+for each stage result: write ".nord/research/$SESSION_ID/stages/stage-<id>.md"
+# Write verified findings: ".nord/research/$SESSION_ID/findings/verified/findings.md"
+# Write report: ".nord/research/$SESSION_ID/report.md"
 ```
 
 ### 2. Present Findings
@@ -473,7 +473,7 @@ Dropped findings are counted (`droppedFindings`) but never shown in the report.
 
 ## Session State Format
 
-`.omc/research/<session-id>/state.json`:
+`.nord/research/<session-id>/state.json`:
 
 ```json
 {
@@ -511,7 +511,7 @@ Dropped findings are counted (`droppedFindings`) but never shown in the report.
 Directory layout:
 
 ```
-.omc/research/<session-id>/
+.nord/research/<session-id>/
   state.json
   stages/
     stage-1.md          # raw findings from stage 1 agent
@@ -527,7 +527,7 @@ Directory layout:
 
 ## Report Template
 
-Written to `.omc/research/<session-id>/report.md`:
+Written to `.nord/research/<session-id>/report.md`:
 
 ```markdown
 # Research Report: <goal>
@@ -580,9 +580,9 @@ Written to `.omc/research/<session-id>/report.md`:
 
 ## Appendix
 
-- Session state: `.omc/research/<session-id>/state.json`
-- Raw stage findings: `.omc/research/<session-id>/stages/`
-- Verified findings: `.omc/research/<session-id>/findings/verified/findings.md`
+- Session state: `.nord/research/<session-id>/state.json`
+- Raw stage findings: `.nord/research/<session-id>/stages/`
+- Verified findings: `.nord/research/<session-id>/findings/verified/findings.md`
 ```
 
 ---

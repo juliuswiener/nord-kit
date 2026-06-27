@@ -21004,23 +21004,23 @@ function encodeProjectPath(projectPath) {
 }
 
 // src/lib/worktree-paths.ts
-var WORKSPACE_MARKER = ".omc-workspace";
+var WORKSPACE_MARKER = ".nord-workspace";
 var OmcPaths = {
-  ROOT: ".omc",
-  STATE: ".omc/state",
-  SESSIONS: ".omc/state/sessions",
-  PLANS: ".omc/plans",
-  RESEARCH: ".omc/research",
-  NOTEPAD: ".omc/notepad.md",
-  PROJECT_MEMORY: ".omc/project-memory.json",
-  DRAFTS: ".omc/drafts",
-  NOTEPADS: ".omc/notepads",
-  LOGS: ".omc/logs",
-  SCIENTIST: ".omc/scientist",
-  AUTOPILOT: ".omc/autopilot",
-  SKILLS: ".omc/skills",
-  SHARED_MEMORY: ".omc/state/shared-memory",
-  DEEPINIT_MANIFEST: ".omc/deepinit-manifest.json"
+  ROOT: ".nord",
+  STATE: ".nord/state",
+  SESSIONS: ".nord/state/sessions",
+  PLANS: ".nord/plans",
+  RESEARCH: ".nord/research",
+  NOTEPAD: ".nord/notepad.md",
+  PROJECT_MEMORY: ".nord/project-memory.json",
+  DRAFTS: ".nord/drafts",
+  NOTEPADS: ".nord/notepads",
+  LOGS: ".nord/logs",
+  SCIENTIST: ".nord/scientist",
+  AUTOPILOT: ".nord/autopilot",
+  SKILLS: ".nord/skills",
+  SHARED_MEMORY: ".nord/state/shared-memory",
+  DEEPINIT_MANIFEST: ".nord/deepinit-manifest.json"
 };
 var MAX_WORKTREE_CACHE_SIZE = 8;
 var worktreeCacheMap = /* @__PURE__ */ new Map();
@@ -25300,7 +25300,7 @@ var import_path18 = require("path");
 // src/hooks/rules-injector/constants.ts
 var import_path17 = require("path");
 var import_os5 = require("os");
-var OMC_STORAGE_DIR = (0, import_path17.join)((0, import_os5.homedir)(), ".omc");
+var OMC_STORAGE_DIR = (0, import_path17.join)((0, import_os5.homedir)(), ".nord");
 var RULES_INJECTOR_STORAGE = (0, import_path17.join)(OMC_STORAGE_DIR, "rules-injector");
 
 // src/hooks/project-memory/storage.ts
@@ -26747,7 +26747,7 @@ var traceTools = [traceTimelineTool, traceSummaryTool, sessionSearchTool];
 // src/lib/shared-memory.ts
 var import_fs21 = require("fs");
 var import_path28 = require("path");
-var CONFIG_FILE_NAME = ".omc-config.json";
+var CONFIG_FILE_NAME = ".nord-config.json";
 function isSharedMemoryEnabled() {
   try {
     const configPath = (0, import_path28.join)(getClaudeConfigDir(), CONFIG_FILE_NAME);
@@ -26961,7 +26961,7 @@ function listNamespaces(worktreeRoot) {
 }
 
 // src/tools/shared-memory-tools.ts
-var DISABLED_MSG = `Shared memory is disabled. Set agents.sharedMemory.enabled = true in ${getClaudeConfigDir()}/.omc-config.json to enable.`;
+var DISABLED_MSG = `Shared memory is disabled. Set agents.sharedMemory.enabled = true in ${getClaudeConfigDir()}/.nord-config.json to enable.`;
 function disabledResponse() {
   return {
     content: [{ type: "text", text: DISABLED_MSG }],
@@ -28218,7 +28218,7 @@ var wikiAddTool = {
         content: [{
           type: "text",
           text: `Wiki page created: ${result.created[0]}
-Path: .omc/wiki/${result.created[0]}`
+Path: .nord/wiki/${result.created[0]}`
         }]
       };
     } catch (error2) {
@@ -28396,7 +28396,7 @@ var import_path31 = require("path");
 var import_path30 = require("path");
 var import_os6 = require("os");
 var USER_SKILLS_DIR = (0, import_path30.join)(getClaudeConfigDir(), "skills", "omc-learned");
-var GLOBAL_SKILLS_DIR = (0, import_path30.join)((0, import_os6.homedir)(), ".omc", "skills");
+var GLOBAL_SKILLS_DIR = (0, import_path30.join)((0, import_os6.homedir)(), ".nord", "skills");
 var PROJECT_SKILLS_SUBDIR = OmcPaths.SKILLS;
 var PROJECT_AGENT_SKILLS_SUBDIR = (0, import_path30.join)(".agents", "skills");
 var MAX_RECURSION_DEPTH = 10;
@@ -28727,7 +28727,7 @@ function formatSkillOutput(skills) {
 }
 var loadLocalTool = {
   name: "load_omc_skills_local",
-  description: "Load and list skills from the project-local .omc/skills/ directory. Returns skill metadata (id, name, description, triggers, tags) for all discovered project-scoped skills.",
+  description: "Load and list skills from the project-local .nord/skills/ directory. Returns skill metadata (id, name, description, triggers, tags) for all discovered project-scoped skills.",
   schema: loadLocalSchema,
   handler: async (args) => {
     const projectRoot = args.projectRoot ? validateProjectRoot(args.projectRoot) : process.cwd();
@@ -28745,7 +28745,7 @@ ${formatSkillOutput(projectSkills)}`
 };
 var loadGlobalTool = {
   name: "load_omc_skills_global",
-  description: "Load and list skills from global user directories (~/.omc/skills/ and [$CLAUDE_CONFIG_DIR|~/.claude]/skills/omc-learned/). Returns skill metadata for all discovered user-scoped skills.",
+  description: "Load and list skills from global user directories (~/.nord/skills/ and [$CLAUDE_CONFIG_DIR|~/.claude]/skills/omc-learned/). Returns skill metadata for all discovered user-scoped skills.",
   schema: loadGlobalSchema,
   handler: async (_args) => {
     const allSkills = loadAllSkills(null);
@@ -28789,8 +28789,8 @@ ${formatSkillOutput(userSkills)}`;
 No skill files were discovered in any searched directories.
 
 Searched:
-- Project: .omc/skills/
-- Global: ~/.omc/skills/
+- Project: .nord/skills/
+- Global: ~/.nord/skills/
 - Claude config: ${getClaudeConfigDir()}/skills/omc-learned/`;
     }
     return {

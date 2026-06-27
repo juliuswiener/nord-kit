@@ -4,8 +4,8 @@
 // persistent-mode, on nord's deterministic-gate engine — no gh-poll, no notifications,
 // no LLM judge, no 8-mode zoo. (Fusion plan: minimal-glue, consensus 9/9/9.)
 //
-// On a stop attempt: if an active .omc/state/<mode>-state.json has unfinished PRD
-// stories (passes:false) in .omc/prd.json, BLOCK the stop, atomically bump iteration,
+// On a stop attempt: if an active .nord/state/<mode>-state.json has unfinished PRD
+// stories (passes:false) in .nord/prd.json, BLOCK the stop, atomically bump iteration,
 // and re-inject what to do next — forcing escalation for any story stuck at >=3 reds.
 // ALLOW the stop on: all stories green, iteration cap, staleness, or a safety bypass
 // (context-limit / >=95% context / user-abort / auth-error / session-cancel) so a
@@ -54,10 +54,23 @@ try { input = JSON.parse(readStdin() || "{}"); } catch {}
 
 if (bypassReason(input)) allow(); // a safety condition -> never block
 
-const cwd = input.cwd || process.cwd();
+// resolve the repo root from cwd: walk up to the dir holding .nord (preferred, so a
+// subproject's own loop wins) or .git; fallback = cwd (old behaviour). Fixes the
+// nested-cwd / git-worktree bug where a raw cwd silently missed the repo-root .nord.
+function findRoot(start) {
+  let d = path.resolve(start);
+  for (let i = 0; i < 40; i++) {
+    if (fs.existsSync(path.join(d, ".nord")) || fs.existsSync(path.join(d, ".git"))) return d;
+    const p = path.dirname(d);
+    if (p === d) break;
+    d = p;
+  }
+  return path.resolve(start);
+}
+const root = findRoot(input.cwd || process.cwd());
 const sid = input.session_id || input.sessionId || "";
-const stateDir = path.join(cwd, ".omc", "state");
-const prdPath = path.join(cwd, ".omc", "prd.json");
+const stateDir = path.join(root, ".nord", "state");
+const prdPath = path.join(root, ".nord", "prd.json");
 
 let files = [];
 try { files = fs.readdirSync(stateDir).filter((f) => f.endsWith("-state.json")); } catch { allow(); }
@@ -91,7 +104,7 @@ for (const f of files) {
   let reason =
     `[${mode}] not done — ${red.length}/${stories.length || "?"} stories still RED (${redIds}), ` +
     `iteration ${iter + 1}/${max}. Continue the gate-loop: re-run each red story's deterministic gate ` +
-    `via a gate-worker; set passes:true in .omc/prd.json only on exit 0. Do NOT stop until all stories ` +
+    `via a gate-worker; set passes:true in .nord/prd.json only on exit 0. Do NOT stop until all stories ` +
     `pass or the cap is hit.`;
   if (stuck.length) {
     reason += ` ESCALATE NOW: ${stuck.map((s) => s.id || s.desc).join(", ")} hit >=3 consecutive red ` +

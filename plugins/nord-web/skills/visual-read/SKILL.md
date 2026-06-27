@@ -45,3 +45,21 @@ It prints the produced tile paths. **Read those JPEGs** (Read tool) to see the p
 
 - Normal page → **web-scrape**. Normal/text PDF → **doc-extract**. Don't pay pixel tokens for
   content that markdown captures faithfully.
+
+## Visual verdict (rubric — grafted from omc visual-verdict)
+
+When the task is "does this render correctly / match the design" (a visual *check*, not just a read),
+score the rendered tiles on fixed dimensions and emit a structured verdict instead of prose:
+
+- **layout-fidelity** — elements positioned/sized/aligned as intended
+- **data-legibility** — text/labels/values readable, not clipped or overlapping
+- **render-correctness** — no broken images, missing glyphs, overflow, z-index/contrast bugs
+- **adds-over-text** — does the image carry meaning text extraction would lose (else you shouldn't be here)
+
+Emit:
+```json
+{ "score": 0-100, "verdict": "pass|revise|fail", "differences": ["tile-path: what's wrong"], "reasoning": "..." }
+```
+Cite the specific tile path as evidence for each difference. Pass threshold ≈ 90. On `<90`: re-edit the
+source, re-render, and review again before declaring done — loop, don't ship a revise. Pixel-diff against
+a reference image is a secondary debug aid only, not the verdict itself.

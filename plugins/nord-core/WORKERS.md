@@ -43,3 +43,19 @@ a `qwen3.6-plus`/`glm-5.1` worker id 404 mid-loop.
   need no IDE open.
 - The bridge `[routing]`/`[mapping]` rules live in `/home/julius/00_projects/165_claude_bridge/config.toml`
   and are already wired + bench-verified. nord **consumes** them — never edit bridge internals here.
+
+## `t` MCP bundle — tool count vs the ≤3-5 active-budget rule
+`bridge/mcp-server.cjs` (the `t` server) ships ~49 tools (`lsp_*`, `ast_grep_*`, `trace_*`, `wiki_*`,
+`deepinit_manifest`, `python_repl`, `smart_*`). That does NOT violate the ≤3-5 active-tools rule: those
+tools surface to the model as **ToolSearch-DEFERRED** (e.g. `mcp__plugin_nord-core_t__lsp_*`), so they
+cost ~0 active-budget tokens until explicitly searched/loaded. The ≤3-5 rule is about *active* tools per
+task; `t` adds 0 to that set. Env-slim (`OMC_DISABLE_TOOLS`) is **not** an option — `grep -rc
+OMC_DISABLE_TOOLS bridge/mcp-server.cjs` = 0 and the 993KB bundle has no source to rebuild; a
+tools/list-filter proxy isn't worth a fragile extra process for a 0-budget win. **Decision: accept as-is.**
+
+## Cache mirror + version label
+The live copy CC loads is `cache/nord/nord-core/<installPath-ver>/` — currently the **1.4.0** cache dir,
+kept as the intentional live mirror of the 1.9.0 marketplace content (dir name frozen; the `version`
+label in `installed_plugins.json` tracks `plugin.json`). Any hook/skill edit must be mirrored into that
+cache dir or the running copy is stale (see gate-persist's two-copy note). If `claude plugin update`
+mis-resolves, re-point `installed_plugins.json`'s nord-core `installPath` to the 1.9.0 dir instead.

@@ -16,6 +16,8 @@ do not improvise among duplicates. (Injected each session by the nord-router Ses
 | **Research** | `external-context` (web + docs, parallel doc-specialists) | `nord-codebase-research` (codebase, parallel scientists + cross-validate) · native WebSearch/WebFetch | research, autoresearch |
 | **Web data / Read** | `read-router` (pick paradigm per URL/file) → `web-scrape` (Crawl4AI local) · `pdf-extract` (MinerU PDF) · `visual-read` (visual) | `web-scrape --stealth` (anti-bot/login) · Firecrawl MCP (external, last resort) | raw WebFetch on a PDF, screenshotting normal pages |
 | **Verify** | `verify` (before claiming done) | — | — |
+| **Commit msg** | `commit` (Conventional Commits, subject ≤50, body only when 'why' non-obvious + required harness trailers; outputs msg, does NOT run git) | — | hand-writing ad-hoc commit messages |
+| **Abort loop** | `cancel` (mark mode inactive + clear PRD so gate-persist stops blocking) | — | hand-deleting `.nord/state` files |
 | **Memory** | claude-mem `mem-search` (past work) | `wiki` (durable notes) | — |
 | **Prime codebase** | `deepinit` | claude-mem `learn-codebase` | — |
 | **EE / hardware** | `kicad-analyze`/`spice-sim`/`digikey-search`/`bom-manager`/… (nord-ee) | `ee-reference` (design), `emc-precheck`, `datasheet-extract` | — |

@@ -89,19 +89,19 @@ stories are red, bumps the iteration counter, and forces escalation — replacin
 LLM-reviewer with a deterministic-gate loop, no judge (per `references/gate-pattern.md`).
 
 ### State contract (single-writer — do not violate)
-- **`.omc/prd.json` — SKILL-owned (you).** The story SSOT. Stories live ONLY here (NOT mirrored into
+- **`.nord/prd.json` — SKILL-owned (you).** The story SSOT. Stories live ONLY here (NOT mirrored into
   state.json). Fields per story: `id`, `desc`, `gate` (deterministic cmd, exit 0 = done), `passes` (bool —
   true ONLY after you re-ran THAT gate to exit 0 this session), `redCount` (int — ++ on red, reset 0 on
   green), `escalated` (bool — true on the green that follows a frontier fix after ≥3 reds; reset false on a
   normal green), `files?` (string[], team-mode disjointness), `lastFail?` (one-line carry-over, overwrite each red).
-- **`.omc/state/<mode>-state.json` — MIXED, single-writer-per-field.** SKILL writes `mode`, `active`
+- **`.nord/state/<mode>-state.json` — MIXED, single-writer-per-field.** SKILL writes `mode`, `active`
   (true@start / false@complete+cancel), `max`, `startedAt`, optional `session_id`. **The gate-persist HOOK
   owns `iteration` + `updatedAt` — you init `iteration:0` at start and NEVER bump it** (double-count
   otherwise). NO embedded stories.
-- nord-hud reads both (read-only). Keep the flat `.omc/state/<mode>-state.json` path.
+- nord-hud reads both (read-only). Keep the flat `.nord/state/<mode>-state.json` path.
 
 ### 0. Decompose (frontier = you)
-Split the goal into stories and write `<repo>/.omc/prd.json`:
+Split the goal into stories and write `<repo>/.nord/prd.json`:
 ```json
 { "goal": "<goal>", "stories": [
   { "id": "s1", "desc": "<one acceptance criterion>", "gate": "pytest -q tests/test_x.py", "passes": false, "redCount": 0, "escalated": false },
@@ -113,7 +113,7 @@ parses / its test path exists (a non-existent or flaky gate never goes green →
 cap). A story with no runnable gate is NOT a story; fold it in or make it a real gate
 (e.g. placeholder check `! grep -rnE "TODO|\.skip\(" src`). Prefer a **middle gate** (target + sibling
 tests), not a single test. Then write the state file:
-`.omc/state/<mode>-state.json` = `{ "mode":"<ralph|team|autopilot>", "active":true, "iteration":0, "max":<max(12, 6*stories)>, "startedAt":"<iso>" }`
+`.nord/state/<mode>-state.json` = `{ "mode":"<ralph|team|autopilot>", "active":true, "iteration":0, "max":<max(12, 6*stories)>, "startedAt":"<iso>" }`
 (write prd.json BEFORE flipping `active:true`).
 
 ### 1. Drive
@@ -132,3 +132,25 @@ cap is hit first, it allows the stop — report the still-red stories + next ste
 **Why over a PRD + LLM-reviewer:** the story gate is a deterministic command, not a reviewer agent —
 objectively done, no judge in the $0 loop; cheap workers do the volume, frontier escalates on stall; the
 hook guarantees it can't quit early AND can't loop forever (iteration cap + 2h staleness + safety bypasses).
+
+## Stop-hook block contract (gate-persist.cjs)
+
+The continuation guarantee is a CC **Stop hook** (`hooks/gate-persist.cjs`). Contract:
+- **Block** (keep going): print `{"decision":"block","reason":"<directive>"}` to stdout, exit 0. CC does
+  NOT stop; it re-injects `reason` as the next instruction and re-invokes with `stop_hook_active:true`.
+  gate-persist deliberately ignores that flag — it relies on deterministic story state + iteration cap +
+  2h staleness, so the flag alone can't trick it into an infinite loop.
+- **Allow** (let stop): print nothing, exit 0. Emitted when all stories `passes:true`, no active state,
+  cap hit, stale, or a safety bypass fires (context-limit / ≥95% / user-abort / auth-error).
+- **Repo-root resolution:** the hook walks up from `input.cwd` to the dir holding `.nord` (preferred) or
+  `.git` before reading `.nord/state` + `.nord/prd.json` — so a nested cwd / git-worktree still finds the
+  loop's root (bounded 40-iter walk, fallback = cwd).
+- **Mirror:** the served copy is `cache/nord/nord-core/<ver>/hooks/gate-persist.cjs` — any edit must land
+  in BOTH the marketplace source and the cache mirror or the running hook is stale.
+
+Verify the schema deterministically (no live session needed): pipe a fake stop event —
+`printf '{"cwd":"<repo>","session_id":"t"}' | node hooks/gate-persist.cjs` — a red story prints the
+`block` JSON, all-green prints nothing. Live-confirm by launching CC in a scratch dir with one
+`passes:false` story + `active:true` state, ending the turn (CC must re-inject, not stop), flipping to
+`passes:true` (CC stops), then `nord-core:cancel`. **Only one Stop hook may be active** for a clean
+verdict — a second continuation hook (e.g. double-shot-latte's LLM judge) masks this one.

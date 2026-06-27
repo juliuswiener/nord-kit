@@ -111,7 +111,7 @@ return { winningLens: winner.lens, ranked: scored.map(s => ({ lens:s.lens, onTas
    - **Consequences** — positive and negative outcomes
    - **Follow-ups** — open questions or future work
 
-6. **Persist** final plan to `.omc/plans/ralplan-<timestamp>.md` (exact naming required — `autopilot`'s glob `.omc/plans/ralplan-*.md` depends on it).
+6. **Persist** final plan to `.nord/plans/ralplan-<timestamp>.md` (exact naming required — `autopilot`'s glob `.nord/plans/ralplan-*.md` depends on it).
 
 7. **Approval routing** — use `AskUserQuestion` (never plain text) with options:
    - **Approve execution via team** (Recommended) — invokes `Skill("nord-core:team")` with the plan path
@@ -157,13 +157,13 @@ Required sections per mode:
 | Consensus (`--consensus`) | All tournament sections + **RALPLAN-DR summary** (Principles, Decision Drivers, Viable Options) + **ADR** (Decision, Drivers, Alternatives considered, Why chosen, Consequences, Follow-ups) |
 | Deliberate (`--deliberate`) | All consensus sections + **pre-mortem** (3 failure scenarios) + **expanded test plan** (unit / integration / e2e / observability) |
 
-Plans are saved to `.omc/plans/ralplan-<timestamp>.md` (naming required — autopilot glob `.omc/plans/ralplan-*.md` depends on it). Drafts go to `.omc/drafts/`.
+Plans are saved to `.nord/plans/ralplan-<timestamp>.md` (naming required — autopilot glob `.nord/plans/ralplan-*.md` depends on it). Drafts go to `.nord/drafts/`.
 
 ## State Persistence (nord-native, no omc dep)
 
 In `--consensus` mode, manage lifecycle state via a plain JSON file — no `state_write` MCP required:
 
-- **On entry**: create `.omc/state/nord-plan-<slug>.json` with `{ "active": true, "phase": "planning", "slug": "<slug>", "startedAt": "<iso-timestamp>" }`
+- **On entry**: create `.nord/state/nord-plan-<slug>.json` with `{ "active": true, "phase": "planning", "slug": "<slug>", "startedAt": "<iso-timestamp>" }`
 - **On approval handoff** (→ ralph/team): set `active: false` (do NOT delete — execution mode may reference it)
 - **On reject or error/abort**: delete the file entirely
 

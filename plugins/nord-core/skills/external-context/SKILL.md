@@ -64,8 +64,12 @@ not a judgement:
 2. **Quote is real** — any quoted/paraphrased claim attributed to a source must appear in that source's
    fetched text (substring / near-substring match of the key phrase). If the phrase isn't in the page,
    the citation is hallucinated → drop the claim or re-fetch.
-3. A finding whose only support is an unverifiable citation does NOT enter synthesis. Mark dropped cites
-   in output as `⚠ unverifiable (excluded)` so the gap is visible, never silently kept.
+3. Tag each finding with its provenance grade (A — canonical vocab, see BEHAVIOUR.md): quote
+   substring-matches the fetched page → `explicit`; synthesized across sources, in no single one →
+   `derived`; sources disagree → `conflicts`; URL 404/timeout or quote not found → `source_unavailable`.
+4. C rule — keep "checked & wrong" distinct from "couldn't check": a quote that loaded but did NOT match
+   the page is `conflicts` (refuted); a URL that never loaded is `source_unavailable`. Do NOT lump both
+   into one `⚠ unverifiable` tag — flag each with its grade; never silently keep a `conflicts` claim.
 
 The gate is the fetch result + substring match, not "does this look plausible". Run the checks in
 parallel over the cited URLs (don't loop).
@@ -78,8 +82,9 @@ Present synthesized results in this format:
 ## External Context: <query>
 
 ### Key Findings
-1. **<finding>** - Source: [title](url)
-2. **<finding>** - Source: [title](url)
+1. **<finding>** (explicit) - Source: [title](url)
+2. **<finding>** (derived) - Source: [title](url)
+<!-- tag each: (explicit|derived|conflicts|source_unavailable). conflicts/source_unavailable findings listed separately as flagged, not asserted. -->
 
 ### Detailed Results
 

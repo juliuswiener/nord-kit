@@ -28,6 +28,27 @@ live here instead of per-device `~/.claude/CLAUDE.md`.
   `ANTHROPIC_BASE_URL=http://127.0.0.1:8318` or worker ids 404. Full substrate + id→provider table +
   preflight: see `WORKERS.md` (nord-core). Default worker `qwen3.6-plus`, frontier `claude-*`.
 
+## Provenance & confidence vocabulary (canonical — every skill that emits a claim/score)
+One vocabulary toolkit-wide so a claim/score reads the same everywhere. This block is the source of
+truth; skills carry a one-line pointer + their domain subset + local anchor (don't restate the full table).
+
+- **Evidence grade (A)** — tag every emitted claim with WHERE it came from:
+  `explicit` (stated exactly in the source, with citation) · `derived` (computed/inferred from stated
+  values, not directly stated) · `conditional` (stated but as a range/typ/condition-dependent) ·
+  `not_mentioned` (absent from source → omit, never guess) · `conflicts` (asserted value does NOT match
+  the source — likely hallucination) · `source_unavailable` (couldn't read the source). Code/verification
+  skills use the subset `explicit | derived | conflicts | source_unavailable` (+ `not_mentioned` as the
+  not-found/coverage-gap channel) — that subset is NOT invented vocab.
+- **Anchored score (B)** — a score/confidence NEVER ships as a bare number. Tie it to evidence TIER and
+  state what HIGH/≥0.9 vs LOW/0.4 means in that skill's domain. Nothing reaches the top tier without the
+  strongest evidence (an executed reproduction, a verbatim source match) — not the model's vibe.
+- **Refuted ≠ unavailable (C)** — `conflicts`/`refuted` (checked & wrong) MUST stay distinct from
+  `source_unavailable`/`not_runnable`/`coverage_gap` (couldn't check). Flag both; silently drop neither
+  (a wrong asserted value is worse than a flagged uncertainty).
+
+(Reference implementations: datasheet-extract + kicad-analyze = A; trace + datasheet-extract = B;
+trace/verify/nord-review = C. This pointer resolves because nord-router injects BEHAVIOUR.md every session.)
+
 ## Tooling discipline (web-data & beyond)
 - **≤3–5 active tools per task.** Tool-selection accuracy drops with count: ~3–5 the model picks
   right, 10–15 systematic mistakes begin, 20+ it calls a tool just because the description sounds

@@ -14,8 +14,15 @@ Persistent, self-maintained markdown knowledge base for project and session know
 Process knowledge into wiki pages. A single ingest can touch multiple pages.
 
 ```
-wiki_ingest({ title: "Auth Architecture", content: "...", tags: ["auth", "architecture"], category: "architecture" })
+wiki_ingest({ title: "Auth Architecture", content: "...", tags: ["auth", "architecture"], category: "architecture", confidence: "high" })
 ```
+
+**Set `confidence` deliberately (anchored — B, see BEHAVIOUR.md).** Wiki notes compound across sessions —
+a `low` guess written today reads as fact months later, so anchor it to evidence tier, not gut:
+- **high** — directly observed / verified THIS session: code read, command run, output measured (`explicit`).
+- **medium** — inferred, or a single / second-hand source.
+- **low** — speculative / unconfirmed. Mark it so future readers (and `wiki_lint`) can down-weight it.
+Never write `high` for something you didn't verify this session.
 
 ### Query
 Search across all wiki pages by keywords and tags. Returns matching pages with snippets — YOU (the LLM) synthesize answers with citations from the results.

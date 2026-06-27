@@ -113,6 +113,19 @@ For every match, verify:
 
 If ambiguous, ask the user. A wrong part is worse than a missing part.
 
+**Grade each match (A+C — canonical vocab, see BEHAVIOUR.md).** Replace a boolean "validated" with an
+evidence grade — this gates the write-back/order in Step 5, and a wrong part written/ordered is the single
+most expensive failure in the chain:
+- distributor API / datasheet confirms package + specs → `explicit` → safe to write back + order (cite the PN).
+- inferred equivalent / suggested substitute → `derived` → write only with a flag; surface to the user.
+- stocked variant / MOQ- or region-dependent / lifecycle-conditional → `conditional` → write with the condition noted.
+- returned package or spec **CONTRADICTS** the schematic footprint/value → `conflicts` → do NOT auto-write
+  the property and do NOT order; flag for fix. (checked & wrong)
+- no datasheet / PN returns 404 / API empty → `source_unavailable` → flag, don't assert. (couldn't check)
+
+C rule is load-bearing here: `conflicts` (wrong part — block) must never collapse into `source_unavailable`
+(unverified — flag). Carry the grade into the CSV instead of a bare `Validated` boolean.
+
 ### Step 5: Update the Schematic
 
 **KiCad coexistence.** The script detects KiCad's lock file and warns but proceeds. KiCad doesn't auto-detect external changes — it keeps its in-memory copy. If KiCad is open, tell the user: *"Close and reopen the schematic (File → Open Recent) to see the changes. Don't save from KiCad first."*

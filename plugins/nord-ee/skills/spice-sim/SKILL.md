@@ -109,6 +109,17 @@ python3 <skill-path>/scripts/simulate_subcircuits.py analysis.json --monte-carlo
 
 Read the JSON report and incorporate findings into the design review. See the "Interpreting Results" and "Presenting to Users" sections below.
 
+**Verification grade (A+C — canonical vocab, see BEHAVIOUR.md).** This skill verifies calculated values
+against simulation — grade each comparison so "sim refuted the calc" never reads like "couldn't simulate":
+- sim ran and matches the calc within tolerance → `explicit` (measured, confirmed).
+- sim ran and **DISAGREES** with the calc (delta beyond tolerance) → `conflicts` — a real discrepancy;
+  flag it loudly, never drop. This is the whole point of running the sim.
+- approximate/generic-model result (low-fidelity rows below: protection_devices, transistor/crystal) →
+  `derived` (indicative, not exact).
+- no simulator installed, or subcircuit unsimulatable (comparator/open-loop/no-value) → `source_unavailable`
+  (the existing graceful-skip path). C rule: this is the EE analog of verify's INCOMPLETE — a skipped sim
+  is NOT a pass. Never report `source_unavailable` as if the value were confirmed.
+
 ## What Gets Simulated
 
 The script selects subcircuits from the analyzer's `findings[]` array (grouped by detector type). Not every detection is simulatable — the script skips configurations that can't produce meaningful results (comparators, open-loop opamps, active oscillators).

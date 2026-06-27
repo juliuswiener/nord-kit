@@ -52,6 +52,17 @@ Dimension reviewers surface ALL findings annotated with `severity` + `confidence
 
 **Verify = reproducer-gate first, adversarial second.** Where a finding can be reduced to a runnable check, the verifier writes + runs a minimal failing test/repro: it fails as predicted → finding is **deterministically** REAL (`reproduced:confirmed`, no LLM vote needed); it doesn't trigger → deterministically dropped (`reproduced:refuted`). Only genuinely non-runnable findings (design/perf judgement) fall back to the adversarial REFUTE vote (`reproduced:na` → `isReal`). A deterministic reproducer beats a plausible argument — same gate principle as gate-loop, applied to review.
 
+**Confidence scale (anchored — B, see BEHAVIOUR.md).** The `confidence` enum ships tied to the evidence
+tier it survived, never a bare label:
+- **high** — `reproduced:confirmed` (a failing repro ran as predicted) OR a deterministic `lsp_diagnostics`
+  type error. Demonstrated, not argued.
+- **medium** — `reproduced:na` + adversarial `isReal=true`: argued and survived the refute vote, but no
+  executed reproduction.
+- **low** — author-could-refute-with-context → routes to **Open Questions**, not asserted as a finding.
+
+Nothing is `high` without the top evidence tier (a run repro or a deterministic checker) — survival of an
+argument alone caps at `medium`.
+
 ---
 
 After the workflow returns, present `findings` grouped by severity (critical→low) as

@@ -71,6 +71,16 @@ python3 <skill-path>/scripts/analyze_emc.py --schematic schematic.json --pcb pcb
 
 Read the JSON report and incorporate findings into the design review. Each finding has a severity, rule ID, description, and actionable recommendation. See "Interpreting Results" below.
 
+**Evidence grade (A+C — canonical vocab, see BEHAVIOUR.md), to align with the EE chain (datasheet/kicad/spice):**
+- geometric rule violation measured from the PCB layout JSON → `explicit` (measured fact).
+- analytical emission / PDN-impedance FORMULA estimate (order-of-magnitude, ±10–20 dB) → `derived`.
+- frequency- / context-dependent finding (e.g. decoupling distance vs harmonic) → `conditional`.
+- a check that needs `--full` PCB coordinates (or ngspice) that weren't supplied → `source_unavailable`.
+- **C rule (critical here):** a SKIPPED check (no `--full`, simulator absent) must read as `coverage_gap` /
+  `source_unavailable`, **NEVER as PASS / no-finding**. Surface skipped checks in the regulatory
+  coverage_matrix (checked vs requires-lab) — absence of a finding because the check didn't run is not a
+  clean bill. The 0–100 risk score is already anchored (this is a risk analyzer, not a compliance predictor).
+
 ## What Gets Checked
 
 44 rule IDs across 18 categories. Each rule has a specific threshold, rationale, and source citation — see `references/pcb-emc-rules.md` for full details.

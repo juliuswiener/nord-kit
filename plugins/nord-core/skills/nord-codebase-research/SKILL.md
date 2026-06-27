@@ -169,7 +169,8 @@ const FINDING_SCHEMA = {
               required: ['file'],
             },
           },
-          confidence:       { type: 'string', enum: ['HIGH', 'MEDIUM', 'LOW'] },
+          confidence:       { type: 'string', enum: ['HIGH', 'MEDIUM', 'LOW'], description: 'Anchored to evidence tier (B): HIGH = passed the citation gate AND a single unambiguous file:line; MEDIUM = derived / multi-site, no single snippet; LOW = pattern-level inference, no exact citation. Never the model\'s vibe.' },
+          evidenceGrade:    { type: 'string', enum: ['explicit', 'derived', 'conflicts', 'source_unavailable'], description: 'Provenance (A — canonical vocab, see BEHAVIOUR.md). Computed by the Phase-3 citation gate: snippet found verbatim at cited path = explicit; inferred from code present, no single literal site = derived; snippet NOT at path = conflicts; path missing/unreadable = source_unavailable.' },
           confidenceReason: { type: 'string' },
         },
         required: ['id', 'title', 'evidence', 'confidence'],
@@ -287,11 +288,17 @@ All findings:
 ${JSON.stringify(allFindings, null, 2)}
 
 Cross-validate for:
-0. CITATION GATE (deterministic — RUN it, don't eyeball). For each finding's evidence, verify the cited
-   code actually exists: \`test -f <path>\` and \`grep -nF "<the cited snippet/symbol>" <path>\`. A finding
-   whose evidence path does not exist, or whose cited snippet is NOT found at that path, is a hallucinated
-   citation → DROP it (add its id to droppedIds). This is an exit-code check, not a judgement; it runs
-   before the LLM checks below and overrides them.
+0. CITATION GATE (deterministic — RUN it, don't eyeball) + PROVENANCE GRADE (A, canonical vocab — see
+   BEHAVIOUR.md). For each finding's evidence run \`test -f <path>\` and \`grep -nF "<cited snippet/symbol>"
+   <path>\`, and set its \`evidenceGrade\`:
+   - snippet found verbatim at the cited path → \`explicit\`.
+   - inferred from code that IS present but no single literal site → \`derived\`.
+   - snippet NOT found at an existing path → \`conflicts\` (hallucinated citation — checked & wrong).
+   - path missing/unreadable → \`source_unavailable\` (couldn't check).
+   C rule: \`conflicts\` and \`source_unavailable\` must NOT be silently dropped into the same bucket as a
+   coverage gap — SURFACE them as flagged items (in droppedIds with their grade noted) so "checked & wrong"
+   stays distinct from "couldn't check" and from "not investigated". This exit-code check overrides the LLM
+   checks below.
 1. CONTRADICTIONS — Stage A claims X; Stage B claims not-X or the opposite. Flag the finding id pair and which evidence is stronger.
 2. MISSING CONNECTIONS — A finding logically implies another stage should have found Y but didn't. Flag the gap.
 3. COVERAGE GAPS — Sub-questions implied by the goal that no stage addressed.

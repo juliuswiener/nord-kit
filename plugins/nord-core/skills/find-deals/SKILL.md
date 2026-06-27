@@ -127,3 +127,12 @@ Use this when a customer asks "should I buy now or wait" or a dealer needs to ad
 
 ## Output
 Present: search criteria summary, ranked deals table (dealer, price, miles, DOM, distance, vs-market %), market context (total supply, median price, price range, trend), and one actionable recommendation with negotiation notes where applicable.
+
+**Provenance (A — canonical vocab, see BEHAVIOUR.md).** A dealer must never read a model estimate as a
+quoted fact. Tag every number:
+- straight from a marketcheck listing (price, miles, DOM, stock#) → `explicit`.
+- computed/model output (composite score, %-vs-market, predicted/fair price, months-of-supply, suggested
+  offer) → `derived` — label it `(est.)` so it's not mistaken for a quote.
+- API empty / zero comps / UK Fair-Price-N/A → `source_unavailable` → do NOT issue a confident buy/pass
+  verdict on it (the buy/negotiate/pass thresholds are already anchored: 5%+ below = buy, ±3% = at market,
+  <30d supply = seller's market — those stay).

@@ -56,8 +56,37 @@ This skill owns:
 1. User runs an analyzer or requests extraction.
 2. This skill checks the cache (`<project>/datasheets/extracted/<MPN>.json`).
 3. On cache miss / stale / low score: Claude reads selected PDF pages and extracts structured data.
-4. Extraction is scored; if score ≥ 6.0, cached.
+3.5. **Source-grounding gate (M8 — run before scoring/caching).** This skill is the trust anchor for the
+   whole EE chain — a hallucinated pin/Vref/Vmax here silently poisons kicad-analyze, emc-precheck,
+   spice-sim, and bom. Quality scoring measures COVERAGE, not correctness, and `datasheet_verify.py` only
+   cross-checks against schematic USAGE — neither checks the **source PDF**. So gate each extracted field
+   against the page it claims to come from:
+   - For every critical field (pin N = name/function, Vmax/Vmin/Vref, key application/topology values),
+     substring/near-match the value (and ideally the pin name or parameter symbol) against the extracted
+     text of the cited PDF page (`pdftotext -f <page> -l <page>` / the MinerU text, not from memory).
+   - **Match** → keep the field. **No match** → the field is a likely hallucination: drop it OR mark it
+     `"verified": false` so consumers can down-weight it; never cache an unmatched field as authoritative.
+   - **Source unavailable** (scanned/garbled PDF, lossy extraction) → mark the field
+     `"verified": "source_unavailable"` and FLAG, do **not** drop — a correct extraction false-negated by a
+     bad text layer must not vanish (a respin caused by a missing pin is worse than a flagged uncertainty).
+     Distinguish "refuted by source" from "source unavailable".
+4. Extraction is scored; if score ≥ 6.0, cached. (Score = coverage. The M8 gate is a separate, prior
+   correctness check — a high coverage score on hallucinated fields must NOT pass.)
 5. Consumers query via `datasheet_features.py`.
+
+## Quality score scale (anchor — what the number means)
+
+The 0–10 quality score is a COVERAGE measure (how complete the extraction is), not a correctness measure
+(M8 above gates correctness). Anchored bands:
+
+- **9–10** — pinout + electrical chars + application/topology + SPICE-relevant params all present and
+  source-grounded. Full-trust extraction.
+- **7–9** — pinout + electrical chars present; some application/SPICE detail missing. Solid for most checks.
+- **6–7 (cache floor)** — core pinout + key ratings present; partial elsewhere. Usable, flag the gaps.
+- **4–6** — sparse; major sections missing. Below cache floor → re-extract more pages before relying on it.
+- **0–4** — near-empty / failed extraction. Do not cache; fall back to heuristics and say so.
+
+A field that fails the M8 source-grounding gate does not earn coverage credit — correctness gates score.
 
 ## When to trigger this skill
 

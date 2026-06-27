@@ -92,6 +92,24 @@ For detailed parsing instructions, data recovery workflows, and a priority matri
 5. **Regulator Vout** — check the `vref_source` field. `"lookup"` means datasheet-verified (~60 families); `"heuristic"` means it's a guess that needs manual verification. The `vout_net_mismatch` field flags estimated Vout differing >15% from the output rail name voltage.
 6. **Hierarchical connectivity** — on multi-sheet designs, verify sub-sheet connections are reflected in the net data.
 
+**Datasheet citation gate (M8) — deterministic, for every datasheet-derived claim in steps 2/3/5.**
+Pinout/Vref/required-value mismatch vs datasheet is the #1 invisible board-killer here (invisible to
+ERC/DRC; in testing every board had one), and the check above is otherwise LLM prose. Make it a
+substring gate against a real source, not recall:
+
+- The authoritative source is the `datasheet-extract` JSON (`<project>/datasheets/extracted/<MPN>.json`) —
+  it is itself source-grounded (see the datasheet-extract M8 gate). Prefer it; fall back to the raw PDF
+  page (`pdftotext -f <p> -l <p>`).
+- For each claim (pin N = function, Vref/Vout, required component value): the asserted value must
+  substring/near-match the extracted JSON field (or the cited PDF page text). **Match** → assert it.
+  **No match** → do NOT report it as datasheet-verified; flag it as `unverified — conflicts with
+  <source>` and treat the part as a critical ambiguity.
+- **Source unavailable** (no extraction yet + scanned/garbled PDF) → flag `unverified — no readable
+  datasheet`, do NOT silently drop or assert from memory. Trigger `datasheet-extract` first when possible.
+- Distinguish the three states in the report: **verified** (matched), **refuted** (conflicts — critical),
+  **unverified** (no source). Never collapse "refuted" and "no source" into one — a respin from a wrong
+  asserted pin is worse than a flagged uncertainty.
+
 See `references/schematic-analysis.md` Step 2 for the full verification checklist. If the script fails or returns unexpected results, see `references/manual-schematic-parsing.md` for the complete fallback methodology.
 
 ### PCB Layout Analyzer

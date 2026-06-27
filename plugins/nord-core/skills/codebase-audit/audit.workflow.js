@@ -90,6 +90,8 @@ const FINDING = {
     recommendation: { type: 'string', description: 'Specific action, named tool/pattern' },
     effort: { type: 'string', enum: ['small', 'medium', 'large'] },
     evidence: { type: 'string', description: 'Quoted code, command output, or file ref supporting the claim' },
+    toolVerified: { type: 'boolean', description: 'TRUE only if this finding is the output of a real deterministic tool run (exit code / parsed report) — a CVE from npm-audit/pip-audit, a type error from tsc/mypy, a lint error from ruff/eslint, a failing build. These are facts, not judgements: they bypass the adversarial-verify stage. FALSE (default) for pattern-matched / reasoned findings, which still get verified.' },
+    toolEvidence: { type: ['string', 'null'], description: 'When toolVerified: the exact command run + the key output/exit-code line proving it (e.g. "npm audit → CVE-2024-x high in lodash@4.17.20"). Null otherwise.' },
   },
 }
 
@@ -327,6 +329,7 @@ ${JSON.stringify(vitals.intent ?? {}, null, 2)}
 - "Best practice" alone is NOT impact. State the concrete failure mode.
 - Effort: small=<1 day, medium=<1 week, large=>1 week or coordinated migration.
 - If your lane doesn't apply to this archetype, return findings=[] and explain in 'summary' + 'skipped'.
+- **Deterministic tool gate (M1).** If a real tool can produce the finding objectively — \`npm/pnpm/yarn audit\`, \`pip-audit\`, \`cargo audit\`, \`govulncheck\` (CVEs); \`tsc --noEmit\`, \`mypy\`, \`go build\`, \`cargo check\` (type/compile errors); \`ruff\`/\`eslint\`/\`golangci-lint\` (lint); the test runner (failures) — RUN it via Bash and treat its exit code / parsed output as the verdict. For each such finding set \`toolVerified:true\` and put the exact command + the proving output line in \`toolEvidence\`. A real CVE or compiler error is a FACT — it bypasses adversarial verification. Set \`toolVerified:false\` (default) for anything you reasoned out or pattern-matched. If the tool isn't installed, attempt install via the project's package manager; if that fails, do NOT fabricate a green — list it in \`skipped\` as "unverified (tool absent)" and leave related findings toolVerified:false.
 
 Return a single LaneOutput object.
 `
@@ -832,15 +835,23 @@ const laneResults = await pipeline(
     if (!result?.findings?.length) return { lane, result, verified: [] }
     const sev = f => SEVERITY_RANK[f.severity] ?? 0
 
+    // M1 deterministic tool gate: findings backed by a real tool run (exit code /
+    // parsed report) are FACTS — they bypass the adversarial-verify skeptic entirely.
+    // You cannot refute a real CVE or a compiler error. Only reasoned/pattern-matched
+    // findings go through verification.
+    const toolFacts = result.findings.filter(f => f.toolVerified === true)
+    const judgedFindings = result.findings.filter(f => f.toolVerified !== true)
+
     if (verifyIntensity === 'off') {
       return { lane, result, verified: result.findings }
     }
+    if (!judgedFindings.length) return { lane, result, verified: toolFacts }
 
     // Which findings get verified depends on intensity. 'lite' only scrutinizes
     // criticals; everything else verifies high+critical.
     const threshold = verifyIntensity === 'lite' ? SEVERITY_RANK.critical : SEVERITY_RANK.high
-    const toVerify = result.findings.filter(f => sev(f) >= threshold)
-    const passThrough = result.findings.filter(f => sev(f) < threshold)
+    const toVerify = judgedFindings.filter(f => sev(f) >= threshold)
+    const passThrough = [...toolFacts, ...judgedFindings.filter(f => sev(f) < threshold)]
     if (!toVerify.length) return { lane, result, verified: passThrough }
 
     if (verifyIntensity === 'thorough') {

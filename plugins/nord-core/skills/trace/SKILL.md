@@ -166,13 +166,45 @@ Return:
 3. **Evidence Summary by Hypothesis**
 4. **Evidence Against / Missing Evidence**
 5. **Rebuttal Round**
-6. **Convergence / Separation Notes**
-7. **Most Likely Explanation**
-8. **Critical Unknown**
-9. **Recommended Discriminating Probe**
-10. **Additional Trace Lanes** (optional, only if uncertainty remains high)
+6. **Probe Execution** (M7 — run the probe if runnable; see below)
+7. **Convergence / Separation Notes**
+8. **Most Likely Explanation**
+9. **Critical Unknown**
+10. **Recommended Discriminating Probe** (the NEXT one, if uncertainty remains after step 6)
+11. **Additional Trace Lanes** (optional, only if uncertainty remains high)
 
 Preserve a ranked shortlist even if one explanation is currently dominant.
+
+## Probe execution (M7 reproducer-gate)
+
+The evidence hierarchy ranks **controlled reproductions as tier-1** — yet recommending a probe produces
+no tier-1 evidence. So before final synthesis, **RUN the discriminating probe when it is runnable**:
+
+1. If the probe reduces to a command/test/measurement (write a failing test, add an instrumented log +
+   re-run, toggle the suspected cause and observe) — execute it via Bash. Its result is deterministic
+   tier-1 evidence, not an argument.
+2. **Confirms the leader** (predicted effect observed) → promote leader confidence, lock it.
+   **Refutes the leader** (predicted effect absent / a rival's prediction observed) → re-rank the table,
+   the rival becomes leader, run ITS probe next.
+3. **Not runnable** (architecture/post-mortem/experiment trace with no executable probe, or it needs prod
+   data / a destructive action) → skip with an explicit note "probe not executed: <reason>" and fall back
+   to the argued rebuttal verdict. Do NOT fabricate a reproduction.
+4. Record the exact command + observed output under **Probe Execution**. A run probe beats the best
+   argument — same gate principle as gate-loop, applied to causal tracing.
+
+## Confidence scale (anchor — what the number means)
+
+Report each hypothesis's confidence on this anchored scale, never a bare number:
+
+- **0.9–1.0 (locked)** — a run reproduction/probe confirmed it; the mechanism is demonstrated, not argued.
+- **0.7–0.9 (strong)** — multiple independent evidence streams agree, no surviving rebuttal; no executed
+  repro yet.
+- **0.4–0.7 (leaning)** — best available explanation but support is largely circumstantial / single-stream,
+  or a rebuttal partially landed.
+- **0.2–0.4 (weak)** — plausible, consistent with some evidence, but a rival is comparably supported.
+- **0.0–0.2 (unlikely)** — contradicted by evidence or lost the rebuttal; kept only for completeness.
+
+Tie the number to evidence TIER, not vibes: nothing reaches ≥0.9 without an executed reproduction.
 
 ## Rebuttal round and convergence detection
 

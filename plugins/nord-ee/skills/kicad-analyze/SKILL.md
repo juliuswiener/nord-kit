@@ -100,15 +100,22 @@ substring gate against a real source, not recall:
 - The authoritative source is the `datasheet-extract` JSON (`<project>/datasheets/extracted/<MPN>.json`) —
   it is itself source-grounded (see the datasheet-extract M8 gate). Prefer it; fall back to the raw PDF
   page (`pdftotext -f <p> -l <p>`).
-- For each claim (pin N = function, Vref/Vout, required component value): the asserted value must
-  substring/near-match the extracted JSON field (or the cited PDF page text). **Match** → assert it.
-  **No match** → do NOT report it as datasheet-verified; flag it as `unverified — conflicts with
-  <source>` and treat the part as a critical ambiguity.
-- **Source unavailable** (no extraction yet + scanned/garbled PDF) → flag `unverified — no readable
-  datasheet`, do NOT silently drop or assert from memory. Trigger `datasheet-extract` first when possible.
-- Distinguish the three states in the report: **verified** (matched), **refuted** (conflicts — critical),
-  **unverified** (no source). Never collapse "refuted" and "no source" into one — a respin from a wrong
-  asserted pin is worse than a flagged uncertainty.
+Tag each datasheet-derived claim (pin N = function, Vref/Vout, required component value) with the SAME
+evidence grade vocabulary as `datasheet-extract` (one shared scale across the EE chain), decided by a
+substring/near-match against the source:
+
+| grade | condition | report as |
+|---|---|---|
+| `explicit` | claim substring-matches the datasheet-extract JSON field (or cited PDF page) exactly | assert it · "Vref 1.229 V (explicit, p.6)" |
+| `derived` | not stated directly; computed from stated values (e.g. Vout from Vref·(1+R1/R2), or the analyzer's `vref_source:"heuristic"`) | assert as estimate · "Vout ~12 V (derived)" — needs the divider confirmed |
+| `conflicts` | claim does NOT match the source (likely wrong symbol/MPN assumption) | **critical ambiguity** — do not assert; flag for fix |
+| `not_mentioned` | field absent from the datasheet | flag; never assert from memory |
+| `source_unavailable` | no extraction yet + scanned/garbled PDF | flag "no readable datasheet"; trigger `datasheet-extract` first |
+
+The analyzer's existing `vref_source` field maps directly: `"lookup"` → `explicit`, `"heuristic"` →
+`derived`. Never collapse `conflicts` and `source_unavailable` into one — a respin from a wrongly-asserted
+pin is worse than a flagged uncertainty. Same grades flow from extract → analyze, so a consumer reads one
+consistent provenance scale end to end.
 
 See `references/schematic-analysis.md` Step 2 for the full verification checklist. If the script fails or returns unexpected results, see `references/manual-schematic-parsing.md` for the complete fallback methodology.
 

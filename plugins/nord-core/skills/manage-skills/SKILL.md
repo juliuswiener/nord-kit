@@ -97,7 +97,7 @@ argument-hint: "<args>"
 
 **Example:**
 ```
-> /nord-core:local-skill-manager add custom-logger
+> /nord-core:manage-skills add custom-logger
 
 Slug: custom-logger
 Description: Structured JSON logging for this service
@@ -269,7 +269,7 @@ Same as `scan` — count and list all found skills in both scopes with name, des
 Ask what to do next:
 1. Add new skill — invoke `add` wizard
 2. List all skills with details — invoke `list`
-3. Scan conversation for skill-worthy patterns — analyze current context for repeatable workflows; route to `nord-core:advanced-skill-authoring` §6 (Extracting Skills from Sessions) for extraction
+3. Scan conversation for skill-worthy patterns — analyze current context for repeatable workflows; route to `nord-core:author-skills` §6 (Extracting Skills from Sessions) for extraction
 4. Import skill from URL or pasted content — validate frontmatter, ask scope, write
 5. Done
 

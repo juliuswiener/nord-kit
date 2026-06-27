@@ -47,7 +47,7 @@ Report only what was actually verified — no speculation about what "should" pa
 If verdict is FAIL or INCOMPLETE, state the concrete next step to close the gap.
 
 ## Rigor rules (adopted)
-Grafted from oh-my-claudecode:verify / verification-before-completion:
+Grafted from nord-core:verify / verification-before-completion:
 - **Iron Law**: no completion claim without a verification command run **fresh in THIS message**. Stale or
   previous-run output does not count.
 - **Verify delegated/agent work via VCS diff** (`git diff`), not the agent's own success report.

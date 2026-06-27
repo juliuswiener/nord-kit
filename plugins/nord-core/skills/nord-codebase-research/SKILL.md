@@ -30,13 +30,13 @@ Decomposes a codebase research goal into independent hypotheses, routes each to 
 
 | Invocation | Action |
 |---|---|
-| `/nord-core:nord-research <goal>` | Standard run with user checkpoints after decompose |
-| `/nord-core:nord-research AUTO: <goal>` | Fully autonomous until `[PROMISE:RESEARCH_COMPLETE]` |
-| `/nord-core:nord-research status` | Show current session progress from state.json |
-| `/nord-core:nord-research resume [<session-id>]` | Resume most-recent (or named) interrupted session |
-| `/nord-core:nord-research list` | List all sessions in `.omc/research/` |
-| `/nord-core:nord-research report <session-id>` | Regenerate report from existing session state |
-| `/nord-core:nord-research cancel` | Cancel current session (preserves state for resume) |
+| `/nord-core:nord-codebase-research <goal>` | Standard run with user checkpoints after decompose |
+| `/nord-core:nord-codebase-research AUTO: <goal>` | Fully autonomous until `[PROMISE:RESEARCH_COMPLETE]` |
+| `/nord-core:nord-codebase-research status` | Show current session progress from state.json |
+| `/nord-core:nord-codebase-research resume [<session-id>]` | Resume most-recent (or named) interrupted session |
+| `/nord-core:nord-codebase-research list` | List all sessions in `.omc/research/` |
+| `/nord-core:nord-codebase-research report <session-id>` | Regenerate report from existing session state |
+| `/nord-core:nord-codebase-research cancel` | Cancel current session (preserves state for resume) |
 
 ---
 

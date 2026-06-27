@@ -20,7 +20,7 @@ The audit surfaces *what will hurt*, not *what could be prettier*. Findings have
 | Review a single PR or diff | `/code-review` or `/review` |
 | Verify a specific fix works | `/verify` |
 | Find a bug or trace a failure | `superpowers:systematic-debugging` |
-| Security-only deep dive | `oh-my-claudecode:security-reviewer` directly |
+| Security-only deep dive | `nord-core:security-reviewer` directly |
 | **Pre-release / pre-handover / due-diligence / quarterly health** | **this skill** |
 
 ## Running it
@@ -98,7 +98,7 @@ Phase 3: ADVERSARIAL VERIFICATION (3 agents per high-severity finding, concurren
   ├─ Each verifier prompted to REFUTE the finding
   ├─ ≥2/3 refute → finding dropped
   ├─ Reduces false positives from pattern-matching lanes
-  └─ Lane 5 (Security) HIGH/CRITICAL findings: use `oh-my-claudecode:security-reviewer` subagent type for cross-validation — security-domain prompt, not a generic skeptic
+  └─ Lane 5 (Security) HIGH/CRITICAL findings: use `nord-core:security-reviewer` subagent type for cross-validation — security-domain prompt, not a generic skeptic
 
 Phase 4: BLAST RADIUS (1 agent, concurrent with Phase 2)
   └─ 90-day churn heatmap, hotspot overlap with low-coverage modules
@@ -257,7 +257,7 @@ The synthesis groups Quick Wins and Major Changes into work-clusters and labels:
 - **Critical path** — longest blocking chain, determines minimum wall-clock for the cleanup
 - **Coordination caveats** — shared-file conflicts, migration windows, deploy ordering
 
-This lets the user compress remediation by dispatching parallel agents (`superpowers:dispatching-parallel-agents` or `oh-my-claudecode:ultrawork`) against independent groups.
+This lets the user compress remediation by dispatching parallel agents (`superpowers:dispatching-parallel-agents` or `nord-execute`) against independent groups.
 
 ## After the workflow returns: required steps
 
@@ -323,10 +323,10 @@ After major remediation, re-run the workflow. Track findings closed quarter-over
 
 ## When NOT to use this skill
 
-- **Single-PR review** — use `/code-review` or `oh-my-claudecode:code-reviewer`
+- **Single-PR review** — use `/code-review` or `nord-core:code-reviewer`
 - **Quick critique with one output file** — use `scrutinize-code`
 - **Debugging a specific bug** — use `superpowers:systematic-debugging`
-- **You want a security scan only** — invoke `oh-my-claudecode:security-reviewer` directly, skip the orchestration
+- **You want a security scan only** — invoke `nord-core:security-reviewer` directly, skip the orchestration
 - **Codebase under ~5k LOC** — overhead exceeds value; a single careful pass is faster
 - **No git history available** — Phase 1 (Vital Signs) and Phase 4 (Blast Radius) become near-useless; consider skipping or using a lighter critique
 - **The user wants automated cleanup** — this skill is read-only; remediation is a separate workflow with human-in-the-loop triage
@@ -336,5 +336,5 @@ After major remediation, re-run the workflow. Track findings closed quarter-over
 - `superpowers:writing-skills` & `author-skills` — how this skill was authored
 - `scrutinize-code` — lighter alternative
 - `superpowers:dispatching-parallel-agents` — meta-skill for parallel work
-- `oh-my-claudecode:omc-teams` — alternative orchestration (process-based, not workflow-based)
-- `oh-my-claudecode:security-reviewer`, `test-engineer`, `architect`, etc. — the underlying specialist agents this skill orchestrates
+- `nord-core:team` — alternative orchestration (process-based, not workflow-based)
+- `nord-core:security-reviewer`, `test-engineer`, `architect`, etc. — the underlying specialist agents this skill orchestrates

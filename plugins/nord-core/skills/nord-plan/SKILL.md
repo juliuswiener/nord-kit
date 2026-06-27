@@ -97,9 +97,9 @@ return { winningLens: winner.lens, ranked: scored.map(s => ({ lens:s.lens, onTas
    - **Viable Options** (>=2) with bounded pros/cons for each; if only one option remains, explicit invalidation rationale for alternatives
    - In deliberate mode: **pre-mortem** (3 failure scenarios) and **expanded test plan** (unit / integration / e2e / observability)
 
-2. **Architect** reviews for architectural soundness — `Task(subagent_type="oh-my-claudecode:architect", ...)`. Review MUST include: strongest steelman antithesis against the favored option, at least one meaningful tradeoff tension, and (when possible) a synthesis path. **Await completion before step 3. Do NOT run steps 2 and 3 in parallel.**
+2. **Architect** reviews for architectural soundness — `Task(subagent_type="nord-core:architect", ...)`. Review MUST include: strongest steelman antithesis against the favored option, at least one meaningful tradeoff tension, and (when possible) a synthesis path. **Await completion before step 3. Do NOT run steps 2 and 3 in parallel.**
 
-3. **Critic** evaluates against quality criteria — `Task(subagent_type="oh-my-claudecode:critic", ...)`. Run only after step 2 completes. Critic MUST verify: principle-option consistency, fair alternative exploration, risk mitigation clarity, testable acceptance criteria, concrete verification steps. Critic MUST explicitly reject shallow alternatives, driver contradictions, vague risks, or weak verification. In deliberate mode, Critic MUST reject missing/weak pre-mortem or missing/weak expanded test plan.
+3. **Critic** evaluates against quality criteria — `Task(subagent_type="nord-core:critic", ...)`. Run only after step 2 completes. Critic MUST verify: principle-option consistency, fair alternative exploration, risk mitigation clarity, testable acceptance criteria, concrete verification steps. Critic MUST explicitly reject shallow alternatives, driver contradictions, vague risks, or weak verification. In deliberate mode, Critic MUST reject missing/weak pre-mortem or missing/weak expanded test plan.
 
 4. **Re-review loop** (max 5 iterations): If Critic returns ANY non-APPROVE verdict (ITERATE or REJECT), collect Architect + Critic feedback → Planner revises → return to step 2. Repeat until Critic approves or 5 iterations reached. At max iterations, present best version via `AskUserQuestion` noting consensus was not reached.
 
@@ -114,8 +114,8 @@ return { winningLens: winner.lens, ranked: scored.map(s => ({ lens:s.lens, onTas
 6. **Persist** final plan to `.omc/plans/ralplan-<timestamp>.md` (exact naming required — `autopilot`'s glob `.omc/plans/ralplan-*.md` depends on it).
 
 7. **Approval routing** — use `AskUserQuestion` (never plain text) with options:
-   - **Approve execution via team** (Recommended) — invokes `Skill("oh-my-claudecode:team")` with the plan path
-   - **Approve execution via ralph** — invokes `Skill("oh-my-claudecode:ralph")` with the plan path
+   - **Approve execution via team** (Recommended) — invokes `Skill("nord-core:team")` with the plan path
+   - **Approve execution via ralph** — invokes `Skill("nord-core:ralph")` with the plan path
    - **Compact then return for execution approval** — invokes compact to shrink accumulated planning context, then re-presents the pending-approval plan without auto-executing (recommended when context is 50%+ full after planning)
    - **Request changes** — return to step 1 with user feedback
    - **Reject** — discard plan entirely

@@ -42,7 +42,7 @@ if (!routing.trim()) {
     'CLEANUP: multi-agent->nord-cleanup | quick->/simplify.',
     'DEBUG: causal->trace | single->debugger agent.',
     'AUDIT: full->codebase-audit | quick->scrutinize-code.',
-    'RESEARCH: web+docs->external-context | codebase->nord-codebase-research (or sciomc) | fallback->native WebSearch.',
+    'RESEARCH: web+docs->external-context | codebase->nord-codebase-research | fallback->native WebSearch.',
     'WEB-DATA/READ: read-router picks paradigm | normal page->web-scrape (Crawl4AI local) | anti-bot->web-scrape --stealth | PDF/doc->pdf-extract (MinerU) | visual/charts->visual-read. Sensitive=local only.',
     'VERIFY->verify. MEMORY->claude-mem mem-search. PRIME->deepinit.',
     'EE->kicad-analyze/spice-sim/digikey-search/bom-manager (nord-ee). RUST->rust-coder. PYTHON->python-ticket-implementer.',

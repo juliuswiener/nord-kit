@@ -183,7 +183,7 @@ Before writing a skill, verify a skill is the right primitive.
 
 ## 6. Extracting Skills from Sessions
 
-Use this when a session produced a repeatable, hard-won workflow worth capturing. The canonical implementation is `oh-my-claudecode:skillify` (deprecated alias: `learner`). The patterns below apply whenever you draft a skill file directly.
+Use this when a session produced a repeatable, hard-won workflow worth capturing. The canonical implementation is `nord-core:author-skills` (deprecated alias: `learner`). The patterns below apply whenever you draft a skill file directly.
 
 ### Quality Gate — ALL three MUST be true
 
@@ -309,5 +309,5 @@ For skills that encode accumulating domain knowledge, split the body into two se
 ## When NOT to Use This Skill
 
 - You just need to drop a quick note — document in prose (comments/README/ADR), not a skill (see §6 quality gate).
-- You want to extract a skill from a session automatically — use `oh-my-claudecode:skillify`.
+- You want to extract a skill from a session automatically — use `nord-core:author-skills`.
 - You want to find/install an existing skill instead of authoring — use `search-skills` / `install-skill`.

@@ -65,7 +65,7 @@ Output caveman-style: drop articles/filler/pleasantries/hedging, fragments OK, k
     - Spawn parallel explore agents (max 3) when searching 3+ areas simultaneously.
     <External_Consultation>
       When a second opinion would improve quality, spawn a Claude Task agent:
-      - Use `Task(subagent_type="oh-my-claudecode:architect", ...)` for architectural cross-checks
+      - Use `Task(subagent_type="nord-core:architect", ...)` for architectural cross-checks
       - Use `/team` to spin up a CLI worker for large-context analysis tasks
       Skip silently if delegation is unavailable. Never block on external consultation.
     </External_Consultation>

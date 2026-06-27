@@ -644,19 +644,19 @@ Investigate:
 // ─── Lane registry ─────────────────────────────────────────────────────────────
 
 const CORE_LANES = [
-  { key: 'architecture', label: 'Architecture & Module Boundaries', prompt: LANE_ARCHITECTURE, agentType: 'oh-my-claudecode:architect' },
-  { key: 'code-quality', label: 'Code Quality & Smells', prompt: LANE_CODE_QUALITY, agentType: 'oh-my-claudecode:code-reviewer' },
-  { key: 'tests', label: 'Test Health', prompt: LANE_TEST_HEALTH, agentType: 'oh-my-claudecode:test-engineer' },
+  { key: 'architecture', label: 'Architecture & Module Boundaries', prompt: LANE_ARCHITECTURE, agentType: 'nord-core:architect' },
+  { key: 'code-quality', label: 'Code Quality & Smells', prompt: LANE_CODE_QUALITY, agentType: 'nord-core:code-reviewer' },
+  { key: 'tests', label: 'Test Health', prompt: LANE_TEST_HEALTH, agentType: 'nord-core:test-engineer' },
   { key: 'deps', label: 'Dependencies & Supply Chain', prompt: LANE_DEPENDENCIES },
-  { key: 'security', label: 'Security', prompt: LANE_SECURITY, agentType: 'oh-my-claudecode:security-reviewer' },
+  { key: 'security', label: 'Security', prompt: LANE_SECURITY, agentType: 'nord-core:security-reviewer' },
   { key: 'perf', label: 'Performance & Scalability', prompt: LANE_PERFORMANCE },
   { key: 'obs', label: 'Observability & Operations', prompt: LANE_OBSERVABILITY },
   { key: 'cicd', label: 'Build, CI/CD & Release', prompt: LANE_CICD },
   { key: 'api', label: 'API & Contract Design', prompt: LANE_API },
   { key: 'data', label: 'Data & Schema', prompt: LANE_DATA },
-  { key: 'docs', label: 'Documentation & Onboarding', prompt: LANE_DOCS, agentType: 'oh-my-claudecode:document-specialist' },
+  { key: 'docs', label: 'Documentation & Onboarding', prompt: LANE_DOCS, agentType: 'nord-core:document-specialist' },
   { key: 'config', label: 'Configuration, Secrets & Resilience', prompt: LANE_CONFIG },
-  { key: 'drift', label: 'Stated vs Actual Drift', prompt: LANE_DRIFT, agentType: 'oh-my-claudecode:architect' },
+  { key: 'drift', label: 'Stated vs Actual Drift', prompt: LANE_DRIFT, agentType: 'nord-core:architect' },
 ]
 
 const CONDITIONAL_LANES = {
@@ -852,7 +852,7 @@ const laneResults = await pipeline(
               label: `verify:${lane.key}:${f.id}:${i}`,
               phase: 'Verify',
               schema: VERDICT,
-              agentType: 'oh-my-claudecode:verifier',
+              agentType: 'nord-core:verifier',
             }).then(v => ({ findingId: f.id, verdict: v }))
           )
         )
@@ -870,7 +870,7 @@ const laneResults = await pipeline(
       label: `verify:${lane.key}`,
       phase: 'Verify',
       schema: VERDICT_BATCH,
-      agentType: 'oh-my-claudecode:verifier',
+      agentType: 'nord-core:verifier',
     })
     const byId = new Map((batch?.verdicts ?? []).map(v => [v.findingId, v]))
     const surviving = toVerify.filter(f => {

@@ -48,7 +48,9 @@ Run `lsp_diagnostics` on every modified file before launching the 4-dimension pi
 
 ### Discovery / Filtering Separation Doctrine
 
-Dimension reviewers surface ALL findings annotated with `severity` + `confidence`. Never pre-filter during discovery. The adversarial-verify stage is the filter. When soft filter language appears in the request ("only important issues", "be conservative"), treat it as ranking guidance for output ordering, not a directive to silently drop findings. Recall is the reviewer's responsibility; precision is adversarial-verify's.
+Dimension reviewers surface ALL findings annotated with `severity` + `confidence`. Never pre-filter during discovery. The Verify stage is the filter. When soft filter language appears in the request ("only important issues", "be conservative"), treat it as ranking guidance for output ordering, not a directive to silently drop findings. Recall is the reviewer's responsibility; precision is Verify's.
+
+**Verify = reproducer-gate first, adversarial second.** Where a finding can be reduced to a runnable check, the verifier writes + runs a minimal failing test/repro: it fails as predicted → finding is **deterministically** REAL (`reproduced:confirmed`, no LLM vote needed); it doesn't trigger → deterministically dropped (`reproduced:refuted`). Only genuinely non-runnable findings (design/perf judgement) fall back to the adversarial REFUTE vote (`reproduced:na` → `isReal`). A deterministic reproducer beats a plausible argument — same gate principle as gate-loop, applied to review.
 
 ---
 
@@ -61,7 +63,7 @@ export const meta = {
   description: 'Multi-dimension adversarial code review',
   phases: [
     { title: 'Review', detail: 'parallel per-dimension reviewers' },
-    { title: 'Verify', detail: 'adversarially verify each finding' },
+    { title: 'Verify', detail: 'reproducer-gate (run a failing test) else adversarial refute' },
   ],
 }
 const target = (args && args.target) || 'the current git diff (run: git diff HEAD)'
@@ -79,19 +81,30 @@ const FINDINGS_SCHEMA = { type:'object', properties:{ findings:{ type:'array', i
   properties:{ file:{type:'string'}, line:{type:'number'}, severity:{type:'string', enum:['critical','high','medium','low']},
   confidence:{type:'string', enum:['high','medium','low']},
   title:{type:'string'}, detail:{type:'string'}, fix:{type:'string'} }, required:['file','severity','confidence','title','detail'] } } }, required:['findings'] }
-const VERDICT_SCHEMA = { type:'object', properties:{ isReal:{type:'boolean'}, confidence:{type:'string', enum:['high','medium','low']}, reason:{type:'string'} }, required:['isReal','reason'] }
+const VERDICT_SCHEMA = { type:'object', properties:{ isReal:{type:'boolean'}, confidence:{type:'string', enum:['high','medium','low']}, reason:{type:'string'},
+  reproduced:{type:'string', enum:['confirmed','refuted','na'], description:'confirmed = a real test/repro was run and failed as predicted (deterministic REAL); refuted = repro did NOT fail (deterministic NOT real); na = not deterministically reproducible, fall back to adversarial judgement'},
+  reproCmd:{type:'string', description:'the exact test/command run (empty if na)'} }, required:['isReal','reason','reproduced'] }
 
 const results = await pipeline(
   DIMENSIONS,
   d => agent(`Review ${target} for ${d.key} issues. ${d.prompt} Report concrete findings with exact file:line and a one-line fix. Annotate each finding with severity (critical/high/medium/low) AND confidence (high/medium/low). No praise, no nits.`,
         { label:`review:${d.key}`, phase:'Review', schema:FINDINGS_SCHEMA, ...(cheapGather ? { model:'qwen3.6-plus' } : {}) }),
   (review, d) => parallel(((review && review.findings) || []).map(f => () =>
-    agent(`Adversarially verify this ${d.key} finding — actively try to REFUTE it. Default isReal=false if uncertain or unreproducible. Finding: "${f.title}" at ${f.file}:${f.line||'?'} — ${f.detail}`,
+    agent(`Verify this ${d.key} finding. PREFER a DETERMINISTIC reproducer over opinion:\n` +
+          `1. If the finding is reproducible (most correctness/security bugs are), WRITE a minimal failing test or repro command that would pass iff the bug exists, and RUN it. Bug reproduces → reproduced="confirmed" (deterministically REAL). Repro does NOT trigger → reproduced="refuted" (deterministically NOT real). Put the exact command in reproCmd.\n` +
+          `2. Only if it genuinely cannot be reduced to a runnable check (e.g. a design/perf judgement), set reproduced="na" and fall back to adversarially REFUTING it — default isReal=false if uncertain.\n` +
+          `Finding: "${f.title}" at ${f.file}:${f.line||'?'} — ${f.detail}`,
           { label:`verify:${f.file}`, phase:'Verify', schema:VERDICT_SCHEMA })
       .then(v => ({ ...f, dimension:d.key, verdict:v }))))
 )
 const order = { critical:0, high:1, medium:2, low:3 }
-const confirmed = results.flat().filter(Boolean).filter(f => f.verdict && f.verdict.isReal)
+// deterministic reproducer wins over the LLM boolean; na falls back to adversarial isReal
+const confirmed = results.flat().filter(Boolean).filter(f => {
+  const v = f.verdict; if (!v) return false
+  if (v.reproduced === 'confirmed') return true
+  if (v.reproduced === 'refuted') return false
+  return !!v.isReal
+})
 confirmed.sort((a,b) => (order[a.severity]??9) - (order[b.severity]??9))
 return { count: confirmed.length, findings: confirmed }
 ```

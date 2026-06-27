@@ -54,6 +54,22 @@ Task(subagent_type="nord-core:document-specialist", model="sonnet", prompt="Sear
 
 Maximum 5 parallel document-specialist agents.
 
+### Step 2.5: Citation gate (deterministic — run before synthesis)
+
+LLM synthesis hallucinates URLs and misattributes quotes. Gate every citation with an objective check,
+not a judgement:
+
+1. **URL resolves** — each cited URL must return a non-error status. Verify by actually fetching it
+   (WebFetch / `curl -sI -o /dev/null -w '%{http_code}' <url>`); a URL that 404s/times out is dropped.
+2. **Quote is real** — any quoted/paraphrased claim attributed to a source must appear in that source's
+   fetched text (substring / near-substring match of the key phrase). If the phrase isn't in the page,
+   the citation is hallucinated → drop the claim or re-fetch.
+3. A finding whose only support is an unverifiable citation does NOT enter synthesis. Mark dropped cites
+   in output as `⚠ unverifiable (excluded)` so the gap is visible, never silently kept.
+
+The gate is the fetch result + substring match, not "does this look plausible". Run the checks in
+parallel over the cited URLs (don't loop).
+
 ### Step 3: Synthesis Output Format
 
 Present synthesized results in this format:

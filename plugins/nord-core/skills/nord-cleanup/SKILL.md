@@ -37,7 +37,10 @@ const DETECTORS = [
 const CAND_SCHEMA = { type:'object', properties:{ candidates:{ type:'array', items:{ type:'object',
   properties:{ file:{type:'string'}, lines:{type:'string'}, what:{type:'string'}, why:{type:'string'} },
   required:['file','what','why'] } } }, required:['candidates'] }
-const SAFE_SCHEMA = { type:'object', properties:{ safeToRemove:{type:'boolean'}, reason:{type:'string'}, references:{type:'string'} }, required:['safeToRemove','reason'] }
+const SAFE_SCHEMA = { type:'object', properties:{ safeToRemove:{type:'boolean'}, reason:{type:'string'},
+  refsFound:{type:'integer', description:'count of real references found by grep (0 required for symbol removals)'},
+  refCmd:{type:'string', description:'the exact grep/search command you ran'},
+  references:{type:'string'} }, required:['safeToRemove','reason','refsFound','refCmd'] }
 
 const found = await parallel(DETECTORS.map(d => () =>
   agent(`Scan ${target} for ${d.key}: ${d.prompt} Report concrete removable candidates with file and line range. Only real, removable items.`,
@@ -45,10 +48,14 @@ const found = await parallel(DETECTORS.map(d => () =>
     .then(r => ((r && r.candidates) || []).map(c => ({ ...c, detector:d.key })))))
 const cands = found.filter(Boolean).flat()
 const verified = await parallel(cands.map(c => () =>
-  agent(`Verify SAFE TO REMOVE. Search the whole codebase for references/uses and check tests. Be conservative: safeToRemove=false on any doubt or external/public API. Candidate (${c.detector}): "${c.what}" in ${c.file} ${c.lines||''} — ${c.why}`,
+  agent(`Verify SAFE TO REMOVE — DETERMINISTIC gate, not a judgement call.\n` +
+        `1. RUN a real reference search (grep -rn / rg) for the symbol/file across the WHOLE repo (incl. dynamic uses: strings, configs, re-exports, DI, reflection). Report the exact command in refCmd and the real hit count in refsFound.\n` +
+        `2. safeToRemove=true ONLY if refsFound==0 (for a symbol/file removal) AND it is not an external/public API / entrypoint. ANY real reference, doubt, or public surface → safeToRemove=false. Dead-code with 0 refs is the clean case.\n` +
+        `Candidate (${c.detector}): "${c.what}" in ${c.file} ${c.lines||''} — ${c.why}`,
         { label:`safe:${c.file}`, phase:'VerifySafe', schema:SAFE_SCHEMA })
     .then(v => ({ ...c, ...v }))))
-const safe = verified.filter(Boolean).filter(c => c.safeToRemove)
+// deterministic gate: drop anything the grep didn't clear, regardless of the agent's own boolean
+const safe = verified.filter(Boolean).filter(c => c.safeToRemove && (c.refsFound === 0 || c.refsFound == null && false))
 return { totalCandidates: cands.length, safeToRemove: safe.length, plan: safe }
 ```
 
@@ -119,13 +126,23 @@ Run one smell-focused pass at a time. Re-verify after each pass. Do not bundle u
 - **Pass 3** — Naming and error-handling cleanup
 - **Pass 4** — Test reinforcement: add or strengthen tests to lock the surviving behavior
 
-## Quality Gates (after each pass)
+## Deterministic delete gate (the verdict — no LLM judge)
 
-After every pass:
-- Run lint and typecheck for the touched area
-- Run unit/integration tests
-- Run existing static or security checks when available
-- Gate fails → fix the issue or back out the risky cleanup; never force it through
+Deletion is the one place where "looks safe" is not good enough — a wrong delete is data loss. Two
+deterministic gates, both exit-code, gate the plan AND each apply pass:
+
+1. **Reference gate (per candidate, in VerifySafe):** a real `grep -rn`/`rg` for the symbol/file over the
+   whole repo must return **0** real references (incl. dynamic: strings, configs, re-exports, DI,
+   reflection) before it's eligible. The workflow drops any candidate whose `refsFound != 0` regardless of
+   the agent's own opinion. Public API / entrypoints are never auto-safe.
+2. **Build/test gate (per apply pass):** capture a GREEN baseline (`build` + the narrowest relevant
+   `test`/`lint`/`typecheck`) BEFORE deleting. After each pass re-run the SAME commands —
+   - still exit 0 → keep the pass.
+   - non-zero → **revert that pass** (`git checkout`/restore), it was not safe. Never "fix forward" a
+     cleanup regression; back it out.
+
+Baseline must be green first — if the suite is red before cleanup, record that and only gate on *new*
+failures. The gate is the exit code, not anyone's judgement.
 
 ## Scoped File-List Semantics
 

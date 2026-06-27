@@ -287,12 +287,17 @@ All findings:
 ${JSON.stringify(allFindings, null, 2)}
 
 Cross-validate for:
+0. CITATION GATE (deterministic — RUN it, don't eyeball). For each finding's evidence, verify the cited
+   code actually exists: \`test -f <path>\` and \`grep -nF "<the cited snippet/symbol>" <path>\`. A finding
+   whose evidence path does not exist, or whose cited snippet is NOT found at that path, is a hallucinated
+   citation → DROP it (add its id to droppedIds). This is an exit-code check, not a judgement; it runs
+   before the LLM checks below and overrides them.
 1. CONTRADICTIONS — Stage A claims X; Stage B claims not-X or the opposite. Flag the finding id pair and which evidence is stronger.
 2. MISSING CONNECTIONS — A finding logically implies another stage should have found Y but didn't. Flag the gap.
 3. COVERAGE GAPS — Sub-questions implied by the goal that no stage addressed.
 4. EVIDENCE QUALITY — Findings with relative paths, zero evidence blocks, or HIGH confidence unsupported by code.
 
-Decide which findings to drop (weakest side of a contradiction, or quality violations).
+Decide which findings to drop (failed citation gate, weakest side of a contradiction, or quality violations).
 Output [VERIFIED] if no significant contradictions, [CONFLICTS:<list of finding ids>] otherwise.`,
   { label: 'cross-validate', phase: 'Verify', model: 'sonnet', schema: VERIFY_SCHEMA }
 )

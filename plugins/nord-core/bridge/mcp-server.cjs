@@ -28795,6 +28795,74 @@ Searched:
 var skillsTools = [loadLocalTool, loadGlobalTool, listSkillsTool];
 
 // src/mcp/tool-registry.ts
+var exaSearchTool = {
+  name: "exa_search",
+  description: "Search the web via Exa and get clean, ready-to-use content. Returns title, URL, highlights and a text snippet per result. Describe the ideal page, not just keywords (e.g. 'blog post comparing React and Vue performance', not 'React vs Vue').",
+  schema: {
+    query: external_exports.string().min(1).describe("Natural language search query — describe the ideal page, not just keywords."),
+    numResults: external_exports.number().int().min(1).max(25).optional().describe("Number of results to return (default 5).")
+  },
+  handler: async (args) => {
+    const apiKey = process.env.EXA_API_KEY;
+    if (!apiKey) {
+      return {
+        content: [{ type: "text", text: "EXA_API_KEY is not set in the environment." }],
+        isError: true
+      };
+    }
+    const numResults = args.numResults ?? 5;
+    try {
+      const resp = await fetch("https://api.exa.ai/search", {
+        method: "POST",
+        headers: { "x-api-key": apiKey, "content-type": "application/json" },
+        body: JSON.stringify({
+          query: args.query,
+          numResults,
+          type: "auto",
+          contents: {
+            text: { maxCharacters: 1e3 },
+            highlights: { numSentences: 3, highlightsPerUrl: 3 }
+          }
+        })
+      });
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => "");
+        return {
+          content: [{ type: "text", text: `Exa API error ${resp.status}: ${body.slice(0, 500)}` }],
+          isError: true
+        };
+      }
+      const data = await resp.json();
+      const results = Array.isArray(data.results) ? data.results : [];
+      if (results.length === 0) {
+        return { content: [{ type: "text", text: `No results for: ${args.query}` }] };
+      }
+      const blocks = results.map((r) => {
+        const parts = [];
+        parts.push(`Title: ${r.title || "(untitled)"}`);
+        parts.push(`URL: ${r.url || ""}`);
+        if (r.publishedDate) parts.push(`Published: ${r.publishedDate}`);
+        if (r.author) parts.push(`Author: ${r.author}`);
+        if (Array.isArray(r.highlights) && r.highlights.length) {
+          parts.push(`Highlights:
+${r.highlights.map((h) => `  - ${h}`).join("\n")}`);
+        } else if (r.text) {
+          parts.push(`Snippet: ${String(r.text).slice(0, 500)}`);
+        }
+        return parts.join("\n");
+      });
+      const cost = data.costDollars?.total != null ? `
+
+(${results.length} results, $${data.costDollars.total})` : "";
+      return { content: [{ type: "text", text: blocks.join("\n\n---\n\n") + cost }] };
+    } catch (error2) {
+      return {
+        content: [{ type: "text", text: `Error calling Exa: ${error2 instanceof Error ? error2.message : String(error2)}` }],
+        isError: true
+      };
+    }
+  }
+};
 var allTools = [
   ...lspTools,
   ...astTools,
@@ -28802,7 +28870,8 @@ var allTools = [
   ...stateTools,
   ...traceTools,
   deepinitManifestTool,
-  ...wikiTools
+  ...wikiTools,
+  exaSearchTool
 ];
 function zodTypeToJsonSchema(zodType) {
   const result = {};

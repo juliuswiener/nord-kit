@@ -6,16 +6,6 @@
       "args": [
         "${CLAUDE_PLUGIN_ROOT}/bridge/mcp-server.cjs"
       ],
-      "env": {}
-    },
-    "exa": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "exa-mcp-server",
-        "--tools=web_search_exa"
-      ],
       "env": {
         "EXA_API_KEY": "${EXA_API_KEY}"
       }

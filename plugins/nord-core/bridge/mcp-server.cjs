@@ -28870,7 +28870,6 @@ var allTools = [
   ...stateTools,
   ...traceTools,
   deepinitManifestTool,
-  ...wikiTools,
   exaSearchTool
 ];
 function zodTypeToJsonSchema(zodType) {

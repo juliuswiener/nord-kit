@@ -26742,7 +26742,7 @@ No events recorded.`
     }
   }
 };
-var traceTools = [traceTimelineTool, traceSummaryTool, sessionSearchTool];
+var traceTools = [traceTimelineTool, traceSummaryTool];
 
 // src/lib/shared-memory.ts
 var import_fs21 = require("fs");
@@ -28809,13 +28809,9 @@ var allTools = [
   ...astTools,
   pythonReplTool,
   ...stateTools,
-  ...notepadTools,
-  ...memoryTools,
   ...traceTools,
-  ...sharedMemoryTools,
   deepinitManifestTool,
-  ...wikiTools,
-  ...skillsTools
+  ...wikiTools
 ];
 function zodTypeToJsonSchema(zodType) {
   const result = {};

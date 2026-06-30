@@ -18,8 +18,9 @@ do not improvise among duplicates. (Injected each session by the nord-router Ses
 | **Verify** | `verify` (before claiming done) | — | — |
 | **Commit msg** | `commit` (Conventional Commits, subject ≤50, body only when 'why' non-obvious + required harness trailers; outputs msg, does NOT run git) | — | hand-writing ad-hoc commit messages |
 | **Abort loop** | `cancel` (mark mode inactive + clear PRD so gate-persist stops blocking) | — | hand-deleting `.nord/state` files |
-| **Memory** | claude-mem `mem-search` (past work) | `wiki` (durable notes) | — |
+| **Memory** | claude-mem `mem-search` (past work) | — | — |
 | **Prime codebase** | `deepinit` | claude-mem `learn-codebase` | — |
+| **Map / orient codebase** | `repo-map` (symbol-ranked PageRank skeleton, local, zero tool-cost) | `deepinit` (AGENTS.md gen), claude-mem `smart_outline` (single file) | reading many files just to orient |
 | **EE / hardware** | `kicad-analyze`/`spice-sim`/`digikey-search`/`bom-manager`/… (nord-ee) | `ee-reference` (design), `emc-precheck`, `datasheet-extract` | — |
 | **Rust** | `rust-coder` (+ `rust-unit-tester`) | — | — |
 | **Python** | `python-ticket-implementer` (+ `python-debugger`) | — | — |

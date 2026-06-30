@@ -11,7 +11,7 @@ do not improvise among duplicates. (Injected each session by the nord-router Ses
 | **Execute** | `nord-execute` (choose mode: parallel batch / `/loop` / ralph, optional `/goal`-gate) | `gate-loop` (when each item has a deterministic gate) · `ralph` (completion loop) · `team` (parallel+coordination) · `autopilot` (full idea→code) · executor agent (one file) | do, executing-plans, subagent-driven-development |
 | **Review** | `nord-review` (deep multi-agent) | `/code-review` (quick diff) · `/security-review` | elite-code-reviewer, requesting-code-review |
 | **Cleanup** | `nord-cleanup` (multi-agent safe-delete) | `/simplify` (quick quality) | ai-slop-cleaner (superseded) |
-| **Debug** | `trace` (causal, competing hypotheses) | debugger agent (single) | systematic-debugging |
+| **Debug** | `trace` (causal, competing hypotheses) | `nord-dev:python-debugger` (Python) · architect agent (read-only advisory) | systematic-debugging |
 | **Audit** | `codebase-audit` (full architectural) | `scrutinize-code` (quick single-pass) | adversarial-codebase-autopsy (removed) |
 | **Research** | `external-context` (web + docs, parallel doc-specialists) | `nord-codebase-research` (codebase, parallel scientists + cross-validate) · native WebSearch/WebFetch | research, autoresearch |
 | **Web data / Read** | `read-router` (pick paradigm per URL/file) → `web-scrape` (Crawl4AI local) · `pdf-extract` (MinerU PDF) · `visual-read` (visual) | `web-scrape --stealth` (anti-bot/login) · Firecrawl MCP (external, last resort) | raw WebFetch on a PDF, screenshotting normal pages |

@@ -40,7 +40,7 @@ if (!routing.trim()) {
     'EXECUTE: batch/no-gate->nord-execute | gated items->gate-loop | completion->ralph | parallel->team | full idea->code->autopilot | one file->executor.',
     'REVIEW: deep->nord-review | quick->/code-review | security->/security-review.',
     'CLEANUP: multi-agent->nord-cleanup | quick->/simplify.',
-    'DEBUG: causal->trace | single->debugger agent.',
+    'DEBUG: causal->trace | python->nord-dev:python-debugger.',
     'AUDIT: full->codebase-audit | quick->scrutinize-code.',
     'RESEARCH: web+docs->external-context | codebase->nord-codebase-research | fallback->native WebSearch.',
     'WEB-DATA/READ: read-router picks paradigm | normal page->web-scrape (Crawl4AI local) | anti-bot->web-scrape --stealth | PDF/doc->pdf-extract (MinerU) | visual/charts->visual-read. Sensitive=local only.',

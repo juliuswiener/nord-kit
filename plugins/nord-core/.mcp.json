@@ -13,7 +13,8 @@
       "command": "npx",
       "args": [
         "-y",
-        "exa-mcp-server"
+        "exa-mcp-server",
+        "--tools=web_search_exa"
       ],
       "env": {
         "EXA_API_KEY": "${EXA_API_KEY}"

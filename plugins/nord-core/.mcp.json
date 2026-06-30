@@ -8,16 +8,6 @@
       ],
       "env": {}
     },
-    "filesystem": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "/home/julius"
-      ],
-      "env": {}
-    },
     "exa": {
       "type": "stdio",
       "command": "npx",

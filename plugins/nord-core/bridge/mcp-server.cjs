@@ -20972,18 +20972,9 @@ ${result.diagnostics}`;
   }
 };
 var lspTools = [
-  lspHoverTool,
   lspGotoDefinitionTool,
   lspFindReferencesTool,
-  lspDocumentSymbolsTool,
-  lspWorkspaceSymbolsTool,
-  lspDiagnosticsTool,
-  lspDiagnosticsDirectoryTool,
-  lspServersTool,
-  lspPrepareRenameTool,
-  lspRenameTool,
-  lspCodeActionsTool,
-  lspCodeActionResolveTool
+  lspRenameTool
 ];
 
 // src/tools/ast-tools.ts

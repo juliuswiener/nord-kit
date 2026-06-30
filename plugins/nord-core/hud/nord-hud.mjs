@@ -49,11 +49,15 @@ if (m) {
   parts.push(c(146, short));
 }
 
-// context window usage
+// context window usage. CC reports context_window_size=200000 and caps
+// used_percentage at 100 even on 1M-context sessions (exceeds_200k_tokens=true),
+// so recompute against the real window from token counts when available.
 const cw = s.context_window || {};
+let cwSize = cw.context_window_size || 200000;
+if (s.exceeds_200k_tokens && cwSize <= 200000) cwSize = 1000000;
 let ctx = cw.used_percentage;
-if (typeof ctx !== 'number' && cw.context_window_size && cw.total_input_tokens)
-  ctx = Math.round((cw.total_input_tokens / cw.context_window_size) * 100);
+if (typeof cw.total_input_tokens === 'number' && cwSize)
+  ctx = Math.round((cw.total_input_tokens / cwSize) * 100);
 if (typeof ctx === 'number') parts.push(c(grad(ctx), 'ctx ' + Math.round(ctx) + '%'));
 
 // rate limits (5h + 7d) from stdin
@@ -134,7 +138,11 @@ function fresh(p, maxMs) {
 }
 function readMode(cwd, sid) {
   const states = ['ralph', 'ultrawork', 'autopilot', 'ultragoal', 'team'];
-  const roots = [path.join(cwd, '.omc', 'state'), path.join(os.homedir(), '.omc', 'state')];
+  // .nord is the new state dir (renamed from .omc); read both so the indicator
+  // works before and after the migration regardless of which the skills write.
+  const dirs = ['.nord', '.omc'];
+  const roots = [];
+  for (const d of dirs) roots.push(path.join(cwd, d, 'state'), path.join(os.homedir(), d, 'state'));
   for (const base of roots) {
     for (const name of states) {
       const f = name + '-state.json';
@@ -146,6 +154,8 @@ function readMode(cwd, sid) {
 }
 function readGoal(cwd) {
   const cands = [
+    path.join(cwd, '.nord', 'goal.txt'),
+    path.join(cwd, '.nord', 'ultragoal', 'goal.md'),
     path.join(cwd, '.omc', 'goal.txt'),
     path.join(cwd, '.omc', 'ultragoal', 'goal.md'),
     path.join(cwd, '.claude', 'goal.md'),

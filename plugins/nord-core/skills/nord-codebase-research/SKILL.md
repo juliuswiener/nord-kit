@@ -202,6 +202,7 @@ Research goal: "${goal}"
 Decompose into 3-7 INDEPENDENT investigation stages. Rules:
 - Each stage must be independently executable (no stage relies on another's findings)
 - Each stage must target concrete codebase artifacts: files, functions, call sites, data flows, config, schemas
+- Diversify perspectives — don't slice one axis N ways. Cover distinct lenses (data flow, control flow, error/edge paths, config & wiring, tests, recent git history) so stages surface what a single angle would miss (STORM perspective-discovery)
 - Assign tier and model strictly by task complexity:
 
 | Tier   | Model  | Use for                                                              |

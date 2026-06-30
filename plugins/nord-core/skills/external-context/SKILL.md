@@ -25,6 +25,18 @@ Fetch external documentation, references, and context for a query. Decomposes in
 
 ## Protocol
 
+The loop is: **SCALE → FIND→FETCH fan-out → SELF-REFLECT gap-check → CITATION gate → SYNTHESIZE.** Breadth-first web research only — if the task is sequential or needs shared context, do not fan out.
+
+### Step 0: Scale to query complexity (gate first)
+
+Match agent count to the question — fixed fan-out wastes tokens on simple queries and starves hard ones. Multi-agent burns ~15× the tokens of a single chat (Anthropic, [explicit]), so only fan out when breadth justifies it.
+
+| Query shape | Agents | Search calls/agent |
+|---|---|---|
+| Single fact / one source | 1 (inline, no fan-out) | 2-3 |
+| Comparison / 2-3 angles | 2-4 | 3-5 |
+| Broad / survey / "everything about X" | 5 (max) | 5+ |
+
 ### Step 1: Facet Decomposition
 
 Given a query, decompose into 2-5 independent search facets:
@@ -42,17 +54,25 @@ Given a query, decompose into 2-5 independent search facets:
 ...
 ```
 
-### Step 2: Parallel Agent Invocation
+### Step 2: Parallel fan-out — FIND then FETCH (force real reads)
 
-Fire independent facets in parallel via Task tool:
+Each facet agent runs a two-stage protocol. The split is load-bearing: a specialist told only "research X" answers from memory (0 fetches, fabricated URLs/numbers). Separating FIND from FETCH and demanding a verbatim quote per source forces real reads — empirically the difference between 0 and dozens of real fetches.
+
+Fire independent facets in parallel via Task:
 
 ```
-Task(subagent_type="nord-core:document-specialist", model="sonnet", prompt="Search for: <facet 1 description>. Use WebSearch and WebFetch to find official documentation and examples. Cite all sources with URLs.")
-
-Task(subagent_type="nord-core:document-specialist", model="sonnet", prompt="Search for: <facet 2 description>. Use WebSearch and WebFetch to find official documentation and examples. Cite all sources with URLs.")
+Task(subagent_type="nord-core:document-specialist", model="sonnet", prompt="FACET: <facet description>.
+STAGE 1 FIND: run 2-4 real WebSearch / web_search_exa queries; collect >=5 candidate URLs (prefer official docs, primary sources, arXiv, 2024-2026).
+STAGE 2 FETCH: WebFetch the 3-5 highest-value URLs. For EVERY source you cite you MUST include a verbatimQuote — one sentence copied EXACTLY from the fetched page (proof the fetch happened). If a URL fails, mark it and pick another. Answering from memory without fetched quotes = FAILURE.
+Return: findings + sources[{url, verbatimQuote, supports}]. Tag each numeric/claim explicit|derived per BEHAVIOUR.md.")
 ```
 
-Maximum 5 parallel document-specialist agents.
+- Maximum 5 parallel document-specialist agents.
+- Source-breadth target: ~10-30 fetched sources across all facets (GPT-Researcher default). Thin coverage → widen in the gap-check, don't ship it.
+
+### Step 2.4: Self-reflect gap-check (one pass, before citation gate)
+
+Before synthesizing, spawn ONE gap-check pass: *"Given the original query and the findings so far, what is still unanswered, contradicted, or thin?"* If it names concrete gaps, fire ONE more targeted facet round to fill them — **max 1 extra round, do not loop**. This is the single highest-leverage addition over plain fan-out (Together AI / GPT-Researcher both converge on an explicit gap-check before synthesis).
 
 ### Step 2.5: Citation gate (deterministic — run before synthesis)
 

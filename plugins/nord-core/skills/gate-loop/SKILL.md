@@ -123,6 +123,11 @@ Split the goal into stories and write `<repo>/.nord/prd.json`:
   { "id": "s2", "desc": "...", "gate": "ruff check . && pytest -q tests/test_y.py", "passes": false, "redCount": 0, "escalated": false, "stallCount": 0, "replans": 0 }
 ] }
 ```
+**Coverage gate (decompose-completeness).** First enumerate the goal's acceptance criteria, then confirm
+EACH maps to ≥1 story. A requirement that never becomes a story is silently never built — the loop reports
+"all stories green" while missing it, and no per-story gate can catch a requirement that has no gate. This
+is the one coverage bug the deterministic gates cannot see, so it is checked HERE, at decompose, by you.
+
 Every story's `gate` MUST be a deterministic, **runnable** command — at decompose time verify each gate
 parses / its test path exists (a non-existent or flaky gate never goes green → the hook blocks until the
 cap). A story with no runnable gate is NOT a story; fold it in or make it a real gate

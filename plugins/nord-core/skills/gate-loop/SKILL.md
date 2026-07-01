@@ -105,6 +105,10 @@ LLM-reviewer with a deterministic-gate loop, no judge (per `references/gate-patt
   true ONLY after you re-ran THAT gate to exit 0 this session), `redCount` (int — ++ on red, reset 0 on
   green), `escalated` (bool — true on the green that follows a frontier fix after ≥3 reds; reset false on a
   normal green), `files?` (string[], team-mode disjointness), `lastFail?` (one-line carry-over, overwrite each red).
+  **Progress-ledger (stall detection):** `failSig?` (deterministic signature of the last failing gate
+  output — e.g. its first error line / a hash; the progress signal), `stallCount` (int — ++ when a new red
+  has the SAME `failSig` as the prior red = stuck; reset 0 when `failSig` changes = progress, or on green),
+  `replans` (int — how many times this story was re-planned).
 - **`.nord/state/<mode>-state.json` — MIXED, single-writer-per-field.** SKILL writes `mode`, `active`
   (true@start / false@complete+cancel), `max`, `startedAt`, optional `session_id`. **The gate-persist HOOK
   owns `iteration` + `updatedAt` — you init `iteration:0` at start and NEVER bump it** (double-count
@@ -115,8 +119,8 @@ LLM-reviewer with a deterministic-gate loop, no judge (per `references/gate-patt
 Split the goal into stories and write `<repo>/.nord/prd.json`:
 ```json
 { "goal": "<goal>", "stories": [
-  { "id": "s1", "desc": "<one acceptance criterion>", "gate": "pytest -q tests/test_x.py", "passes": false, "redCount": 0, "escalated": false },
-  { "id": "s2", "desc": "...", "gate": "ruff check . && pytest -q tests/test_y.py", "passes": false, "redCount": 0, "escalated": false }
+  { "id": "s1", "desc": "<one acceptance criterion>", "gate": "pytest -q tests/test_x.py", "passes": false, "redCount": 0, "escalated": false, "stallCount": 0, "replans": 0 },
+  { "id": "s2", "desc": "...", "gate": "ruff check . && pytest -q tests/test_y.py", "passes": false, "redCount": 0, "escalated": false, "stallCount": 0, "replans": 0 }
 ] }
 ```
 Every story's `gate` MUST be a deterministic, **runnable** command — at decompose time verify each gate
@@ -130,10 +134,28 @@ tests), not a single test. Then write the state file:
 ### 1. Drive
 - **ralph / autopilot (sequential):** for each `passes:false` story, run the §1 single-story loop
   (gate-worker → run its gate → escalate to frontier after 3 reds). On exit 0 set `passes:true` + reset
-  `redCount:0`; on red `redCount++` + set `lastFail`. **Never write `iteration` — the hook does.**
+  `redCount:0` + `stallCount:0`; on red `redCount++`, set `lastFail`, and update the progress-ledger:
+  compute `failSig` from the gate output — if it equals the prior `failSig`, `stallCount++` (stuck);
+  else `stallCount=0` + store the new `failSig` (progress, keep going). **Never write `iteration` — the hook does.**
 - **team (parallel):** dispatch INDEPENDENT stories (disjoint `files`) concurrently — one gate-worker each
   via `parallel()` / multiple Task spawns — gate each independently. Shared-file stories run sequentially.
 - Re-read prd.json each round (resume-safe: a `passes:true` story is skipped — survives `/compact` + restart).
+
+### 1b. Stall → replan (recovery)
+Escalating harder is useless when the failure never *changes* — that means the APPROACH or the GATE is
+wrong, not the effort. Use the progress-ledger to tell grinding (making progress) from stuck:
+- **Grinding** — `failSig` changes each red (different error each round). Progress. Keep looping.
+- **Stuck** — `failSig` unchanged: `stallCount` climbs. When **`stallCount` ≥ 2** (the same failure
+  survived a cheap round AND a frontier escalation), STOP re-fixing and **replan** (this is the recovery
+  action): frontier (you) re-reads `desc` + the reflection buffer + `failSig`, then changes a *different*
+  lever — re-scope/split the story, fix a wrong or flaky `gate`, or pick a new implementation strategy.
+  Then `replans++`, reset `redCount:0` + `stallCount:0`, and resume with the new approach.
+- **Replan cap (recovery-of-recovery):** if `replans` ≥ 2 and it stalls again, mark the story `blocked`
+  (terminal red) and move to the next story — one hard story must not sink the whole run. Report blocked
+  stories at Complete with their `failSig` + likely next step.
+
+This is a deterministic task-ledger (prd.json stories) + progress-ledger (`failSig`/`stallCount`) — no
+LLM judge decides stall; a byte-comparison of gate output does.
 
 ### 2. Complete
 Done only when ALL stories `passes:true` AND you re-ran each gate to exit 0 THIS session. Set

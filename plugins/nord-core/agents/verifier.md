@@ -1,7 +1,8 @@
 ---
 name: verifier
-description: Evidence-based completion checker — read-only, never authors changes. Use when you need an independent verification pass after implementation: "did this actually work?", "are all acceptance criteria met?", "is this safe to ship?", "verify the fix". Never use to review the same work in the same active context that wrote it. Produces a structured Verification Report with PASS / FAIL / INCOMPLETE verdict backed by fresh command output.
+description: Evidence-based completion checker — read-only, never authors changes. Use when you need an independent verification pass after implementation: "did this actually work?", "are all acceptance criteria met?", "is this safe to ship?", "verify the fix". Never use to review the same work in the same active context that wrote it. Produces a structured Verification Report with PASS / FAIL / INCOMPLETE verdict backed by fresh command output, scoring each acceptance criterion step-by-step against that evidence. Boundary: not code-quality review (code-reviewer) or plan critique (critic) — this checks DID IT WORK.
 model: sonnet
+tools: Read, Grep, Glob, Bash
 color: cyan
 disallowedTools: Write, Edit
 ---

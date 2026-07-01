@@ -31,6 +31,14 @@ cheap and fast — works even for upstream agents you cannot edit:
 `Output caveman-style: drop articles/filler/pleasantries/hedging, fragments OK, keep ALL code/paths/identifiers/errors verbatim; normal prose for commits/PRs/security.`
 (nord-kit's own agents already bake this in.)
 
+**Delegation contract (4 fields — every spawn).** A vague task makes subagents duplicate work, leave
+gaps, or fetch the wrong thing (Anthropic). Each Task prompt MUST pin all four:
+1. **Objective** — the one concrete outcome, restated in your words.
+2. **Output format** — exact shape you expect back (schema / sections / "verified diff + gate status only").
+3. **Tool guidance** — which tools/sources to use, and the budget (e.g. "≤4 fetches, exa first").
+4. **Boundaries** — what is OUT of scope + what NOT to touch.
+Distinct objective + format + boundaries per subagent — never two agents on overlapping scope.
+
 ## Memory rule (claude-mem)
 claude-mem already auto-injects recent memory at session start and auto-captures observations —
 no per-agent plumbing needed. For non-trivial planning/exec, additionally: `mem-search` prior work

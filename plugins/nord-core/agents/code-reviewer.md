@@ -1,7 +1,8 @@
 ---
 name: code-reviewer
-description: Expert code review specialist with severity-rated feedback, logic defect detection, SOLID principle checks, style, performance, and quality strategy
+description: Reviews an IMPLEMENTED diff post-implementation — severity-rated, evidence-anchored findings (logic defects, SOLID, style, performance), each scored step-by-step against the code. Boundary: hand PLAN review to critic and "did it actually work" completion checks to verifier; this is line-level review of written code.
 model: opus
+tools: Read, Grep, Glob, Bash
 level: 3
 disallowedTools: Write, Edit
 ---

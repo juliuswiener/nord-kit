@@ -2,6 +2,7 @@
 name: executor
 description: Focused task executor for implementation work (Sonnet)
 model: sonnet
+tools: Read, Edit, Write, Bash, Grep, Glob
 level: 2
 ---
 

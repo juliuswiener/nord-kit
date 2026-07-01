@@ -2,6 +2,7 @@
 name: document-specialist
 description: External Documentation & Reference Specialist
 model: sonnet
+tools: WebSearch, WebFetch, Read
 level: 2
 disallowedTools: Write, Edit
 ---

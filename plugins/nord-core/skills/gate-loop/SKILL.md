@@ -34,15 +34,26 @@ Run the gate ONCE up front for the baseline (it may already be green → report 
 
 ## 1. Loop
 
+**Bug-fix goals — reproduction test FIRST** (Agentless localize→repair→validate). Before any fix,
+write a test that REPRODUCES the failure (must fail now) and fold it into the gate command. That repro
+test is the deterministic proof the bug is dead and re-ranks candidate fixes — it is the +4-5% lever
+the loop lives on, and the reason a standalone `debugger` role is unneeded (this loop closes the debug
+feedback itself). Skip only for greenfield/feature goals that already have a gate.
+
 Repeat until the gate is green or you hit an escalation/stop condition:
 
-1. SPAWN a `gate-worker` subagent (Task tool) with: the goal, the exact gate command, and the FULL
-   output of the latest failing gate run. One increment per spawn.
+1. SPAWN a `gate-worker` subagent (Task tool) with: the goal, the exact gate command, the FULL output
+   of the latest failing gate run, AND the reflection buffer (below). One increment per spawn.
 2. RUN the gate command yourself via Bash. Capture exit code + output. The gate is the ONLY verdict —
    ignore the worker's self-check claim.
 3. GREEN (exit 0) → go to §2.
-4. RED → record it, feed this output into the next worker spawn. If the worker returned "Blocked",
-   resolve the blocker yourself (read context, make the decision) then continue.
+4. RED → record it. Append ONE reflection line — a concrete hypothesis (WHY it failed + what to change
+   next, never "try again") — to the reflection buffer, then feed the gate output + buffer into the
+   next spawn. If the worker returned "Blocked", resolve the blocker yourself then continue.
+
+**Reflection buffer (Reflexion).** Persist to `.nord/reflect-<story>.md`, one line per red. Pass the
+last 3 into every spawn so the worker learns from prior failures instead of blind-retrying — a cheap
+accuracy lift before the 3-red frontier escalation. Delete the file on green.
 
 ## Escalation (frontier)
 

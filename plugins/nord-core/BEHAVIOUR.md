@@ -60,3 +60,19 @@ trace/verify/nord-review = C. This pointer resolves because nord-router injects 
   inject a compact state summary (goal, decisions so far, what's already answered) so the new worker
   resumes instead of restarting or re-asking settled questions. Pair with the `.nord/state/<skill>-<slug>.json`
   files nord skills already persist — read that state and re-inject it, don't just leave it on disk.
+
+## Agent orchestration (multi-agent = for BREADTH, not everything)
+- **Task-shape gate before fanning out.** Parallel subagents help only when the work DECOMPOSES into
+  independent parts (research, review dimensions, per-file edits) — measured +80% on parallelizable
+  tasks. On SEQUENTIAL / planning / shared-context work every multi-agent variant DEGRADES (−39% to
+  −70%): use ONE agent, or fan out to read only and synthesize in a single thread. Coding is sequential
+  → single-agent + subagents-for-reads, never a debating swarm. Multi-agent burns ~15× the tokens.
+- **Centralize, don't peer-swarm.** A central orchestrator that fans out and synthesizes contains
+  errors (~4×); decentralized handoff-only topologies amplify them (~17×). Keep the lead thread as the
+  single synthesizer; subagents return condensed results, never drive each other.
+- **Six canonical modes (name the one you're using, don't improvise):** Prompt-Chaining (fixed steps +
+  gate between) · Routing (classify → dispatch) · Parallelization (independent fan-out + merge) ·
+  Orchestrator-Workers (lead plans → spawns → synthesizes = the Workflow default) · Evaluator-Optimizer
+  (generate → judge → refine, e.g. gate-loop) · Autonomous (open loop, deterministic gate + hard stop).
+- **Graft ideas, not runtimes.** Adopt patterns (checkpointing, triage-routing, reflection) as native
+  Workflow/skill features; do NOT import LangGraph/CrewAI/AutoGen runtimes (single-CLI + local-first).

@@ -16,6 +16,15 @@ salient local artifact instead of your task — prefer `ralplan` (sequential, fo
 authoring. nord-plan shines on an OPEN solution space ("how should we approach X"), not on
 "plan this precise change".
 
+**When NOT to use — multi-item batch:** nord-plan is SINGLE-OBJECTIVE. For a batch of ≥3
+independent items ("fix all N points", a checklist, a list of distinct fixes) it SILENTLY DROPS
+items: `taskRestatement` collapses N points into one sentence (planner keeps the salient subset),
+the judge scores only `onTask`+quality with NO coverage axis (a plan covering 2 of 5 items still
+reads on-task → passes), and single-winner + best-of-rest synthesis carries the winner's coverage
+holes forward. A batch is a DECOMPOSITION job, not a tournament — route it to gate-loop PRD-mode /
+`ralph` (decompose to N stories, each its own deterministic gate). Use nord-plan only when the N
+points genuinely reduce to ONE objective with an open solution space.
+
 Why over ralplan: ralplan runs ONE plan through sequential Planner→Architect→Critic debate.
 nord-plan explores the solution space in parallel, then synthesizes — better when the right
 approach is not obvious.

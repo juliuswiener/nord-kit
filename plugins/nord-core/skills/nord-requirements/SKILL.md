@@ -316,7 +316,7 @@ Round <n> complete.
 
 ### Step 2e: Update In-Context State
 
-Append the round to `state.rounds[]`, update `current_ambiguity`, per-component `clarity_scores` and `weakest_dimension`, `topology.last_targeted_component_id`, and `ontology_snapshots`. Output the updated state JSON block so session resume is possible from conversation history. Also write the updated state to `.nord/state/nord-interview-<slug>.json` — this replaces omc `state_write` and is nord-native; it survives `/compact` where the in-context block does not.
+Append the round to `state.rounds[]`, update `current_ambiguity`, per-component `clarity_scores` and `weakest_dimension`, `topology.last_targeted_component_id`, and `ontology_snapshots`. Output the updated state JSON block and re-write `.nord/state/nord-interview-<slug>.json` (persistence rationale: Phase 1 — survives `/compact`; in-context block alone does not).
 
 ### Step 2f: Check Soft Limits
 
@@ -352,86 +352,7 @@ Trigger: `ambiguity ≤ <resolvedThreshold>` OR hard cap (round 20) OR early exi
 2. Write to `.nord/specs/nord-interview-<slug>.md` (exact path required; do not use repo root or ad hoc paths).
 3. Use `.nord/state/` for any ephemeral scoring artifacts during rounds; never write temp files to repo root.
 
-**Spec structure**:
-
-```markdown
-# Nord Interview Spec: <title>
-
-## Metadata
-- Interview ID: <id>
-- Rounds: <count>
-- Final Ambiguity: <score>%
-- Type: greenfield | brownfield
-- Generated: <ISO-8601>
-- Threshold: <resolvedThreshold>
-- Threshold Source: <resolvedThresholdSource>
-- Initial Context Summarized: <yes|no>
-- Status: PASSED | BELOW_THRESHOLD_EARLY_EXIT | HARD_CAP
-
-## Clarity Breakdown
-| Dimension          | Score | Weight | Weighted |
-|--------------------|-------|--------|----------|
-| Goal Clarity       | <s>   | <w>    | <s*w>    |
-| Constraint Clarity | <s>   | <w>    | <s*w>    |
-| Success Criteria   | <s>   | <w>    | <s*w>    |
-| Context Clarity    | <s>   | <w>    | <s*w>    |
-| **Total Clarity**  |       |        | **<total>** |
-| **Ambiguity**      |       |        | **<1-total>** |
-
-## Topology
-| Component       | Status   | Description              | Coverage / Deferral Note            |
-|-----------------|----------|--------------------------|-------------------------------------|
-| <component.name>| active   | <component.description>  | <covered acceptance criteria>       |
-| <component.name>| deferred | <component.description>  | <user-confirmed deferral reason + timestamp> |
-
-## Goal
-<crystal-clear goal statement covering every active topology component>
-
-## Constraints
-- <constraint 1>
-- <constraint 2>
-
-## Non-Goals
-- <explicitly excluded scope>
-
-## Acceptance Criteria
-- [ ] <testable criterion 1>
-- [ ] <testable criterion 2>
-
-## Assumptions Exposed & Resolved
-| Assumption | Challenge | Resolution |
-|------------|-----------|------------|
-| <assumption> | <how questioned> | <what was decided> |
-
-## Technical Context
-<!-- brownfield: relevant codebase findings from explore agent -->
-<!-- greenfield: technology choices and constraints -->
-
-## Ontology (Key Entities)
-<!-- Populate from the FINAL round's ontology_snapshots[-1]; do not re-generate at crystallization time -->
-| Entity | Type | Fields | Relationships |
-|--------|------|--------|---------------|
-| <entity.name> | <entity.type> | <entity.fields> | <entity.relationships> |
-
-## Ontology Convergence
-| Round | Entity Count | New | Changed | Stable | Stability Ratio |
-|-------|-------------|-----|---------|--------|----------------|
-| 1     | <n>         | <n> | -       | -      | -              |
-| 2     | <n>         | <n> | <n>     | <n>    | <ratio>%       |
-| ...   | ...         | ... | ...     | ...    | ...            |
-
-## Interview Transcript
-<details>
-<summary>Full Q&A (<n> rounds)</summary>
-
-### Round 1
-**Q:** <question>
-**A:** <answer>
-**Ambiguity:** <score>% (Goal: <g>, Constraints: <c>, Criteria: <cr>)
-
-...
-</details>
-```
+**Spec structure**: read `references/spec-template.md` and follow its exact section layout — Metadata, Clarity Breakdown, Topology, Goal, Constraints, Non-Goals, Acceptance Criteria, Assumptions, Technical Context, Ontology, Ontology Convergence, Transcript. Every confirmed topology component appears (active or user-confirmed deferral) — no silent drops.
 
 ---
 
@@ -527,44 +448,11 @@ extend that middleware or create a separate auth flow?"
 ```
 Explored first, cited the evidence, asked an informed question. Never asked the user what the code already reveals.
 
-**Good — Contrarian challenge**:
-```
-Round 5 | Contrarian Mode | Ambiguity: 42%
-
-You've said this needs to support 10,000 concurrent users. What if it only needed
-to handle 100? Would the architecture change fundamentally, or is the 10K number
-an assumption rather than a measured requirement?
-```
-
-**Good — early exit warning**:
-```
-User: "that's enough, just build it"
-
-Current ambiguity is 35% (threshold: 20%). Areas still unclear:
-  - Success Criteria: 0.5 — no concrete acceptance test defined
-  - Constraints: 0.6 — performance targets not established
-
-Proceeding may require rework. Continue anyway?
-[Yes, proceed] [2–3 more questions] [Cancel]
-```
-
 **Bad — batching questions**:
 ```
 "What's the target audience? And tech stack? And how should auth work? Also deployment?"
 ```
-Four questions → shallow answers → inaccurate scoring.
-
-**Bad — asking what the codebase reveals**:
-```
-"What database does your project use?"
-```
-Should have spawned explore agent first.
-
-**Bad — proceeding with high ambiguity**:
-```
-"Ambiguity is 45% but we've done 5 rounds, let's start building."
-```
-The mathematical gate exists to prevent exactly this.
+Four questions → shallow answers → inaccurate scoring. One question per round.
 
 ---
 

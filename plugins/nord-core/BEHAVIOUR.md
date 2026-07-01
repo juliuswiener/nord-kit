@@ -13,6 +13,29 @@ live here instead of per-device `~/.claude/CLAUDE.md`.
 - Keep secrets out of git — use `${ENV}` placeholders in committed config, real keys in each
   device's `~/.claude/settings.json` `env`.
 
+## Delegation routing (reach for the tool before working inline)
+On a task matching a shape below, the named skill/agent is the DEFAULT — working inline is the
+exception you justify in one line, not the reverse. Simplicity / ponytail / caveman govern the
+ARTIFACT (fewest lines of code, terse prose), never the PROCESS: spawning an agent or running a skill
+is not over-engineering. Threshold — delegate when the work is multi-file, multi-step, adversarial-worth,
+or a read-heavy fan-out; stay inline for single-file / trivial / conversational (over-triggering wastes
+~15× tokens — see Agent orchestration below). Match the shape, don't force it.
+
+| Task shape | Route to |
+|---|---|
+| Review a written diff/PR, line-level bugs | `nord-core:code-reviewer` (quick) · `/nord-review` (thorough/pre-merge, multi-dim adversarial) |
+| Pre-release / handover / due-diligence full audit | `/codebase-audit` |
+| "How does X work across the repo", trace data/auth flow, find all patterns of Y | `/nord-codebase-research` |
+| Plan an approach in an open solution space | `/nord-plan` |
+| Vague idea needs a spec before building | `/nord-requirements` |
+| "Did it actually work" completion check (independent) | `nord-core:verifier` · `/verify` |
+| Causal debugging of a failure (competing hypotheses) | `nord-core:tracer` · `/trace` |
+| Adversarial critique of a plan/diff pre-merge | `nord-core:critic` |
+| Security vuln scan | `nord-core:security-reviewer` |
+| Broad codebase search — locate, not review | `Explore` · `nord-core:explore` |
+| Iterative build-to-green behind a deterministic gate | `/gate-loop` (`ralph`) |
+| Organize / clean up project files | `nord-core:project-organizer` · `/nord-cleanup` |
+
 ## Skill/tool policy — adopt-in-place, one hand
 - **nord IS the single home.** Don't install/stack external plugins for capabilities — high skill count +
   overlap degrades tool-selection (≤3-5 rule). When a technique/strategy/skill/MCP elsewhere is useful,

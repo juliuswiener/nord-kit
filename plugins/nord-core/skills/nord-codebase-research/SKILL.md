@@ -540,79 +540,13 @@ Directory layout:
 
 ## Report Template
 
-Written to `.nord/research/<session-id>/report.md`:
-
-```markdown
-# Research Report: <goal>
-
-**Session:** <session-id>
-**Date:** <ISO date>
-**Status:** complete | partial | blocked
-**Stages:** N | **Findings:** M (dropped: K) | **Verification:** VERIFIED | CONFLICTS
-
-## Executive Summary
-
-<2-3 paragraphs: key findings, confidence levels, main patterns discovered>
-
-## Methodology
-
-| Stage | Name | Tier | Model | Findings |
-|-------|------|------|-------|----------|
-| 1 | <name> | LOW | haiku | 3 |
-| 2 | <name> | HIGH | opus | 5 |
-
-## Key Findings
-
-### [FINDING:1-1] <title>
-**Confidence:** HIGH
-**Stage:** <name>
-
-<analysis>
-
-**Evidence:**
-- `/absolute/path/to/file.ts:45-52`
-  ```typescript
-  <excerpt>
-  ```
+Written to `.nord/research/<session-id>/report.md` — structure in `references/report-template.md` (read at write-time).
 
 ---
 
-## Coverage Gaps
+## Tier Routing
 
-- <gap 1 — areas the goal implied but no stage addressed>
-
-## Conflicts Resolved
-
-- <conflict description — which finding was dropped and why>
-
-## Limitations
-
-- Sampling, not exhaustive — each stage reads files, not entire trees
-- Static analysis only — no runtime verification
-- <other scope constraints>
-
-## Appendix
-
-- Session state: `.nord/research/<session-id>/state.json`
-- Raw stage findings: `.nord/research/<session-id>/stages/`
-- Verified findings: `.nord/research/<session-id>/findings/verified/findings.md`
-```
-
----
-
-## Tier Routing Reference
-
-| Task | Tier | Model |
-|---|---|---|
-| Count occurrences of X | LOW | haiku |
-| Find all files matching Y | LOW | haiku |
-| List all usages of Z | LOW | haiku |
-| Analyze error handling patterns | MEDIUM | sonnet |
-| Document how auth flow works | MEDIUM | sonnet |
-| Review data model relationships | MEDIUM | sonnet |
-| Explain why race conditions occur | HIGH | opus |
-| Compare approaches A vs B | HIGH | opus |
-| Identify architectural violations | HIGH | opus |
+Tier/model assignment table is in the Phase-1 decompose prompt above (LOW/haiku, MEDIUM/sonnet, HIGH/opus).
 
 **Never down-tier to save cost on HIGH tasks.** Opus for architecture/causality is not optional — wrong model tier produces shallow findings with HIGH confidence, which the quality gate cannot catch.
 
@@ -620,22 +554,4 @@ Written to `.nord/research/<session-id>/report.md`:
 
 ## Troubleshooting
 
-**Stuck in verification loop (AUTO mode)?**
-- Check `state.json` for specific conflict ids
-- Re-run with `resumeStages` listing completed ids — only conflicted stages re-run
-- If conflict is unresolvable, verification passes with `CONFLICTS` verdict and both findings are included with a conflict note
-
-**Stages returning low-quality findings?**
-- Check tier assignment — architecture questions need HIGH/opus, not MEDIUM/sonnet
-- Narrow `scope` in decomposition — too-broad stages get shallow coverage
-- Check if research goal is too vague; decompose manually and pass custom stages
-
-**AUTO mode exhausted 10 iterations without PROMISE?**
-- Read `state.json` → check which stages have `status: "pending"` still
-- Inspect stage markdowns for "no relevant files found" — goal may not apply to this codebase
-- Consider splitting into two smaller research goals
-
-**Missing absolute paths in evidence?**
-- Stage agents occasionally use relative paths — these are automatically dropped by quality gate
-- Increase specificity in scope: `"src/auth/*.ts and src/middleware/*.ts"` instead of `"authentication code"`
-- Re-run failed stage with explicit note: "All evidence must use absolute file paths starting with /"
+Common failure modes (verification loop, low-quality findings, AUTO-mode exhaustion, missing absolute paths) and fixes: `references/troubleshooting.md`.

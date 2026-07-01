@@ -180,84 +180,20 @@ Output goes directly to the **What's Missing** section of the final output.
 
 Apply after the pipeline to surface issues dimension reviewers may miss:
 
-**Code review:**
 - **Security Engineer**: Trust boundaries crossed? Input not validated? What could be exploited?
 - **New Hire**: Could someone unfamiliar follow this? What context is assumed but not stated?
 - **Ops Engineer**: What happens at scale, under load, when dependencies fail? Blast radius?
 
-**Plan review (--plan mode):**
-- **Executor**: Can I do each step with only what's written? Where will I get stuck?
-- **Stakeholder**: Does this solve the stated problem? Are success criteria measurable?
-- **Skeptic**: Strongest argument this approach fails? Is the rejection rationale sound?
+(Plan review substitutes Executor / Stakeholder / Skeptic lenses — see `references/modes.md`.)
 
 ---
 
-## --plan Mode Protocol
+## Flag-gated modes → `references/modes.md`
 
-When `--plan` is active, skip the JS pipeline entirely.
-
-**Step 1 — Key Assumptions Extraction**: List every assumption (explicit + implicit). Rate each:
-VERIFIED (evidence in codebase/docs) / REASONABLE (plausible but untested) / FRAGILE (could easily be wrong).
-Fragile assumptions are highest-priority targets.
-
-**Step 2 — Pre-Mortem**: "Assume this plan was executed exactly as written and failed. Generate
-5-7 specific, concrete failure scenarios." Check: does the plan address each? Unaddressed → finding.
-
-**Step 3 — Dependency Audit**: For each step: inputs, outputs, blocking dependencies. Flag:
-circular deps, missing handoffs, implicit ordering, resource conflicts.
-
-**Step 4 — Ambiguity Scan**: "Could two competent developers interpret this differently?" If yes →
-document both interpretations + risk of choosing the wrong one.
-
-**Step 5 — Feasibility Check**: "Does the executor have everything needed (access, knowledge, tools,
-permissions) to complete this without asking questions?"
-
-**Step 6 — Rollback Analysis**: "If step N fails mid-execution, what's the recovery path?
-Documented or assumed?"
-
-**Devil's Advocate**: For each major decision: "What is the strongest argument AGAINST this approach?"
-If constructible and the plan doesn't address it → finding.
-
-Apply Self-Audit (Phase A) and Realist Check (Phase B) to all plan findings.
-
-Evidence format for plans: backtick-quoted excerpts + step references, not just assertions.
-Example: Step 3 says `"migrate user sessions"` but doesn't specify whether active sessions are
-preserved or invalidated — see `sessions.ts:47` where `SessionStore.flush()` destroys all active sessions.
-
-**Plan verdict**: REJECT / REVISE / ACCEPT-WITH-RESERVATIONS / ACCEPT
-
----
-
-## Quality-Strategy / Release-Readiness Mode
-
-Triggered by `--quality-strategy`, `--release-readiness`, or explicit shipping-decision context.
-Run after the normal pipeline; append to output.
-
-- Evaluate test coverage vs risk surface (unit, integration, e2e) for changed paths
-- Identify missing regression tests for changed code paths
-- Flag blocking defects, known regressions, untested paths
-- Evaluate monitoring/alerting coverage for new features
-
-**Risk-tier the change:**
-- **SAFE** — evidence of coverage, no blocking defects; proceed normally
-- **MONITOR** — ship with alerts armed; known gap but contained blast radius
-- **HOLD** — must not ship until specific defect or coverage gap is fixed
-
-Include risk-tier in final output.
-
----
-
-## API-Contract Review
-
-Triggered by `--api-contract` or auto-detected when the diff touches routes, exported types, OpenAPI/GraphQL schemas, client SDKs, or versioned protocol surfaces. Run after the normal pipeline; append to output.
-
-- **Breaking changes**: removed or renamed fields/endpoints, changed types, altered semantics, removed error codes
-- **Versioning**: is there a version bump (semver / URL version / header) for any incompatible change?
-- **Error semantics**: consistent error codes, meaningful messages, no leaking of internals; same error shape as existing API?
-- **Backward compatibility**: can existing callers continue without changes? If not, is a migration path documented?
-- **Spec / doc updates**: are new or changed contracts reflected in OpenAPI specs, GraphQL schema, or API docs?
-
-Flag any breaking change as CRITICAL unless a migration path is explicitly provided.
+When a mode flag is active, read `references/modes.md` for its protocol (default code-review needs none of it):
+- **`--plan`** — skip the JS pipeline; run the 6-step plan-review protocol (assumptions, pre-mortem, dependency audit, ambiguity, feasibility, rollback + Devil's Advocate + plan role-lenses). Verdict: REJECT / REVISE / ACCEPT-WITH-RESERVATIONS / ACCEPT.
+- **`--quality-strategy` / `--release-readiness`** — after the pipeline, append coverage-vs-risk assessment + risk-tier (SAFE / MONITOR / HOLD).
+- **`--api-contract`** (or auto on API-surface diffs) — after the pipeline, append breaking-change / versioning / compat review; breaking change = CRITICAL absent a migration path.
 
 ---
 

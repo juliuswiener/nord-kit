@@ -10,7 +10,7 @@
     {
       "name": "nord-core",
       "description": "nord core: multi-agent skills (review/cleanup/plan/exec), task-routing hook, nord-hud statusline, brainstorm/audit, skill-authoring, MCP.",
-      "version": "1.13.19",
+      "version": "1.13.20",
       "source": "./plugins/nord-core",
       "category": "productivity",
       "tags": [
@@ -35,7 +35,7 @@
     {
       "name": "nord-dev",
       "description": "nord dev helpers: Rust, Python, Dart, Flutter, module organization.",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "source": "./plugins/nord-dev",
       "category": "productivity",
       "tags": [

@@ -12,6 +12,9 @@ live here instead of per-device `~/.claude/CLAUDE.md`.
   unless already authorized in this turn.
 - Keep secrets out of git — use `${ENV}` placeholders in committed config, real keys in each
   device's `~/.claude/settings.json` `env`.
+- Deleting anything under `/tmp`: use `safe-tmp-rm <absolute-path>` — never plain `rm`. Plain `rm`
+  hits the ask-rule and stalls on a permission prompt; the wrapper is allowlisted and runs unprompted.
+  One absolute path per call, no flags, no `&&`/`;`/pipes, no preceding `cd`; multiple targets = multiple calls.
 
 ## Delegation routing (reach for the tool before working inline)
 On a task matching a shape below, the named skill/agent is the DEFAULT — working inline is the

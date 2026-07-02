@@ -1,0 +1,14 @@
+{
+  "name": "agentbus",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Peer-to-peer message bus for Claude Code sessions (nord-core, opt-in).",
+  "scripts": {
+    "bus": "bun bus.ts",
+    "e2e": "bun e2e.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}

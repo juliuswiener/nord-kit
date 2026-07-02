@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "agentbus": {
+      "command": "bun",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/agentbus/agent-channel.ts"],
+      "env": {
+        "AGENT_ID": "${AGENT_ID}",
+        "BUS_URL": "http://127.0.0.1:9000"
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+# agentbus broker as a user systemd service.
+# Install:
+#   mkdir -p ~/.config/systemd/user
+#   cp agentbus.service ~/.config/systemd/user/agentbus.service
+#   # edit ExecStart path below to this checkout's absolute bus.ts path
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now agentbus.service
+#   systemctl --user status agentbus.service
+#   journalctl --user -u agentbus -f
+[Unit]
+Description=agentbus broker — peer message bus for Claude Code sessions
+After=network.target
+
+[Service]
+Type=simple
+# Absolute path required. Adjust the bun path (command -v bun) and the bus.ts path if needed.
+ExecStart=/usr/bin/bun %h/.claude/plugins/marketplaces/nord/plugins/nord-core/agentbus/bus.ts
+Environment=AGENTBUS_HOME=%h/.agentbus
+Environment=AGENTBUS_PORT=9000
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

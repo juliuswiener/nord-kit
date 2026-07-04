@@ -46,7 +46,11 @@ const m = (s.model && (s.model.display_name || s.model.id)) || '';
 if (m) {
   const short = m.replace('Opus', 'O').replace('Sonnet', 'S').replace('Haiku', 'H')
     .replace(' (1M context)', '·1M').replace(/\s+/g, '');
-  parts.push(c(146, short));
+  const rl = s.rate_limits || {};
+  const fh = rl.five_hour && rl.five_hour.used_percentage;
+  const quotaText = typeof fh === 'number' ? ' (' + Math.round(fh) + '%)' : '';
+  const coloredQuota = typeof fh === 'number' ? c(grad(fh), quotaText) : '';
+  parts.push(c(146, short) + coloredQuota);
 }
 
 // context window usage. CC reports context_window_size=200000 and caps

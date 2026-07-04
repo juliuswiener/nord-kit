@@ -46,11 +46,10 @@ const m = (s.model && (s.model.display_name || s.model.id)) || '';
 if (m) {
   const short = m.replace('Opus', 'O').replace('Sonnet', 'S').replace('Haiku', 'H')
     .replace(' (1M context)', '·1M').replace(/\s+/g, '');
-  const rl = s.rate_limits || {};
-  const fh = rl.five_hour && rl.five_hour.used_percentage;
-  const quotaText = typeof fh === 'number' ? ' (' + Math.round(fh) + '%)' : '';
-  const coloredQuota = typeof fh === 'number' ? c(grad(fh), quotaText) : '';
-  parts.push(c(146, short) + coloredQuota);
+  const mult = getModelMultiplier(m);
+  const multText = mult ? ' (' + mult + ')' : '';
+  const coloredMult = mult ? c(mult === '5x' ? 203 : mult === '1x' ? 215 : 114, multText) : '';
+  parts.push(c(146, short) + coloredMult);
 }
 
 // context window usage. CC reports context_window_size=200000 and caps
@@ -169,4 +168,13 @@ function readGoal(cwd) {
     try { const t = fs.readFileSync(p, 'utf8').trim(); if (t) return t.split('\n')[0].replace(/^#+\s*/, ''); } catch {}
   }
   return null;
+}
+
+function getModelMultiplier(modelNameOrId) {
+  if (!modelNameOrId) return '';
+  const name = modelNameOrId.toLowerCase();
+  if (name.includes('fable') || name.includes('opus')) return '5x';
+  if (name.includes('sonnet')) return '1x';
+  if (name.includes('haiku')) return '0.2x';
+  return '';
 }

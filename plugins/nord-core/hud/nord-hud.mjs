@@ -48,7 +48,7 @@ if (m) {
     .replace(' (1M context)', '·1M').replace(/\s+/g, '');
   const mult = getModelMultiplier(m);
   const multText = mult ? ' (' + mult + ')' : '';
-  const coloredMult = mult ? c(mult === '5x' ? 203 : mult === '1x' ? 215 : 114, multText) : '';
+  const coloredMult = mult ? c(mult === '2x' ? 203 : mult === '1x' ? 215 : mult === '0.6x' ? 222 : 114, multText) : '';
   parts.push(c(146, short) + coloredMult);
 }
 
@@ -173,8 +173,9 @@ function readGoal(cwd) {
 function getModelMultiplier(modelNameOrId) {
   if (!modelNameOrId) return '';
   const name = modelNameOrId.toLowerCase();
-  if (name.includes('fable') || name.includes('opus')) return '5x';
-  if (name.includes('sonnet')) return '1x';
+  if (name.includes('fable') || name.includes('mythos')) return '2x';
+  if (name.includes('opus')) return '1x';
+  if (name.includes('sonnet')) return '0.6x';
   if (name.includes('haiku')) return '0.2x';
   return '';
 }

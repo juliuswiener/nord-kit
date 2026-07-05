@@ -38,6 +38,7 @@ or a read-heavy fan-out; stay inline for single-file / trivial / conversational 
 | Broad codebase search — locate, not review | `Explore` · `nord-core:explore` |
 | Iterative build-to-green behind a deterministic gate | `/gate-loop` (`ralph`) |
 | Organize / clean up project files | `nord-core:project-organizer` · `/nord-cleanup` |
+| Command needs a TTY / human input (sudo password, ssh passphrase, installer prompt) | `/run-interactive` (tmux pane — never ask the user to run it manually first) |
 
 ## Skill/tool policy — adopt-in-place, one hand
 - **nord IS the single home.** Don't install/stack external plugins for capabilities — high skill count +

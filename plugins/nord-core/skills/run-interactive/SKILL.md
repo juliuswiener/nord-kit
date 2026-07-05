@@ -32,6 +32,7 @@ Agent Bash has no TTY, so interactive prompts can't read input. Run the command 
 4. **Done**: `RC=0` → `tmux kill-pane -t "$PANE"`, report. `RC≠0` → leave the pane open for inspection, report RC + last ~20 lines.
 
 ## Notes
+- **Long output**: `capture-pane` only sees the last ~100 scrollback lines — fine for prompts and short results, lossy for anything bigger. When you need the full output, redirect inside the pane and read the file after the marker: `send-keys "<cmd> > /tmp/nord-run-out.txt 2>&1; echo NORD_RC=\$?"`, then `Read /tmp/nord-run-out.txt`. Only the prompt needs the TTY, the output doesn't.
 - Captured output contains no secrets — password input isn't echoed.
 - Several privileged steps? One pane running the whole sequence (one password entry, sudo caches per-TTY) beats N panes.
 - This solves the general class (sudo, ssh, installers, TUIs) with zero sudoers changes; prefer it over NOPASSWD/askpass infrastructure.

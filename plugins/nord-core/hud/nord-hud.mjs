@@ -5,10 +5,51 @@
 // Self-contained (node builtins only). Synced via nord-kit; the nord-router
 // SessionStart hook copies this to ~/.claude/hud/nord-hud.mjs (stable path).
 
-import { execSync } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
+
+const cfgDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+const pricesCachePath = path.join(cfgDir, 'hud', 'prices-cache.json');
+
+let multipliers = {
+  fable: '2x',
+  mythos: '2x',
+  opus: '1x',
+  sonnet: '0.6x',
+  haiku: '0.2x'
+};
+
+try {
+  if (fs.existsSync(pricesCachePath)) {
+    const cached = JSON.parse(fs.readFileSync(pricesCachePath, 'utf8'));
+    multipliers = { ...multipliers, ...cached };
+  }
+} catch {}
+
+// Trigger async background pricing fetch once a day
+try {
+  let shouldFetch = false;
+  if (!fs.existsSync(pricesCachePath)) {
+    shouldFetch = true;
+  } else {
+    const stats = fs.statSync(pricesCachePath);
+    const ageMs = Date.now() - stats.mtimeMs;
+    if (ageMs > 24 * 60 * 60 * 1000) {
+      shouldFetch = true;
+    }
+  }
+  if (shouldFetch) {
+    const fetchScript = path.join(cfgDir, 'hud', 'fetch-prices.mjs');
+    if (fs.existsSync(fetchScript)) {
+      spawn(process.execPath, [fetchScript], {
+        detached: true,
+        stdio: 'ignore'
+      }).unref();
+    }
+  }
+} catch {}
 
 let raw = '';
 try { raw = fs.readFileSync(0, 'utf8'); } catch {}
@@ -170,12 +211,12 @@ function readGoal(cwd) {
   return null;
 }
 
+
 function getModelMultiplier(modelNameOrId) {
   if (!modelNameOrId) return '';
   const name = modelNameOrId.toLowerCase();
-  if (name.includes('fable') || name.includes('mythos')) return '2x';
-  if (name.includes('opus')) return '1x';
-  if (name.includes('sonnet')) return '0.6x';
-  if (name.includes('haiku')) return '0.2x';
+  for (const [key, value] of Object.entries(multipliers)) {
+    if (name.includes(key)) return value;
+  }
   return '';
 }

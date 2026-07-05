@@ -13,15 +13,19 @@ const os = require('os');
 // fresh across plugin updates. Set settings.json statusLine to: node ~/.claude/hud/nord-hud.mjs
 try {
   const cfgDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
-  const src = path.join(__dirname, '..', 'hud', 'nord-hud.mjs');
   const dstDir = path.join(cfgDir, 'hud');
-  const dst = path.join(dstDir, 'nord-hud.mjs');
-  if (fs.existsSync(src)) {
-    fs.mkdirSync(dstDir, { recursive: true });
-    const a = fs.readFileSync(src, 'utf8');
-    let b = '';
-    try { b = fs.readFileSync(dst, 'utf8'); } catch {}
-    if (a !== b) fs.writeFileSync(dst, a);
+  fs.mkdirSync(dstDir, { recursive: true });
+
+  const filesToCopy = ['nord-hud.mjs', 'fetch-prices.mjs'];
+  for (const file of filesToCopy) {
+    const src = path.join(__dirname, '..', 'hud', file);
+    const dst = path.join(dstDir, file);
+    if (fs.existsSync(src)) {
+      const a = fs.readFileSync(src, 'utf8');
+      let b = '';
+      try { b = fs.readFileSync(dst, 'utf8'); } catch {}
+      if (a !== b) fs.writeFileSync(dst, a);
+    }
   }
 } catch (e) { /* non-fatal */ }
 

@@ -68,6 +68,22 @@ const parts = [];
 // hostname (short)
 parts.push(c(110, os.hostname().split('.')[0]));
 
+// nord version
+let nordVersion = '';
+try {
+  const installedPluginsPath = path.join(cfgDir, 'plugins', 'installed_plugins.json');
+  if (fs.existsSync(installedPluginsPath)) {
+    const data = JSON.parse(fs.readFileSync(installedPluginsPath, 'utf8'));
+    const nordCore = data.plugins?.['nord-core@nord']?.[0];
+    if (nordCore?.version) {
+      nordVersion = nordCore.version;
+    }
+  }
+} catch {}
+if (nordVersion) {
+  parts.push(c(243, 'N' + nordVersion));
+}
+
 // working dir (basename only; ~ for home)
 const dir = cwd === os.homedir() ? '~' : (path.basename(cwd) || cwd);
 parts.push(c(150, '' + dir));

@@ -12,9 +12,11 @@ server (`agent-channel.ts`) that pushes peer messages into the session and expos
 Session A ──send_message──▶ A client ──POST /send──▶ broker ──queue+SSE──▶ B client ──channel event──▶ Session B
 ```
 
-**Opt-in, isolated.** This module is deliberately NOT wired into nord-core's always-on
-`.mcp.json`. Channels are a preview feature requiring a launch flag, and the bus is a
-prompt-injection surface (see Security) — you load it per project/session on purpose.
+**Registered in nord-core's `.mcp.json` as server `agentbus`**, so every nord session can see it.
+It stays inert until you opt in at launch: without a running broker the client just background-
+retries a dead connection, and inbound channel events require the `--dangerously-load-development-
+channels` flag. No broker + no flag = nothing happens. See Security — the bus is a prompt-injection
+surface, keep it localhost-only.
 
 ## Prerequisites
 
@@ -53,9 +55,10 @@ Env: `AGENTBUS_HOME` (inbox dir, default `~/.agentbus`), `AGENTBUS_PORT` (defaul
 
 ## Run peer sessions
 
-Each session gets a unique `AGENT_ID` and must be launched with the dev-channels flag (custom
-channels are off the allowlist during the preview). Point Claude Code at this module's
-`.mcp.json`, or add the server to a project/user config with a **unique `AGENT_ID` per session**.
+The server is already registered (nord-core `.mcp.json`, name `agentbus`). Each session just needs
+a **unique `AGENT_ID`** and the dev-channels flag (custom channels are off the allowlist during the
+preview). If `AGENT_ID` is unset the client defaults to `agent` — two such sessions clobber each
+other's subscription, so always set it.
 
 ```bash
 # Terminal 1 — broker (leave running)

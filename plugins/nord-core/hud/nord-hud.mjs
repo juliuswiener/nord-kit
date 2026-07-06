@@ -68,20 +68,10 @@ const parts = [];
 // hostname (short)
 parts.push(c(110, os.hostname().split('.')[0]));
 
-// nord version
-let nordVersion = '';
-try {
-  const installedPluginsPath = path.join(cfgDir, 'plugins', 'installed_plugins.json');
-  if (fs.existsSync(installedPluginsPath)) {
-    const data = JSON.parse(fs.readFileSync(installedPluginsPath, 'utf8'));
-    const nordCore = data.plugins?.['nord-core@nord']?.[0];
-    if (nordCore?.version) {
-      nordVersion = nordCore.version;
-    }
-  }
-} catch {}
-if (nordVersion) {
-  parts.push(c(243, 'N' + nordVersion));
+// agent ID (only if present in environment)
+const agentId = process.env.AGENT_ID;
+if (agentId) {
+  parts.push(c(141, agentId));
 }
 
 // working dir (basename only; ~ for home)

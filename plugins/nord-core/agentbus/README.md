@@ -55,25 +55,30 @@ Env: `AGENTBUS_HOME` (inbox dir, default `~/.agentbus`), `AGENTBUS_PORT` (defaul
 
 ## Run peer sessions
 
-The server is already registered (nord-core `.mcp.json`, name `agentbus`). Each session just needs
-a **unique `AGENT_ID`** and the dev-channels flag (custom channels are off the allowlist during the
-preview). If `AGENT_ID` is unset the client defaults to `agent` — two such sessions clobber each
-other's subscription, so always set it.
+The server is already registered (nord-core `.mcp.json`, name `agentbus`). Each session needs a
+**unique `AGENT_ID`** and the dev-channels flag. The flag entry MUST be the plugin form
+`plugin:nord-core@nord`, **not** `server:agentbus`: agentbus is provided by the nord-core plugin,
+so `server:<name>` (which is only for a bare `.mcp.json` server) does not register it as a channel.
+With the wrong entry the server still loads and `send_message` works, but inbound `<channel>` events
+are **silently dropped** — the exact failure of a "connected but nothing arrives" session. If
+`AGENT_ID` is unset the client defaults to `agent` (and `${AGENT_ID}` may pass through unexpanded) —
+two such sessions clobber each other's subscription, so always set it.
 
 ```bash
-# Terminal 1 — broker (leave running)
+# Terminal 1 — broker (leave running; or use the systemd unit)
 bun bus.ts
 
 # Terminal 2 — peer "toolmaker"
-AGENT_ID=toolmaker claude --dangerously-load-development-channels server:agentbus
+AGENT_ID=toolmaker claude --dangerously-load-development-channels plugin:nord-core@nord
 
 # Terminal 3 — peer "consumer"
-AGENT_ID=consumer claude --dangerously-load-development-channels server:agentbus
+AGENT_ID=consumer claude --dangerously-load-development-channels plugin:nord-core@nord
 ```
 
-On first run each session prompts to trust the new MCP server — select "Use this MCP server".
-Run sessions in tmux/screen so they stay open to receive. Peer messages arrive as
-`<channel source="agentbus" from="..." msg_id="...">` events.
+A dim startup line — `Channels (experimental) messages from ... inject directly in this session` —
+confirms the channel registered. If it's missing, the flag entry is wrong. Run sessions in
+tmux/screen so they stay open to receive. Peer messages arrive as
+`<channel source="plugin:nord-core:agentbus" from="..." msg_id="...">` events.
 
 ## Tests
 

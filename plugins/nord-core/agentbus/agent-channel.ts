@@ -8,6 +8,9 @@ import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprot
 
 const AGENT_ID = process.env.AGENT_ID ?? 'agent'
 const BUS = process.env.BUS_URL ?? 'http://localhost:9000'
+// If no bytes (not even a heartbeat) arrive within this window, the stream is dead —
+// abort and reconnect. Must exceed the broker's heartbeat interval (default 15s).
+const IDLE_MS = Number(process.env.AGENTBUS_IDLE_MS ?? 40000)
 
 const mcp = new Server(
   { name: 'agentbus', version: '0.1.0' },
@@ -68,8 +71,14 @@ async function ack(id: number) {
 
 async function pump() {
   for (;;) {
+    // Watchdog: abort a stalled stream so a hung reader.read() (Bun does not always throw
+    // on abrupt server death) can't wedge the loop. Reset on every byte, incl. heartbeats.
+    const ctrl = new AbortController()
+    let watchdog: ReturnType<typeof setTimeout>
+    const bump = () => { clearTimeout(watchdog); watchdog = setTimeout(() => ctrl.abort(), IDLE_MS) }
     try {
-      const res = await fetch(`${BUS}/subscribe?agent=${encodeURIComponent(AGENT_ID)}`)
+      bump()
+      const res = await fetch(`${BUS}/subscribe?agent=${encodeURIComponent(AGENT_ID)}`, { signal: ctrl.signal })
       if (!res.body) throw new Error('no response body')
       const reader = res.body.getReader()
       const dec = new TextDecoder()
@@ -77,6 +86,7 @@ async function pump() {
       for (;;) {
         const { value, done } = await reader.read()
         if (done) break
+        bump() // any data (message or heartbeat) proves the stream is alive
         buf += dec.decode(value, { stream: true })
         let i
         while ((i = buf.indexOf('\n\n')) !== -1) {
@@ -96,6 +106,7 @@ async function pump() {
         }
       }
     } catch {}
+    clearTimeout(watchdog!)
     await new Promise(r => setTimeout(r, 1000)) // reconnect backoff
   }
 }

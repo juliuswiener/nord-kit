@@ -12,6 +12,7 @@ type Msg = { id: number; from: string; text: string; ts: number }
 const DIR = process.env.AGENTBUS_HOME ?? join(homedir(), '.agentbus')
 const FILE = join(DIR, 'inbox.json')
 const PORT = Number(process.env.AGENTBUS_PORT ?? 9000)
+const HEARTBEAT_MS = Number(process.env.AGENTBUS_HEARTBEAT_MS ?? 15000)
 if (!existsSync(DIR)) mkdirSync(DIR, { recursive: true })
 
 // inbox[agent] holds messages not yet acked by that agent. This is the durable state.
@@ -46,8 +47,15 @@ Bun.serve({
       return new Response(new ReadableStream({
         start(ctrl) {
           ctrl.enqueue(': connected\n\n')
-          clients.set(agent, d => { try { ctrl.enqueue(`data: ${d}\n\n`) } catch {} })
-          req.signal.addEventListener('abort', () => clients.delete(agent))
+          const emit = (d: string) => { try { ctrl.enqueue(`data: ${d}\n\n`) } catch {} }
+          clients.set(agent, emit)
+          // Heartbeat comment-frames so an idle client can detect a dead stream (broker
+          // restart, half-open TCP) via its watchdog and reconnect instead of wedging.
+          const hb = setInterval(() => { try { ctrl.enqueue(': ping\n\n') } catch {} }, HEARTBEAT_MS)
+          req.signal.addEventListener('abort', () => {
+            clearInterval(hb)
+            if (clients.get(agent) === emit) clients.delete(agent) // don't clobber a newer reconnect
+          })
           deliver(agent) // redeliver anything queued while the agent was away
         },
       }), {

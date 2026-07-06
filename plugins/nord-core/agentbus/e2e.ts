@@ -13,7 +13,11 @@ const BUS = `http://127.0.0.1:${PORT}`
 const HOME = join(HERE, '.e2e-home')
 const INBOX = join(HOME, 'inbox.json')
 
-const env = { ...process.env, AGENTBUS_HOME: HOME, AGENTBUS_PORT: String(PORT), BUS_URL: BUS }
+// Short heartbeat/idle windows so the self-heal test runs in seconds, not 40s.
+const env = {
+  ...process.env, AGENTBUS_HOME: HOME, AGENTBUS_PORT: String(PORT), BUS_URL: BUS,
+  AGENTBUS_HEARTBEAT_MS: '500', AGENTBUS_IDLE_MS: '1500',
+}
 
 let failures = 0
 function check(name: string, cond: boolean, detail = '') {
@@ -154,6 +158,31 @@ async function main() {
   check('restart durability: message still pending after broker restart',
     (await status()).pending['ghost'] === 1, JSON.stringify((await status()).pending))
 
+  await kill(broker)
+  await sleep(300)
+
+  // --- Self-heal: an idle client survives a broker restart and re-subscribes ---
+  // Regression for the wedge bug: a hung reader.read() used to leave an idle client
+  // permanently unsubscribed. Heartbeat + idle-watchdog must reconnect it automatically.
+  broker = spawnBroker()
+  await waitPort()
+  const healer = spawnClient('healer')
+  check('self-heal: client subscribed initially',
+    await waitFor(s => s.connected.includes('healer'), 4000))
+  // Kill the broker out from under the idle client, bring a fresh one up.
+  await kill(broker)
+  await sleep(200)
+  broker = spawnBroker()
+  await waitPort()
+  // Without touching the client, it must re-appear as connected within ~watchdog+backoff.
+  const rehealed = await waitFor(s => s.connected.includes('healer'), 6000)
+  check('self-heal: idle client auto-reconnected after broker restart (no wedge)', rehealed,
+    JSON.stringify((await status()).connected))
+  // And it actually delivers again: send post-reconnect, expect ack (pending -> 0).
+  await send('boss', 'post-heal delivery', 'healer')
+  check('self-heal: delivers + acks after reconnect',
+    await waitFor(s => (s.pending['healer'] ?? 0) === 0, 4000))
+  await kill(healer)
   await kill(broker)
   rmSync(HOME, { recursive: true, force: true })
 

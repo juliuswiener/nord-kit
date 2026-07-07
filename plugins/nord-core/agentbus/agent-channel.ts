@@ -71,22 +71,29 @@ async function ack(id: number) {
 
 async function pump() {
   for (;;) {
-    // Watchdog: abort a stalled stream so a hung reader.read() (Bun does not always throw
-    // on abrupt server death) can't wedge the loop. Reset on every byte, incl. heartbeats.
+    // Idle watchdog: if no bytes (not even a heartbeat) arrive within IDLE_MS the stream is
+    // dead — force the loop to reconnect. Bun's reader.read() does NOT reliably reject when the
+    // fetch signal aborts, so we cannot rely on ctrl.abort() alone: we RACE each read against an
+    // idle promise and explicitly cancel the reader, guaranteeing the loop breaks and re-subscribes.
     const ctrl = new AbortController()
-    let watchdog: ReturnType<typeof setTimeout>
-    const bump = () => { clearTimeout(watchdog); watchdog = setTimeout(() => ctrl.abort(), IDLE_MS) }
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+    let idle: ReturnType<typeof setTimeout> | undefined
+    let onIdle: () => void = () => {}
+    const idlePromise: Promise<'idle'> = new Promise(res => { onIdle = () => res('idle') })
+    const arm = () => { clearTimeout(idle); idle = setTimeout(() => { ctrl.abort(); onIdle() }, IDLE_MS) }
     try {
-      bump()
+      arm()
       const res = await fetch(`${BUS}/subscribe?agent=${encodeURIComponent(AGENT_ID)}`, { signal: ctrl.signal })
       if (!res.body) throw new Error('no response body')
-      const reader = res.body.getReader()
+      reader = res.body.getReader()
       const dec = new TextDecoder()
       let buf = ''
       for (;;) {
-        const { value, done } = await reader.read()
+        const r = await Promise.race([reader.read(), idlePromise])
+        if (r === 'idle') throw new Error('idle timeout') // hung/dead stream — reconnect
+        const { value, done } = r
         if (done) break
-        bump() // any data (message or heartbeat) proves the stream is alive
+        arm() // any data (message or heartbeat) proves the stream is alive
         buf += dec.decode(value, { stream: true })
         let i
         while ((i = buf.indexOf('\n\n')) !== -1) {
@@ -106,7 +113,8 @@ async function pump() {
         }
       }
     } catch {}
-    clearTimeout(watchdog!)
+    clearTimeout(idle)
+    try { await reader?.cancel() } catch {} // free the socket so it can't linger half-open
     await new Promise(r => setTimeout(r, 1000)) // reconnect backoff
   }
 }

@@ -49,13 +49,18 @@ Bun.serve({
           ctrl.enqueue(': connected\n\n')
           const emit = (d: string) => { try { ctrl.enqueue(`data: ${d}\n\n`) } catch {} }
           clients.set(agent, emit)
-          // Heartbeat comment-frames so an idle client can detect a dead stream (broker
-          // restart, half-open TCP) via its watchdog and reconnect instead of wedging.
-          const hb = setInterval(() => { try { ctrl.enqueue(': ping\n\n') } catch {} }, HEARTBEAT_MS)
-          req.signal.addEventListener('abort', () => {
+          const drop = () => {
             clearInterval(hb)
             if (clients.get(agent) === emit) clients.delete(agent) // don't clobber a newer reconnect
-          })
+          }
+          // Heartbeat comment-frames so an idle client can detect a dead stream (broker
+          // restart, half-open TCP) via its watchdog and reconnect instead of wedging.
+          // A throwing enqueue means the consumer is gone: self-clean so /status stays honest
+          // and dead ghosts don't accumulate (Bun's req.signal abort is not always reliable).
+          const hb = setInterval(() => {
+            try { ctrl.enqueue(': ping\n\n') } catch { drop() }
+          }, HEARTBEAT_MS)
+          req.signal.addEventListener('abort', drop)
           deliver(agent) // redeliver anything queued while the agent was away
         },
       }), {

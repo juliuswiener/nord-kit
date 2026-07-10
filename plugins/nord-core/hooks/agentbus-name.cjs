@@ -10,15 +10,22 @@ const { execSync } = require('child_process')
 let input = {}
 try { input = JSON.parse(fs.readFileSync(0, 'utf8')) } catch {}
 
+// One-line debug of the raw SessionStart input, so the exact field --name lands in
+// (session_title vs session_name vs …) is verifiable. Harmless; remove once confirmed.
+try { fs.appendFileSync('/tmp/agentbus-hook-input.log', JSON.stringify(input) + '\n') } catch {}
+
 const sid = process.env.CLAUDE_CODE_SESSION_ID || input.session_id || ''
 const source = input.source || 'startup'
+
+// --name may surface as session_title or session_name depending on version.
+const launchName = input.session_title || input.session_name || ''
 
 // Priority: explicit AGENT_ID env > an already-set session title (e.g. on resume) > git branch
 // > project-dir basename. Never emit the literal "${AGENT_ID}" (a launch-quoting bug).
 function pick() {
   const env = process.env.AGENT_ID
   if (env && env !== '${AGENT_ID}') return env
-  if (input.session_title) return String(input.session_title)
+  if (launchName) return String(launchName)
   try {
     const b = execSync('git branch --show-current', {
       stdio: ['ignore', 'pipe', 'ignore'],

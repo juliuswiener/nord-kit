@@ -5,12 +5,28 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { readFileSync } from 'node:fs'
 
-const AGENT_ID = process.env.AGENT_ID ?? 'agent'
 const BUS = process.env.BUS_URL ?? 'http://localhost:9000'
 // If no bytes (not even a heartbeat) arrive within this window, the stream is dead —
 // abort and reconnect. Must exceed the broker's heartbeat interval (default 15s).
 const IDLE_MS = Number(process.env.AGENTBUS_IDLE_MS ?? 40000)
+const SESSION_ID = process.env.CLAUDE_CODE_SESSION_ID ?? ''
+const NAME_FILE = SESSION_ID ? `/tmp/agentbus-name-${SESSION_ID}` : ''
+
+// Resolve this session's bus identity. Priority: the name-file (written by the SessionStart
+// hook or /busname) > a real AGENT_ID env > the session uuid > 'agent'. The literal
+// '${AGENT_ID}' is a launch-quoting bug — treat it as unset so a mis-launched session still
+// gets a stable id instead of registering the ghost peer '${AGENT_ID}'.
+function resolveId(): string {
+  if (NAME_FILE) {
+    try { const n = readFileSync(NAME_FILE, 'utf8').trim(); if (n) return n } catch {}
+  }
+  const env = process.env.AGENT_ID
+  if (env && env !== '${AGENT_ID}') return env
+  return SESSION_ID || 'agent'
+}
+let AGENT_ID = resolveId()
 
 const mcp = new Server(
   { name: 'agentbus', version: '0.1.0' },
@@ -105,15 +121,38 @@ function dbg(msg: string) {
   try { appendFileSync(DEBUG_LOG, `${new Date().toISOString()} ${msg}\n`) } catch {}
 }
 
+// Watch the name-file: if the resolved identity changes (SessionStart hook / /busname), force
+// the current stream to reconnect so the loop re-binds AGENT_ID and re-subscribes under it.
+let activeCtrl: AbortController | undefined
+setInterval(() => {
+  if (resolveId() !== AGENT_ID) { dbg('name-file changed → forcing reconnect'); activeCtrl?.abort() }
+}, 3000)
+
 async function pump() {
   dbg('pump() entered')
   for (;;) {
     dbg('loop iteration start')
+    // Re-bind identity before (re)subscribing: if the name-file changed, carry the bus inbox
+    // to the new id via /rename, then subscribe under it below.
+    const wanted = resolveId()
+    if (wanted !== AGENT_ID) {
+      const old = AGENT_ID
+      AGENT_ID = wanted
+      dbg(`identity ${old} -> ${AGENT_ID}`)
+      try {
+        await fetch(`${BUS}/rename`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: old, to: AGENT_ID }),
+        })
+      } catch (e) { dbg(`rename call failed: ${e}`) }
+    }
     // Idle watchdog: if no bytes (not even a heartbeat) arrive within IDLE_MS the stream is
     // dead — force the loop to reconnect. Bun's reader.read() does NOT reliably reject when the
     // fetch signal aborts, so we cannot rely on ctrl.abort() alone: we RACE each read against an
     // idle promise and explicitly cancel the reader, guaranteeing the loop breaks and re-subscribes.
     const ctrl = new AbortController()
+    activeCtrl = ctrl
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
     let idle: ReturnType<typeof setTimeout> | undefined
     let onIdle: () => void = () => {}

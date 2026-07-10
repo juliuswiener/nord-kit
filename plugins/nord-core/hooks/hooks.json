@@ -20,6 +20,12 @@
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/nord-router.js",
             "timeout": 5,
             "statusMessage": "Loading nord router..."
+          },
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/agentbus-name.cjs",
+            "timeout": 5,
+            "statusMessage": "Setting agentbus identity..."
           }
         ]
       }

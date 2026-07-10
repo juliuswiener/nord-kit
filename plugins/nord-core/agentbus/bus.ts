@@ -123,6 +123,24 @@ Bun.serve({
       return Response.json({ ok: true })
     }
 
+    // Rename an agent's bus identity: carry its queued inbox to the new id and drop the
+    // old subscription so the channel re-subscribes as `to`. Called by the channel when its
+    // name-file changes (SessionStart hook / /busname). Idempotent-ish: unknown `from` just
+    // migrates nothing.
+    if (url.pathname === '/rename' && req.method === 'POST') {
+      const { from, to } = await req.json() as { from: string; to: string }
+      if (!from || !to || from === to)
+        return Response.json({ ok: false, error: 'from/to required and distinct' }, { status: 400 })
+      const carried = inbox[from]?.length ?? 0
+      if (carried) (inbox[to] ??= []).push(...inbox[from])
+      delete inbox[from]
+      await persist()
+      closers.get(from)?.() // drop the old stream so the channel reconnects under `to`
+      console.error(`RENAME ${from} -> ${to} (carried ${carried} pending)`)
+      if (clients.has(to)) deliver(to) // if `to` is already live, flush the carried queue now
+      return Response.json({ ok: true, migrated: carried })
+    }
+
     // Inspection: who is connected and how many messages are pending per agent.
     if (url.pathname === '/status') {
       const pending = Object.fromEntries(Object.entries(inbox).map(([a, q]) => [a, q.length]))

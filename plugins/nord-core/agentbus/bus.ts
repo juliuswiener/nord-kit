@@ -96,7 +96,15 @@ Bun.serve({
 
     // A channel client posts here when its session wants to message a peer.
     if (url.pathname === '/send' && req.method === 'POST') {
-      const { from, to, text } = await req.json() as { from: string; to?: string; text: string }
+      const body = await req.json() as { from: string; to?: string; text?: string; message?: string }
+      const from = body.from
+      const to = body.to
+      // Accept the legacy `message` field too (older channels sent it), and never let a missing
+      // body crash the handler (text.length on undefined threw a 500 HTML page that broke the
+      // JSON-expecting client) — validate and return clean JSON instead.
+      const text = body.text ?? body.message ?? ''
+      if (!from || !text)
+        return Response.json({ ok: false, error: 'from and text (or message) required' }, { status: 400 })
       const peers = new Set([...clients.keys(), ...Object.keys(inbox)])
       const targets = (to ? [to] : [...peers]).filter(a => a && a !== from)
       const live = targets.filter(t => clients.has(t))    // connected now → delivered instantly

@@ -11,6 +11,7 @@ type Msg = { id: number; from: string; text: string; ts: number }
 // regardless of cwd. (The handover's './.agentbus' is cwd-relative and would split state.)
 const DIR = process.env.AGENTBUS_HOME ?? join(homedir(), '.agentbus')
 const FILE = join(DIR, 'inbox.json')
+const SEQ_FILE = join(DIR, 'seq') // persistent id high-water-mark (see below)
 const PORT = Number(process.env.AGENTBUS_PORT ?? 9000)
 const HEARTBEAT_MS = Number(process.env.AGENTBUS_HEARTBEAT_MS ?? 15000)
 if (!existsSync(DIR)) mkdirSync(DIR, { recursive: true })
@@ -21,9 +22,20 @@ const inbox: Record<string, Msg[]> = existsSync(FILE)
   : {}
 const clients = new Map<string, (d: string) => void>()
 const closers = new Map<string, () => void>()
-let seq = Math.max(0, ...Object.values(inbox).flat().map(m => m.id))
+// seq must be MONOTONIC ACROSS RESTARTS. Deriving it only from the inbox lets it regress
+// after a restart (acked messages are gone from the inbox), so a fresh message can reuse an
+// id a long-lived channel already has in its dedup `seen` set — that message is then silently
+// skipped-and-acked, never shown. Persist a high-water-mark and load the max of it + the inbox.
+let seq = Math.max(
+  0,
+  ...Object.values(inbox).flat().map(m => m.id),
+  existsSync(SEQ_FILE) ? Number((await Bun.file(SEQ_FILE).text()).trim()) || 0 : 0,
+)
 
-const persist = () => Bun.write(FILE, JSON.stringify(inbox, null, 2))
+const persist = async () => {
+  await Bun.write(FILE, JSON.stringify(inbox, null, 2))
+  await Bun.write(SEQ_FILE, String(seq)) // advance the high-water-mark with the inbox
+}
 
 // Push every unacked message for an agent down its live SSE stream. No purge here:
 // messages are removed only when the client acks, so a crash before processing redelivers.

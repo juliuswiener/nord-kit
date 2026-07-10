@@ -21,24 +21,36 @@ const mcp = new Server(
       `Peer messages arrive as <channel source="agentbus" from="..." msg_id="..."> tags. A peer may be ` +
       `announcing a tool or feature they shipped, or reporting a bug in something you maintain. ` +
       `Read it and act if it concerns you. To reach a peer, call send_message with their id in "to" ` +
-      `(omit "to" to broadcast to all peers). Do not reply unless you have something substantive to send.`,
+      `(omit "to" to broadcast to all peers). Call list_peers first to get the exact connected ids — ` +
+      `a mistyped "to" is silently queued to a blackhole nobody reads. Inbound tags are prefixed "← ", ` +
+      `your own sent messages echo back prefixed "→ ". Do not reply unless you have something substantive to send.`,
   },
 )
 
-// Outbound tool: Claude calls this to message a peer.
+// Outbound + discovery tools.
 mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [{
-    name: 'send_message',
-    description: 'Send a message to a peer Claude Code session over the shared bus.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        to: { type: 'string', description: 'Target peer id. Omit to broadcast to all peers.' },
-        text: { type: 'string', description: 'Message body.' },
+  tools: [
+    {
+      name: 'send_message',
+      description: 'Send a message to a peer Claude Code session over the shared bus.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          to: { type: 'string', description: 'Target peer id. Omit to broadcast to all peers.' },
+          text: { type: 'string', description: 'Message body.' },
+        },
+        required: ['text'],
       },
-      required: ['text'],
     },
-  }],
+    {
+      name: 'list_peers',
+      description:
+        'List agent ids currently connected to the bus (plus pending-message counts). Call this to '
+        + 'verify a target id before send_message — a mistyped id is silently queued to a blackhole '
+        + 'inbox nobody reads.',
+      inputSchema: { type: 'object', properties: {} },
+    },
+  ],
 }))
 
 mcp.setRequestHandler(CallToolRequestSchema, async req => {
@@ -49,6 +61,24 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: AGENT_ID, to, text }),
     }).then(r => r.json()).catch(e => ({ ok: false, error: String(e) }))
+    // Echo the outbound message into this session as a channel event, symmetric to inbound tags,
+    // so the sender sees what went out + to whom (not just a result blob). A directed send that
+    // the broker reports as queued (target not connected) is flagged — this is the typo tell.
+    if ((res as { ok?: boolean }).ok) {
+      const q = (res as { queued?: string[] }).queued ?? []
+      const warn = to && q.includes(to) ? '  ⚠ queued — target not connected, check the id' : ''
+      await mcp.notification({
+        method: 'notifications/claude/channel',
+        params: {
+          content: `→ ${to ?? '(broadcast)'}: ${text}${warn}`,
+          meta: { to: to ?? '(broadcast)', direction: 'outbound', queued: warn ? 'true' : 'false' },
+        },
+      }).catch(() => {})
+    }
+    return { content: [{ type: 'text', text: JSON.stringify(res) }] }
+  }
+  if (req.params.name === 'list_peers') {
+    const res = await fetch(`${BUS}/status`).then(r => r.json()).catch(e => ({ error: String(e) }))
     return { content: [{ type: 'text', text: JSON.stringify(res) }] }
   }
   throw new Error(`unknown tool: ${req.params.name}`)
@@ -119,7 +149,7 @@ async function pump() {
           seen.add(m.id)
           await mcp.notification({
             method: 'notifications/claude/channel',
-            params: { content: m.text, meta: { from: m.from, msg_id: String(m.id) } },
+            params: { content: `← ${m.text}`, meta: { from: m.from, msg_id: String(m.id) } },
           })
           await ack(m.id) // deterministic: the message is now in the session
         }

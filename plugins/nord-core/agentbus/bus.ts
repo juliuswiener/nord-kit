@@ -87,10 +87,20 @@ Bun.serve({
       const { from, to, text } = await req.json() as { from: string; to?: string; text: string }
       const peers = new Set([...clients.keys(), ...Object.keys(inbox)])
       const targets = (to ? [to] : [...peers]).filter(a => a && a !== from)
+      const live = targets.filter(t => clients.has(t))    // connected now → delivered instantly
+      const queued = targets.filter(t => !clients.has(t)) // offline (waits) OR mistyped id (blackhole)
       for (const t of targets) (inbox[t] ??= []).push({ id: ++seq, from, text, ts: Date.now() })
       await persist()
       for (const t of targets) deliver(t) // deliver live if connected; else it waits in the inbox
-      return Response.json({ ok: true, delivered_to: targets })
+      // Message trail to journald (journalctl --user -u agentbus | grep SEND). A DIRECTED send to
+      // an id that isn't currently connected is the typo signature — it queues forever into an
+      // inbox nobody reads. WARN on it so a mistyped target id is visible, not a silent blackhole.
+      const preview = text.length > 80 ? text.slice(0, 80) + '…' : text
+      if (to && !clients.has(to))
+        console.error(`SEND ${from} -> ${to} QUEUED (target NOT connected — typo or offline?) connected=[${[...clients.keys()].join(', ')}] "${preview}"`)
+      else
+        console.error(`SEND ${from} -> ${to ?? '(broadcast)'} live=[${live.join(', ')}]${queued.length ? ` queued=[${queued.join(', ')}]` : ''} "${preview}"`)
+      return Response.json({ ok: true, delivered_to: targets, live, queued })
     }
 
     // A channel client posts here once a message is in its session, so it can be dropped.

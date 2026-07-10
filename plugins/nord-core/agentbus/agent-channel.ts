@@ -71,7 +71,11 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 mcp.setRequestHandler(CallToolRequestSchema, async req => {
   if (req.params.name === 'send_message') {
-    const { to, text } = req.params.arguments as { to?: string; text: string }
+    const args = (req.params.arguments ?? {}) as Record<string, unknown>
+    const to = typeof args.to === 'string' ? args.to : undefined
+    // Accept the message text under any of these arg names — the model sometimes calls with
+    // `message`/`content`/`body` instead of `text`, which otherwise silently sends an empty body.
+    const text = String(args.text ?? args.message ?? args.content ?? args.body ?? '')
     const res = await fetch(`${BUS}/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -96,16 +96,17 @@ Bun.serve({
 
     // A channel client posts here when its session wants to message a peer.
     if (url.pathname === '/send' && req.method === 'POST') {
-      const body = await req.json() as { from?: string; to?: string; text?: string; message?: string }
-      // `from` is optional (the original broker never required it — some channels omit it and rely
-      // on it being echoed as-is); default it rather than reject. Accept the legacy `message` field
-      // too. Only `text` is mandatory, and guard it: text.length on undefined threw a 500 HTML page
-      // that broke the JSON-expecting client.
-      const from = body.from ?? 'unknown'
-      const to = body.to
-      const text = body.text ?? body.message ?? ''
-      if (!text)
-        return Response.json({ ok: false, error: 'text (or message) required' }, { status: 400 })
+      const body = await req.json() as Record<string, unknown>
+      // Permissive like the ORIGINAL broker: never reject a send. Accept any historical text field
+      // name, coerce to a string so text.length can never crash (that was the only real bug — a
+      // 500 HTML page that broke the JSON client), and default from. A missing/empty body just
+      // becomes an empty message. If nothing text-like is present, log the keys to catch a client
+      // using yet another field name — but still deliver.
+      const from = typeof body.from === 'string' ? body.from : 'unknown'
+      const to = typeof body.to === 'string' ? body.to : undefined
+      const raw = body.text ?? body.message ?? body.content ?? body.body ?? ''
+      const text = typeof raw === 'string' ? raw : String(raw ?? '')
+      if (!text) console.error(`SEND empty-text from=${from} to=${to ?? '(broadcast)'} keys=[${Object.keys(body).join(', ')}]`)
       const peers = new Set([...clients.keys(), ...Object.keys(inbox)])
       const targets = (to ? [to] : [...peers]).filter(a => a && a !== from)
       const live = targets.filter(t => clients.has(t))    // connected now → delivered instantly

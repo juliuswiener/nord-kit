@@ -69,8 +69,16 @@ async function ack(id: number) {
   } catch {}
 }
 
+import { appendFileSync } from 'node:fs'
+const DEBUG_LOG = process.env.AGENTBUS_DEBUG_LOG ?? `/tmp/agentbus-pump-${AGENT_ID}.log`
+function dbg(msg: string) {
+  try { appendFileSync(DEBUG_LOG, `${new Date().toISOString()} ${msg}\n`) } catch {}
+}
+
 async function pump() {
+  dbg('pump() entered')
   for (;;) {
+    dbg('loop iteration start')
     // Idle watchdog: if no bytes (not even a heartbeat) arrive within IDLE_MS the stream is
     // dead — force the loop to reconnect. Bun's reader.read() does NOT reliably reject when the
     // fetch signal aborts, so we cannot rely on ctrl.abort() alone: we RACE each read against an
@@ -83,13 +91,17 @@ async function pump() {
     const arm = () => { clearTimeout(idle); idle = setTimeout(() => { ctrl.abort(); onIdle() }, IDLE_MS) }
     try {
       arm()
+      dbg('fetch /subscribe start')
       const res = await fetch(`${BUS}/subscribe?agent=${encodeURIComponent(AGENT_ID)}`, { signal: ctrl.signal })
+      dbg(`fetch /subscribe resolved status=${res.status}`)
       if (!res.body) throw new Error('no response body')
       reader = res.body.getReader()
       const dec = new TextDecoder()
       let buf = ''
       for (;;) {
+        dbg('awaiting reader.read() race')
         const r = await Promise.race([reader.read(), idlePromise])
+        dbg(`race settled: ${r === 'idle' ? 'idle' : `done=${r.done} bytes=${r.value?.length ?? 0}`}`)
         if (r === 'idle') throw new Error('idle timeout') // hung/dead stream — reconnect
         const { value, done } = r
         if (done) break
@@ -112,10 +124,21 @@ async function pump() {
           await ack(m.id) // deterministic: the message is now in the session
         }
       }
-    } catch {}
+    } catch (e) {
+      console.error(`DEBUG pump-error agent=${AGENT_ID}: ${e}`)
+      dbg(`catch: ${e}`)
+    }
     clearTimeout(idle)
-    try { await reader?.cancel() } catch {} // free the socket so it can't linger half-open
+    // reader.cancel() can itself hang (same Bun read()-doesn't-reject class of quirk) — without
+    // a hard cap here the whole reconnect loop wedges forever, exactly like an unguarded read().
+    if (reader) {
+      dbg('cancel() start')
+      try { await Promise.race([reader.cancel(), new Promise(res => setTimeout(res, 2000))]) } catch (e) { dbg(`cancel() threw: ${e}`) }
+      dbg('cancel() settled')
+    }
+    dbg('backoff sleep start')
     await new Promise(r => setTimeout(r, 1000)) // reconnect backoff
+    dbg('backoff sleep done, looping')
   }
 }
 

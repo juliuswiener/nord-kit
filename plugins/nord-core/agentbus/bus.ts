@@ -20,6 +20,7 @@ const inbox: Record<string, Msg[]> = existsSync(FILE)
   ? JSON.parse(await Bun.file(FILE).text())
   : {}
 const clients = new Map<string, (d: string) => void>()
+const closers = new Map<string, () => void>()
 let seq = Math.max(0, ...Object.values(inbox).flat().map(m => m.id))
 
 const persist = () => Bun.write(FILE, JSON.stringify(inbox, null, 2))
@@ -46,13 +47,22 @@ Bun.serve({
       if (!agent) return new Response('agent required', { status: 400 })
       return new Response(new ReadableStream({
         start(ctrl) {
+          // A new subscribe for an agent that's already registered supersedes it: force-close
+          // the old stream so it can't linger as a zombie (still heartbeating, no longer routed
+          // to) after the Map entry moves on — this is what let a superseded-but-alive client
+          // silently stop receiving messages once its successor also died.
+          closers.get(agent)?.()
           ctrl.enqueue(': connected\n\n')
-          const emit = (d: string) => { try { ctrl.enqueue(`data: ${d}\n\n`) } catch {} }
+          const emit = (d: string) => { try { ctrl.enqueue(`data: ${d}\n\n`) } catch (e) { console.error(`DEBUG emit-throw agent=${agent}`, e) } }
           clients.set(agent, emit)
+          console.error(`DEBUG registered agent=${agent} total=${clients.size}`)
           const drop = () => {
             clearInterval(hb)
-            if (clients.get(agent) === emit) clients.delete(agent) // don't clobber a newer reconnect
+            console.error(`DEBUG drop-fired agent=${agent} stillCurrent=${clients.get(agent) === emit}`)
+            if (clients.get(agent) === emit) { clients.delete(agent); closers.delete(agent) } // don't clobber a newer reconnect
+            try { ctrl.close() } catch {}
           }
+          closers.set(agent, drop)
           // Heartbeat comment-frames so an idle client can detect a dead stream (broker
           // restart, half-open TCP) via its watchdog and reconnect instead of wedging.
           // A throwing enqueue means the consumer is gone: self-clean so /status stays honest

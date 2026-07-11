@@ -22,6 +22,11 @@ const inbox: Record<string, Msg[]> = existsSync(FILE)
   : {}
 const clients = new Map<string, (d: string) => void>()
 const closers = new Map<string, () => void>()
+// Recent registration timestamps per agent id, to detect flapping: two DISTINCT live processes
+// given the SAME id force-close each other on every (re)subscribe and reconnect forever. When
+// that's happening we reject the newcomer and keep the incumbent instead of letting them kill
+// each other. Legit reconnects of one session don't trip this (the old stream is already dead).
+const regTimes = new Map<string, number[]>()
 // seq must be MONOTONIC ACROSS RESTARTS. Deriving it only from the inbox lets it regress
 // after a restart (acked messages are gone from the inbox), so a fresh message can reuse an
 // id a long-lived channel already has in its dedup `seen` set — that message is then silently
@@ -59,6 +64,20 @@ Bun.serve({
       if (!agent) return new Response('agent required', { status: 400 })
       return new Response(new ReadableStream({
         start(ctrl) {
+          // Flapping guard: if this id re-registered many times in a short window while a client
+          // is still live, a SECOND process is fighting for the same id (two sessions given the
+          // same name). Reject this newcomer and keep the incumbent — force-closing would just
+          // make them kill each other forever. The operator sees the FLAP log and should rename
+          // the duplicate (or address it by its uuid, which is always unique).
+          const nowMs = Date.now()
+          const recent = (regTimes.get(agent) ?? []).filter(t => nowMs - t < 5000)
+          recent.push(nowMs)
+          regTimes.set(agent, recent)
+          if (recent.length > 4 && clients.has(agent)) {
+            console.error(`FLAP agent=${agent}: ${recent.length} registers/5s — rejecting duplicate claim, keeping incumbent`)
+            try { ctrl.enqueue(': duplicate-id\n\n'); ctrl.close() } catch {}
+            return
+          }
           // A new subscribe for an agent that's already registered supersedes it: force-close
           // the old stream so it can't linger as a zombie (still heartbeating, no longer routed
           // to) after the Map entry moves on — this is what let a superseded-but-alive client

@@ -26,7 +26,21 @@ function resolveId(): string {
   if (env && env !== '${AGENT_ID}') return env
   return SESSION_ID || 'agent'
 }
-let AGENT_ID = resolveId()
+
+// At startup the SessionStart hook may not have written the name-file yet (it races the MCP
+// server spawn). If we'd otherwise fall back to the uuid, wait briefly for the name-file — so we
+// register under the real name from the start instead of registering as the uuid and then
+// renaming, which churns the bus and can trip the broker's flapping guard against another claimant.
+async function resolveIdAtStartup(): Promise<string> {
+  const env = process.env.AGENT_ID
+  if (env && env !== '${AGENT_ID}') return env // explicit valid env wins, no wait
+  for (let i = 0; i < 15 && NAME_FILE; i++) {
+    try { const n = readFileSync(NAME_FILE, 'utf8').trim(); if (n) return n } catch {}
+    await new Promise(r => setTimeout(r, 200)) // up to ~3s for the hook to write it
+  }
+  return resolveId()
+}
+let AGENT_ID = await resolveIdAtStartup()
 
 const mcp = new Server(
   { name: 'agentbus', version: '0.1.0' },

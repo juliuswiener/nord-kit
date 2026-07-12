@@ -28,13 +28,20 @@ If the user names both a URL and source, do both: tool-gate + tiles from the URL
 ## Pre-pipeline: deterministic tool gate (mandatory when a page can be rendered)
 
 Machine-checkable a11y failures are FACTS, not opinions — run the tool and let its output decide, exactly
-like codebase-audit's tool gate. Full commands (axe-core, pa11y, Lighthouse a11y, contrast, how to get a
-rendered page): read `references/tooling.md`.
+like codebase-audit's tool gate. Two tiers, both in `references/tooling.md`:
 
-- Any failure a tool reports (contrast ratio, missing alt/label, invalid ARIA, no lang) → inject as a
-  finding with `toolVerified:true` + the exact tool + the proving line. These **bypass** adversarial verify.
-- Tool absent / page not renderable → list in `coverage_gap`, keep related lens findings `toolVerified:false`.
-  Absence of a tool run is NOT a pass.
+- **Tier 1 — static rule scan** (axe-core default, else pa11y / Lighthouse a11y / measured contrast).
+  Catches ~30–40%: contrast, missing alt/label, invalid ARIA, no `lang`, target size.
+- **Tier 2 — browser-driven interactive pass** (Claude-in-Chrome preferred — you have it — else Playwright).
+  Drives the criteria commonly (wrongly) called "manual": keyboard operability + focus order + traps
+  (2.1.1/2.1.2/2.4.3), visible + unobscured focus (2.4.7/2.4.11), reflow@320 (1.4.10), zoom 200% (1.4.4),
+  text-spacing (1.4.12), orientation (1.3.4), content-on-hover (1.4.13), status messages (4.1.3). These are
+  interaction-verified, NOT coverage gaps — run them whenever the page is reachable.
+
+- Any failure either tier reports → finding with `toolVerified:true` + the exact tool/procedure + the
+  proving line. These **bypass** adversarial verify.
+- Only what neither tier could exercise (no browser, source-only, SR-listening) → `coverage_gap`, related
+  lens findings stay `toolVerified:false`. Absence of a run is NOT a pass.
 
 The exhaustive WCAG 2.2 A/AA success-criteria checklist + BITV 2.0 / EN 301 549 mapping + Leichte-Sprache
 criteria live in `references/wcag-bitv-checklist.md` — the lens agents read it; you don't restate it here.

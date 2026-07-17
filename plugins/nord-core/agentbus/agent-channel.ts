@@ -179,7 +179,11 @@ async function pump() {
     try {
       arm()
       dbg('fetch /subscribe start')
-      const res = await fetch(`${BUS}/subscribe?agent=${encodeURIComponent(AGENT_ID)}`, { signal: ctrl.signal })
+      // Carry the stable session key so the broker ties every name this session announces
+      // (across renames + SSE reconnects) to this one live transport. Omitted when unknown
+      // (legacy) — the broker then treats the name as its own session key.
+      const sessionQS = SESSION_ID ? `&session=${encodeURIComponent(SESSION_ID)}` : ''
+      const res = await fetch(`${BUS}/subscribe?agent=${encodeURIComponent(AGENT_ID)}${sessionQS}`, { signal: ctrl.signal })
       dbg(`fetch /subscribe resolved status=${res.status}`)
       if (!res.body) throw new Error('no response body')
       reader = res.body.getReader()

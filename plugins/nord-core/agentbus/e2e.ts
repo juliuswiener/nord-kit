@@ -70,12 +70,13 @@ async function kill(p: { kill: (s?: number) => void; exited: Promise<number> }) 
 
 // A raw SSE subscriber used as a passive peer (represents a session that only receives).
 // Collects delivered message texts; does NOT ack, so we can assert live delivery independently.
-function rawSubscriber(agent: string) {
+function rawSubscriber(agent: string, session?: string) {
   const got: { id: number; from: string; text: string }[] = []
   const ctrl = new AbortController()
   ;(async () => {
     try {
-      const res = await fetch(`${BUS}/subscribe?agent=${agent}`, { signal: ctrl.signal })
+      const qs = session ? `&session=${encodeURIComponent(session)}` : ''
+      const res = await fetch(`${BUS}/subscribe?agent=${agent}${qs}`, { signal: ctrl.signal })
       const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = ''
       for (;;) {
         const { value, done } = await reader.read(); if (done) break
@@ -184,6 +185,36 @@ async function main() {
     await waitFor(s => (s.pending['healer'] ?? 0) === 0, 4000))
   await kill(healer)
   await kill(broker)
+
+  // --- Acceptance 7: a once-announced NAME resolves to the session's CURRENT live
+  // transport across a reconnect + rename (the peer-identity fix). Session 'sess-x'
+  // announces 'alpha', drops that transport, reconnects under a NEW transport with a
+  // NEW current name 'beta' (same session). A peer's send to the ORIGINAL name 'alpha'
+  // MUST land live on the new transport — not blackhole in a stale inbox. ---
+  broker = spawnBroker()
+  await waitPort()
+  const t1 = rawSubscriber('alpha', 'sess-x')
+  check('identity: session announces alpha (connected)',
+    await waitFor(s => s.connected.includes('alpha'), 4000))
+  t1.stop() // drop the old transport
+  await sleep(300)
+  const t2 = rawSubscriber('beta', 'sess-x') // reconnect: new transport, new name, SAME session
+  check('identity: reconnect under new name beta (connected)',
+    await waitFor(s => s.connected.includes('beta'), 4000))
+  // The OLD name must still resolve to the (now beta) live transport.
+  check('identity: old name alpha still resolves to the live session',
+    await waitFor(s => s.connected.includes('alpha'), 4000),
+    JSON.stringify((await status()).connected))
+  const beforeT2 = t2.got.length
+  const sendRes = await send('peer', 'reaches the reconnected session via the old name', 'alpha')
+  await sleep(300)
+  check('identity: send to old name reported LIVE (not queued)',
+    (sendRes as { live?: string[] }).live?.includes('alpha') === true, JSON.stringify(sendRes))
+  check('identity: send to old name delivered live on the new transport',
+    t2.got.slice(beforeT2).some(m => m.text.includes('reconnected session via the old name')))
+  t2.stop()
+  await kill(broker)
+
   rmSync(HOME, { recursive: true, force: true })
 
   console.log(`\n${failures === 0 ? '✅ ALL PASS' : `❌ ${failures} FAILURE(S)`}`)

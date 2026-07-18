@@ -107,8 +107,19 @@ Bun.serve({
           // (operator should rename the duplicate or address it by its session id, always unique).
           // A session reconnecting under its OWN key is not a flap (supersede handles it below).
           const owner = nameOwner.get(name)
-          if (recent.length > 4 && owner && owner !== sessionKey && sessions.has(owner)) {
-            console.error(`FLAP name=${name} session=${sessionKey}: ${recent.length} claims/5s vs live owner ${owner} — rejecting duplicate`)
+          // Reject a storming newcomer in two collision shapes. Both make the incumbent's delivery flap,
+          // and a message delivered mid-flip is acked by the dying copy and never seen by the survivor:
+          //   (a) a DIFFERENT session claiming a name a live session already owns (owner !== sessionKey), or
+          //   (b) a legacy (no-`session`) fork/duplicate warring under a SHARED sessionKey — e.g. a
+          //       --fork-session that re-announced the same busname, so fork and original collapse to one
+          //       key and supersede each other ~1/s. There owner === sessionKey, so (a) misses it;
+          //       `sessions.has(sessionKey)` catches it (a live stream already holds this exact key).
+          // A lone client reconnecting after an SSE drop already removed its own session in drop(), so
+          // `sessions.has(sessionKey)` is false for it — it never trips this. Only a true 2-stream war
+          // (>4 claims/5s while a stream still holds the key) does, and it converges: keep the incumbent,
+          // reject the newcomer, so delivery stops flapping instead of warring until a process dies.
+          if (recent.length > 4 && ((owner && owner !== sessionKey && sessions.has(owner)) || sessions.has(sessionKey))) {
+            console.error(`FLAP name=${name} session=${sessionKey}: ${recent.length} claims/5s — rejecting duplicate, keeping incumbent`)
             try { ctrl.enqueue(': duplicate-id\n\n'); ctrl.close() } catch {}
             return
           }

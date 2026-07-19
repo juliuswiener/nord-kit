@@ -6,6 +6,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { readFileSync, writeFileSync } from 'node:fs'
+import { execSync } from 'node:child_process'
 
 const BUS = process.env.BUS_URL ?? 'http://localhost:9000'
 // If no bytes (not even a heartbeat) arrive within this window, the stream is dead —
@@ -29,13 +30,32 @@ const SKEY = SESSION_ID || ''
 // hook or /busname) > a real AGENT_ID env > the session uuid > 'agent'. The literal
 // '${AGENT_ID}' is a launch-quoting bug — treat it as unset so a mis-launched session still
 // gets a stable id instead of registering the ghost peer '${AGENT_ID}'.
+// Restart-stable fallback when no name-file was written (e.g. after /reload-plugins, which does
+// NOT fire the SessionStart name hook). Mirrors the hook: git branch, else project-dir basename —
+// a STABLE key, so a reload/restart reclaims the same name instead of landing under a raw UUID that
+// rotates and breaks peer addressing. Cached: git runs once, not on every 3s watcher tick.
+let DERIVED: string | null = null
+function deriveName(): string {
+  if (DERIVED !== null) return DERIVED
+  let n = ''
+  try {
+    n = execSync('git branch --show-current', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+  } catch {}
+  if (!n) {
+    const dir = process.env.CLAUDE_PROJECT_DIR || process.cwd()
+    n = dir.split('/').filter(Boolean).pop() || SESSION_ID || 'agent'
+  }
+  DERIVED = n
+  return n
+}
+
 function resolveId(): string {
   if (NAME_FILE) {
     try { const n = readFileSync(NAME_FILE, 'utf8').trim(); if (n) return n } catch {}
   }
   const env = process.env.AGENT_ID
   if (env && env !== '${AGENT_ID}') return env
-  return SESSION_ID || 'agent'
+  return deriveName() // stable branch/dir instead of a rotating raw UUID
 }
 
 // At startup the SessionStart hook may not have written the name-file yet (it races the MCP

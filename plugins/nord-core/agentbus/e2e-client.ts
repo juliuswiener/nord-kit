@@ -77,7 +77,16 @@ async function main() {
   check('4b emitted message id recorded in the unread file', recorded, `id=${sr.id}`)
   r.kill(); try { await r.exited } catch {}
 
-  for (const sid of ['sess-Z1', 'sess-Z2', 'sess-U1', 'sess-U2', 'sess-U3']) cleanTmp(sid)
+  // 5 — no name-file + no AGENT_ID -> client derives a STABLE name (branch/dir), not raw UUID ----
+  // (Covers the /reload-plugins gap: SessionStart didn't fire, so no name-file exists.)
+  const dv = spawnClient('sess-DV', '') // AGENT_ID='' + cleanTmp removes any name-file
+  const derived = await waitFor(s => s.peers.some((p: any) =>
+    p.session === 'sess-DV' && p.names.length && !p.names.includes('sess-DV')), 4000)
+  check('5 no name-file -> derived stable name (not raw UUID)', derived,
+    JSON.stringify((await status()).peers.filter((p: any) => p.session === 'sess-DV').map((p: any) => p.names)))
+  dv.kill(); try { await dv.exited } catch {}
+
+  for (const sid of ['sess-Z1', 'sess-Z2', 'sess-U1', 'sess-U2', 'sess-U3', 'sess-DV']) cleanTmp(sid)
   broker.kill(); try { await broker.exited } catch {}
   if (existsSync(HOME)) rmSync(HOME, { recursive: true, force: true })
   console.log(`\n${failures === 0 ? '✅ ALL PASS' : `❌ ${failures} FAILURE(S)`}`)

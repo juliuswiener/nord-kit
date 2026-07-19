@@ -45,14 +45,18 @@ async function main() {
   const broker = Bun.spawn(['bun', join(HERE, 'bus.ts')], { env, stdout: 'ignore', stderr: 'ignore' })
   check('broker up', await waitPort(), BUS)
 
-  // 1 — name hook: explicit verbatim, auto-derived gets a unique session suffix ----------
-  for (const sid of ['nh1', 'nh2']) try { rmSync(`/tmp/agentbus-name-${sid}`, { force: true }) } catch {}
+  // 1 — name hook: explicit verbatim; auto-derived is RESTART-STABLE (no session suffix) ----
+  for (const sid of ['nh1', 'nh2', 'nh3']) try { rmSync(`/tmp/agentbus-name-${sid}`, { force: true }) } catch {}
   await runHook('agentbus-name.cjs', { source: 'startup' }, { CLAUDE_CODE_SESSION_ID: 'nh1', AGENT_ID: 'explicit-name' })
   check('1a explicit AGENT_ID used verbatim', readFileSync('/tmp/agentbus-name-nh1', 'utf8') === 'explicit-name')
+  // Two different sessions, same cwd -> the derived name must be IDENTICAL (a restart reclaims it)
+  // and must NOT carry a session fragment.
   await runHook('agentbus-name.cjs', { source: 'startup', session_title: '' }, { CLAUDE_CODE_SESSION_ID: 'nh2', AGENT_ID: '' })
-  const derived = readFileSync('/tmp/agentbus-name-nh2', 'utf8')
-  check('1b auto-derived name is session-unique (…-nh2)', derived.endsWith('-nh2') && derived !== 'nh2', derived)
-  for (const sid of ['nh1', 'nh2']) try { rmSync(`/tmp/agentbus-name-${sid}`, { force: true }) } catch {}
+  await runHook('agentbus-name.cjs', { source: 'startup', session_title: '' }, { CLAUDE_CODE_SESSION_ID: 'nh3', AGENT_ID: '' })
+  const d2 = readFileSync('/tmp/agentbus-name-nh2', 'utf8'), d3 = readFileSync('/tmp/agentbus-name-nh3', 'utf8')
+  check('1b auto-derived name is restart-stable (same across sessions, no session frag)',
+    d2 === d3 && !d2.endsWith('-nh2') && !d2.endsWith('-nh3'), `${d2} == ${d3}`)
+  for (const sid of ['nh1', 'nh2', 'nh3']) try { rmSync(`/tmp/agentbus-name-${sid}`, { force: true }) } catch {}
 
   // 2 — close hook deregisters the session --------------------------------------------------
   const c = sub('closeme', 'ch1'); await waitFor(s => live(s, 'closeme'))

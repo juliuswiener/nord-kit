@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-// SessionStart hook: derive a STABLE, UNIQUE agent name for this session, set it as the session
+// SessionStart hook: derive a RESTART-STABLE agent name for this session, set it as the session
 // title, and write it where the agentbus channel reads its identity (/tmp/agentbus-name-<session_id>).
-// Explicit names (AGENT_ID env / launch title) are used verbatim; AUTO-DERIVED names (git branch /
-// project dir) get a short session fragment appended, so two sessions in the same repo/dir do not
-// collide in the first place. The broker (name uniqueness) + client (name_taken retry) resolve any
-// residual collision, but suffixing derived names avoids the churn. Never emits a bare shared token
-// (the old collision factory) nor the literal "${AGENT_ID}" (a launch-quoting bug).
+// The name is derived from STABLE keys (git branch, else project dir) — NOT the session id — so a
+// restart of the same project reclaims the SAME name. We deliberately do NOT append a session
+// fragment: that would make the name rotate on every restart. Genuine collisions between two
+// DIFFERENT live sessions are resolved structurally by the broker (name_taken) + client (suffix
+// retry), so pre-suffixing is unnecessary and harmful to stability. Distinct co-located agents
+// (e.g. dev-1/dev-2 in one repo) can't be told apart by derivation — they use an explicit AGENT_ID
+// or launch name, which is restart-stable by construction. Never emits the literal "${AGENT_ID}".
 const fs = require('fs')
 const { execSync } = require('child_process')
 
@@ -16,13 +18,11 @@ const sid = process.env.CLAUDE_CODE_SESSION_ID || input.session_id || ''
 const source = input.source || 'startup'
 const launchName = input.session_title || input.session_name || '' // --name surfaces under either
 
-const frag = (sid || String(process.pid)).replace(/[^a-zA-Z0-9]/g, '').slice(0, 4) || 'x'
-
 function pick() {
   const env = process.env.AGENT_ID
-  if (env && env !== '${AGENT_ID}') return env    // explicit env: verbatim
+  if (env && env !== '${AGENT_ID}') return env    // explicit env: verbatim, restart-stable
   if (launchName) return String(launchName)       // user-named: verbatim
-  // Auto-derived → suffix a session fragment so it is unique per session.
+  // Auto-derived from a STABLE key so restarts reclaim the same name.
   let base
   try {
     const b = execSync('git branch --show-current', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
@@ -32,8 +32,7 @@ function pick() {
     const dir = process.env.CLAUDE_PROJECT_DIR || process.cwd()
     base = dir.split('/').filter(Boolean).pop()
   }
-  base = base || 'agent'
-  return `${base}-${frag}`
+  return base || 'agent'
 }
 
 const name = pick()

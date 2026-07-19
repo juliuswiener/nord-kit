@@ -1,22 +1,23 @@
 #!/usr/bin/env bun
-// End-to-end test of the agentbus transport + durability layer. Drives the REAL broker
-// (bus.ts) and the REAL channel client (agent-channel.ts) as subprocesses. Proves live
-// delivery, reply path, broadcast, offline durability, broker-restart durability and the
-// status endpoint — everything except the visible <channel> render inside a CC session,
-// which is inherently interactive (see README acceptance tests 1-3).
-import { rmSync, existsSync, readFileSync } from 'fs'
+// End-to-end test of the agentbus v2 broker (bus.ts). Drives the REAL broker as a subprocess
+// on an isolated port + home, using raw SSE subscribers (no dependence on the Phase-2 client,
+// which sidesteps the CLAUDE_CODE_SESSION_ID name-file inheritance that made v1's harness
+// env-dependent). Proves: session-keyed delivery + Tier-1 receipt, name uniqueness, GC on
+// close, the drop->grace->GC lifecycle, queued_pending vs delivered, pendingByName drain +
+// expiry, broadcast to live-only, Tier-2 read receipt, and legacy war convergence.
+import { rmSync, existsSync } from 'fs'
 import { join } from 'path'
 
 const HERE = import.meta.dir
-const PORT = 9077 // isolated from a real broker on 9000
+const PORT = 9077
 const BUS = `http://127.0.0.1:${PORT}`
 const HOME = join(HERE, '.e2e-home')
-const INBOX = join(HOME, 'inbox.json')
 
-// Short heartbeat/idle windows so the self-heal test runs in seconds, not 40s.
+// Fast timers so lifecycle transitions happen in ~1s, not 45s.
 const env = {
-  ...process.env, AGENTBUS_HOME: HOME, AGENTBUS_PORT: String(PORT), BUS_URL: BUS,
-  AGENTBUS_HEARTBEAT_MS: '500', AGENTBUS_IDLE_MS: '1500',
+  ...process.env, AGENTBUS_HOME: HOME, AGENTBUS_PORT: String(PORT),
+  AGENTBUS_HEARTBEAT_MS: '250', AGENTBUS_GRACE_MS: '800',
+  AGENTBUS_SWEEP_MS: '250', AGENTBUS_PENDING_TTL_MS: '3000',
 }
 
 let failures = 0
@@ -26,57 +27,39 @@ function check(name: string, cond: boolean, detail = '') {
 }
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
-async function status(): Promise<{ connected: string[]; pending: Record<string, number> }> {
-  return fetch(`${BUS}/status`).then(r => r.json())
-}
-async function send(from: string, text: string, to?: string) {
-  return fetch(`${BUS}/send`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from, to, text }),
+async function status(): Promise<any> { return fetch(`${BUS}/status`).then(r => r.json()) }
+async function post(path: string, body: object) {
+  return fetch(`${BUS}${path}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   }).then(r => r.json())
 }
-// Poll until predicate on /status holds, or timeout.
-async function waitFor(pred: (s: Awaited<ReturnType<typeof status>>) => boolean, ms = 5000) {
-  const start = Date.now()
-  while (Date.now() - start < ms) {
-    try { if (pred(await status())) return true } catch {}
-    await sleep(100)
-  }
+const send = (from_session: string, from: string, text: string, to?: string) =>
+  post('/send', { from_session, from, to, text })
+async function receipt(id: number) { return fetch(`${BUS}/receipt?id=${id}`).then(r => ({ s: r.status, b: r.status === 200 ? undefined : undefined })).catch(() => ({ s: 0 })) }
+
+async function waitFor(pred: (s: any) => boolean, ms = 4000) {
+  const t = Date.now()
+  while (Date.now() - t < ms) { try { if (pred(await status())) return true } catch {} await sleep(60) }
   return false
 }
 async function waitPort(ms = 5000) {
-  const start = Date.now()
-  while (Date.now() - start < ms) {
-    try { await fetch(`${BUS}/status`); return true } catch {}
-    await sleep(100)
-  }
+  const t = Date.now()
+  while (Date.now() - t < ms) { try { await fetch(`${BUS}/status`); return true } catch {} await sleep(80) }
   return false
 }
+const nameLive = (s: any, n: string) => s.peers.some((p: any) => p.connected && p.names.includes(n))
+const sessionGone = (s: any, sid: string) => !s.peers.some((p: any) => p.session === sid)
 
-function spawnBroker() {
-  return Bun.spawn(['bun', join(HERE, 'bus.ts')], { env, stdout: 'inherit', stderr: 'inherit' })
-}
-// Real channel client. stdin kept open ('pipe') so its StdioServerTransport stays alive with
-// no MCP host attached; pump() runs regardless and drives subscribe/ack against the broker.
-function spawnClient(agentId: string) {
-  return Bun.spawn(['bun', join(HERE, 'agent-channel.ts')], {
-    env: { ...env, AGENT_ID: agentId },
-    stdin: 'pipe', stdout: 'ignore', stderr: 'ignore',
-  })
-}
-async function kill(p: { kill: (s?: number) => void; exited: Promise<number> }) {
-  p.kill(); try { await p.exited } catch {}
-}
-
-// A raw SSE subscriber used as a passive peer (represents a session that only receives).
-// Collects delivered message texts; does NOT ack, so we can assert live delivery independently.
-function rawSubscriber(agent: string, session?: string) {
-  const got: { id: number; from: string; text: string }[] = []
+// Raw SSE subscriber. Buckets frames: msgs (id/from/text), receipts (type:receipt),
+// control (name_taken/upgrade_required). Does NOT ack — we ack via HTTP to assert precisely.
+function sub(name: string, session?: string) {
+  const msgs: any[] = [], receipts: any[] = [], control: any[] = []
+  let closed = false
   const ctrl = new AbortController()
   ;(async () => {
     try {
       const qs = session ? `&session=${encodeURIComponent(session)}` : ''
-      const res = await fetch(`${BUS}/subscribe?agent=${agent}${qs}`, { signal: ctrl.signal })
+      const res = await fetch(`${BUS}/subscribe?agent=${encodeURIComponent(name)}${qs}`, { signal: ctrl.signal })
       const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = ''
       for (;;) {
         const { value, done } = await reader.read(); if (done) break
@@ -84,139 +67,131 @@ function rawSubscriber(agent: string, session?: string) {
         while ((i = buf.indexOf('\n\n')) !== -1) {
           const frame = buf.slice(0, i); buf = buf.slice(i + 2)
           const line = frame.split('\n').find(l => l.startsWith('data: '))
-          if (line) { try { got.push(JSON.parse(line.slice(6))) } catch {} }
+          if (!line) continue
+          let m: any; try { m = JSON.parse(line.slice(6)) } catch { continue }
+          if (m.type === 'receipt') receipts.push(m)
+          else if (m.type) control.push(m)
+          else msgs.push(m)
         }
       }
     } catch {}
+    closed = true
   })()
-  return { got, stop: () => ctrl.abort() }
+  return { msgs, receipts, control, stop: () => ctrl.abort(), isClosed: () => closed }
 }
+
+function spawnBroker() { return Bun.spawn(['bun', join(HERE, 'bus.ts')], { env, stdout: 'ignore', stderr: 'ignore' }) }
+async function kill(p: { kill: () => void; exited: Promise<number> }) { p.kill(); try { await p.exited } catch {} }
 
 async function main() {
   if (existsSync(HOME)) rmSync(HOME, { recursive: true, force: true })
-
   let broker = spawnBroker()
-  check('broker starts + /status reachable', await waitPort(), BUS)
+  check('broker up', await waitPort(), BUS)
 
-  // --- Acceptance 6: status endpoint shape ---
-  const s0 = await status()
-  check('status: shape { connected:[], pending:{} }',
-    Array.isArray(s0.connected) && typeof s0.pending === 'object')
+  // 1 — session-keyed directed delivery + Tier-1 receipt to the sender ------------
+  const A = sub('alice', 'sess-A'), B = sub('bob', 'sess-B')
+  await waitFor(s => nameLive(s, 'alice') && nameLive(s, 'bob'))
+  const r1 = await send('sess-A', 'alice', 'hi bob', 'bob')
+  check('1a send reported delivered', r1.state === 'delivered' && r1.to_session === 'sess-B', JSON.stringify(r1))
+  await sleep(150)
+  check('1b bob received the message', B.msgs.some(m => m.text === 'hi bob' && m.from === 'alice'))
+  const mid = r1.id
+  await post('/ack', { session: 'sess-B', id: mid })
+  await sleep(150)
+  check('1c alice got a Tier-1 acked receipt naming bob\'s session',
+    A.receipts.some(x => x.id === mid && x.state === 'acked' && x.by_session === 'sess-B'))
 
-  // --- Acceptance 1: live delivery (toolmaker -> consumer), passive raw subscribers ---
-  const consumer = rawSubscriber('consumer')
-  const toolmaker = rawSubscriber('toolmaker')
-  await waitFor(s => s.connected.includes('consumer') && s.connected.includes('toolmaker'))
-  await send('toolmaker', 'shipped render_pcb_preview(path) -> PNG, drop the old workaround', 'consumer')
-  await sleep(300)
-  check('live delivery: consumer received directed message',
-    consumer.got.some(m => m.from === 'toolmaker' && m.text.includes('render_pcb_preview')))
-  check('live delivery: toolmaker did NOT receive its own directed message',
-    !toolmaker.got.some(m => m.text.includes('render_pcb_preview')))
-
-  // --- Acceptance 2: reply path (consumer -> toolmaker), symmetric ---
-  await send('consumer', 'bug: render_pcb_preview throws on empty path', 'toolmaker')
-  await sleep(300)
-  check('reply path: toolmaker received reply',
-    toolmaker.got.some(m => m.from === 'consumer' && m.text.includes('empty path')))
-
-  // --- Acceptance 3: broadcast (to omitted) reaches all peers except sender ---
-  const third = rawSubscriber('third')
-  await waitFor(s => s.connected.includes('third'))
-  const beforeC = consumer.got.length, beforeT = third.got.length
-  await send('toolmaker', 'BROADCAST: bus migrated to v0.1.0')
-  await sleep(300)
-  check('broadcast: consumer received', consumer.got.slice(beforeC).some(m => m.text.includes('BROADCAST')))
-  check('broadcast: third received', third.got.slice(beforeT).some(m => m.text.includes('BROADCAST')))
-  check('broadcast: sender(toolmaker) did NOT receive its own broadcast',
-    !toolmaker.got.some(m => m.text.includes('BROADCAST')))
-  consumer.stop(); toolmaker.stop(); third.stop()
+  // 2 — name uniqueness: a different live session cannot steal a held name ---------
+  const dupB = sub('alice', 'sess-OTHER') // same name, different session
   await sleep(200)
+  check('2a second claimant rejected with name_taken', dupB.control.some(c => c.type === 'name_taken'))
+  check('2b original owner keeps the name', nameLive(await status(), 'alice'))
 
-  // --- Acceptance 4: offline durability via the REAL client (subscribe -> ack) ---
-  // No subscriber for 'worker'. Send -> must sit pending. Then start real client -> redeliver+ack.
-  await send('boss', 'task queued while you were offline', 'worker')
-  check('offline: message pending for absent agent', (await status()).pending['worker'] === 1)
+  // 3 — GC on /close: session vanishes, inbox gone --------------------------------
+  const C = sub('carol', 'sess-C'); await waitFor(s => nameLive(s, 'carol'))
+  await post('/close', { session: 'sess-C' })
+  check('3 closed session GC\'d immediately', await waitFor(s => sessionGone(s, 'sess-C'), 1500))
+  C.stop()
 
-  const worker = spawnClient('worker')
-  const acked = await waitFor(s => (s.pending['worker'] ?? 0) === 0, 8000)
-  check('offline durability: real client redelivered + acked on connect', acked,
-    JSON.stringify((await status()).pending))
-  await kill(worker)
+  // 4 — drop -> grace -> GC lifecycle ---------------------------------------------
+  const D = sub('dave', 'sess-D'); await waitFor(s => nameLive(s, 'dave'))
+  D.stop() // abort SSE (session drops)
   await sleep(200)
+  check('4a within grace: still present as dropped',
+    (await status()).peers.some((p: any) => p.session === 'sess-D' && p.state === 'dropped'))
+  check('4b after grace: swept', await waitFor(s => sessionGone(s, 'sess-D'), 2500))
 
-  // --- Acceptance 5: broker-restart durability ---
-  // Queue for an offline agent, kill broker, restart, assert message survived on disk + in /status.
-  await send('boss', 'survive-the-restart', 'ghost')
-  check('restart: pending before kill', (await status()).pending['ghost'] === 1)
-  const diskBefore = existsSync(INBOX) ? readFileSync(INBOX, 'utf8') : ''
-  check('restart: inbox.json persisted the message on disk', diskBefore.includes('survive-the-restart'))
+  // 5 — queued_pending (no owner) vs delivered (owner) ----------------------------
+  const r5 = await send('sess-A', 'alice', 'anyone?', 'nobody-here')
+  check('5a send to unknown name = queued_pending, not silent', r5.state === 'queued_pending' && r5.to_session === null, JSON.stringify(r5))
+  check('5b pending_by_name records it', (await status()).pending_by_name['nobody-here'] === 1)
 
-  await kill(broker)
-  await sleep(300)
-  broker = spawnBroker()
-  check('restart: broker back up', await waitPort())
-  check('restart durability: message still pending after broker restart',
-    (await status()).pending['ghost'] === 1, JSON.stringify((await status()).pending))
+  // 6 — pendingByName drains to the session that later claims; expiry sweeps -------
+  await send('sess-A', 'alice', 'for the future worker', 'worker')
+  const W = sub('worker', 'sess-W')
+  await sleep(250)
+  check('6a late-joining worker drained the pending message', W.msgs.some(m => m.text === 'for the future worker'))
+  await send('sess-A', 'alice', 'to a name that never shows', 'never-shows')
+  check('6b expired pending is swept', await waitFor(s => !(('never-shows') in s.pending_by_name), 4000))
+  W.stop()
 
-  await kill(broker)
-  await sleep(300)
+  // 6c — durability across a broker restart (pending survives on disk, drains after) ----
+  await send('sess-A', 'alice', 'survive the restart', 'restart-peer')
+  check('6c1 pending before restart', (await status()).pending_by_name['restart-peer'] === 1)
+  await kill(broker); await sleep(200)
+  broker = spawnBroker(); await waitPort()
+  check('6c2 pending survived the restart on disk', (await status()).pending_by_name['restart-peer'] === 1)
+  const RP = sub('restart-peer', 'sess-RP'); await sleep(250)
+  check('6c3 reconnecting peer drains the persisted message', RP.msgs.some(m => m.text === 'survive the restart'))
+  RP.stop()
 
-  // --- Self-heal: an idle client survives a broker restart and re-subscribes ---
-  // Regression for the wedge bug: a hung reader.read() used to leave an idle client
-  // permanently unsubscribed. Heartbeat + idle-watchdog must reconnect it automatically.
-  broker = spawnBroker()
-  await waitPort()
-  const healer = spawnClient('healer')
-  check('self-heal: client subscribed initially',
-    await waitFor(s => s.connected.includes('healer'), 4000))
-  // Kill the broker out from under the idle client, bring a fresh one up.
-  await kill(broker)
+  // 7 — broadcast reaches live sessions only, not pending/dead names ---------------
+  const X = sub('xavier', 'sess-X'), Y = sub('yolanda', 'sess-Y')
+  await waitFor(s => nameLive(s, 'xavier') && nameLive(s, 'yolanda'))
+  await send('sess-A', 'alice', 'seed', 'phantom') // phantom -> pendingByName, no live session
+  const rb = await send('sess-X', 'xavier', 'BROADCAST hello', undefined)
   await sleep(200)
-  broker = spawnBroker()
-  await waitPort()
-  // Without touching the client, it must re-appear as connected within ~watchdog+backoff.
-  const rehealed = await waitFor(s => s.connected.includes('healer'), 6000)
-  check('self-heal: idle client auto-reconnected after broker restart (no wedge)', rehealed,
-    JSON.stringify((await status()).connected))
-  // And it actually delivers again: send post-reconnect, expect ack (pending -> 0).
-  await send('boss', 'post-heal delivery', 'healer')
-  check('self-heal: delivers + acks after reconnect',
-    await waitFor(s => (s.pending['healer'] ?? 0) === 0, 4000))
-  await kill(healer)
-  await kill(broker)
+  check('7a broadcast delivered to live peer yolanda', Y.msgs.some(m => m.text === 'BROADCAST hello'))
+  check('7b broadcast excluded the sender xavier', !X.msgs.some(m => m.text === 'BROADCAST hello'))
+  check('7c broadcast did NOT target the phantom pending name',
+    !rb.targets.some((t: any) => t.name === 'phantom'))
+  X.stop(); Y.stop()
 
-  // --- Acceptance 7: a once-announced NAME resolves to the session's CURRENT live
-  // transport across a reconnect + rename (the peer-identity fix). Session 'sess-x'
-  // announces 'alpha', drops that transport, reconnects under a NEW transport with a
-  // NEW current name 'beta' (same session). A peer's send to the ORIGINAL name 'alpha'
-  // MUST land live on the new transport — not blackhole in a stale inbox. ---
-  broker = spawnBroker()
-  await waitPort()
-  const t1 = rawSubscriber('alpha', 'sess-x')
-  check('identity: session announces alpha (connected)',
-    await waitFor(s => s.connected.includes('alpha'), 4000))
-  t1.stop() // drop the old transport
-  await sleep(300)
-  const t2 = rawSubscriber('beta', 'sess-x') // reconnect: new transport, new name, SAME session
-  check('identity: reconnect under new name beta (connected)',
-    await waitFor(s => s.connected.includes('beta'), 4000))
-  // The OLD name must still resolve to the (now beta) live transport.
-  check('identity: old name alpha still resolves to the live session',
-    await waitFor(s => s.connected.includes('alpha'), 4000),
-    JSON.stringify((await status()).connected))
-  const beforeT2 = t2.got.length
-  const sendRes = await send('peer', 'reaches the reconnected session via the old name', 'alpha')
-  await sleep(300)
-  check('identity: send to old name reported LIVE (not queued)',
-    (sendRes as { live?: string[] }).live?.includes('alpha') === true, JSON.stringify(sendRes))
-  check('identity: send to old name delivered live on the new transport',
-    t2.got.slice(beforeT2).some(m => m.text.includes('reconnected session via the old name')))
-  t2.stop()
-  await kill(broker)
+  // 8 — Tier-2 read receipt (the Stop-hook path) ----------------------------------
+  const S = sub('sam', 'sess-S'), R = sub('rita', 'sess-R')
+  await waitFor(s => nameLive(s, 'sam') && nameLive(s, 'rita'))
+  const r8 = await send('sess-S', 'sam', 'read me', 'rita')
+  await sleep(120)
+  await post('/ack', { session: 'sess-R', id: r8.id })
+  await post('/read', { session: 'sess-R', ids: [r8.id] })
+  await sleep(150)
+  check('8 sam got a Tier-2 read receipt', S.receipts.some(x => x.id === r8.id && x.state === 'read'))
+  S.stop(); R.stop(); A.stop(); B.stop()
 
+  // 9 — legacy war convergence (dual-mode, no session=) ---------------------------
+  // Two legacy warriors reconnect-loop under one name. The legacy war-guard must converge
+  // them to a single stable incumbent instead of a 1Hz supersede war.
+  let stopWar = false
+  async function warrior() {
+    while (!stopWar) {
+      try {
+        const res = await fetch(`${BUS}/subscribe?agent=warvictim`) // NO session -> legacy
+        const reader = res.body!.getReader()
+        for (;;) { const { done } = await reader.read(); if (done) break }
+      } catch {}
+      await sleep(150)
+    }
+  }
+  warrior(); warrior()
+  await sleep(2500)
+  check('9a legacy war converged to a live incumbent', nameLive(await status(), 'warvictim'))
+  const r9 = await send('sess-A', 'probe', 'still routable', 'warvictim')
+  check('9b send to the converged name is delivered (not lost)', r9.state === 'delivered', JSON.stringify(r9))
+  stopWar = true
+  await sleep(300)
+
+  await kill(broker)
   rmSync(HOME, { recursive: true, force: true })
-
   console.log(`\n${failures === 0 ? '✅ ALL PASS' : `❌ ${failures} FAILURE(S)`}`)
   process.exit(failures === 0 ? 0 : 1)
 }

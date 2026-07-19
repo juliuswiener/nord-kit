@@ -59,7 +59,9 @@ function sub(name: string, session?: string) {
   ;(async () => {
     try {
       const qs = session ? `&session=${encodeURIComponent(session)}` : ''
-      const res = await fetch(`${BUS}/subscribe?agent=${encodeURIComponent(name)}${qs}`, { signal: ctrl.signal })
+      // Advertise a v2 client so the broker delivers receipt frames (a real v2 client sends this).
+      const metaQS = `&meta=${encodeURIComponent(Buffer.from(JSON.stringify({ client_version: '2.0.0' })).toString('base64'))}`
+      const res = await fetch(`${BUS}/subscribe?agent=${encodeURIComponent(name)}${qs}${metaQS}`, { signal: ctrl.signal })
       const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = ''
       for (;;) {
         const { value, done } = await reader.read(); if (done) break

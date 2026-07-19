@@ -135,10 +135,12 @@ function deliver(sid: string) {
   }
 }
 
-// Push a receipt control-frame back to a v2 sender (legacy senders would mis-parse it).
+// Push a receipt control-frame back to a receipt-rendering (v2.x) sender. Older clients — legacy
+// no-session AND the pre-receipt marketplace client — parse every data frame as a message and would
+// render a receipt as "← undefined", so gate strictly on the client_version meta the v2 client sends.
 function pushReceipt(m: Msg, state: 'acked' | 'read') {
   const rec = sessions.get(m.from_session)
-  if (!rec?.emit || !rec.v2) return
+  if (!rec?.emit || !(rec.meta.client_version ?? '').startsWith('2')) return
   rec.emit(JSON.stringify({
     type: 'receipt', id: m.id, state,
     by_session: m.acked_by_session ?? m.to_session, by_name: m.to_name,

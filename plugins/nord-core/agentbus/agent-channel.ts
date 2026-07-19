@@ -5,7 +5,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 
 const BUS = process.env.BUS_URL ?? 'http://localhost:9000'
 // If no bytes (not even a heartbeat) arrive within this window, the stream is dead —
@@ -13,6 +13,17 @@ const BUS = process.env.BUS_URL ?? 'http://localhost:9000'
 const IDLE_MS = Number(process.env.AGENTBUS_IDLE_MS ?? 40000)
 const SESSION_ID = process.env.CLAUDE_CODE_SESSION_ID ?? ''
 const NAME_FILE = SESSION_ID ? `/tmp/agentbus-name-${SESSION_ID}` : ''
+const CLIENT_VERSION = '2.0.0'
+// Tier-2 read-receipt data plane: the client appends each emitted msg id here; the Stop hook
+// drains it and POSTs /read so the sender learns the message was actually processed in a turn.
+const UNREAD_FILE = SESSION_ID ? `/tmp/agentbus-unread-${SESSION_ID}.jsonl` : ''
+// Test-only escape hatch: keep running even when stdio to the MCP host closes (the e2e harness
+// runs this client with no host). In a real session this stays 0 so the client self-terminates
+// when Claude Code exits — the anti-zombie guarantee.
+const STANDALONE = process.env.AGENTBUS_STANDALONE === '1'
+// The stable session key the broker routes on. Falls back to the name only in legacy launches
+// with no CLAUDE_CODE_SESSION_ID (pre-hook), where the broker treats name == session.
+const SKEY = SESSION_ID || ''
 
 // Resolve this session's bus identity. Priority: the name-file (written by the SessionStart
 // hook or /busname) > a real AGENT_ID env > the session uuid > 'agent'. The literal
@@ -93,19 +104,22 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
     const res = await fetch(`${BUS}/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: AGENT_ID, to, text }),
+      body: JSON.stringify({ from_session: SKEY || AGENT_ID, from: AGENT_ID, to, text }),
     }).then(r => r.json()).catch(e => ({ ok: false, error: String(e) }))
-    // Echo the outbound message into this session as a channel event, symmetric to inbound tags,
-    // so the sender sees what went out + to whom (not just a result blob). A directed send that
-    // the broker reports as queued (target not connected) is flagged — this is the typo tell.
+    // Echo the outbound into this session, symmetric to inbound. The broker now returns a precise
+    // state: queued_pending means NOBODY holds that name (the old silent-blackhole typo, now
+    // surfaced); queued_offline means the right peer is momentarily away; delivered means it landed.
     if ((res as { ok?: boolean }).ok) {
-      const q = (res as { queued?: string[] }).queued ?? []
-      const warn = to && q.includes(to) ? '  ⚠ queued — target not connected, check the id' : ''
+      const state = (res as { state?: string }).state
+      const warn =
+        state === 'queued_pending' ? '  ⚠ no live peer under that id — check it'
+        : state === 'queued_offline' ? '  (queued — peer offline, will deliver on reconnect)'
+        : ''
       await mcp.notification({
         method: 'notifications/claude/channel',
         params: {
           content: `→ ${to ?? '(broadcast)'}: ${text}${warn}`,
-          meta: { to: to ?? '(broadcast)', direction: 'outbound', queued: warn ? 'true' : 'false' },
+          meta: { to: to ?? '(broadcast)', direction: 'outbound', state: state ?? '', id: String((res as { id?: number }).id ?? '') },
         },
       }).catch(() => {})
     }
@@ -118,7 +132,33 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
   throw new Error(`unknown tool: ${req.params.name}`)
 })
 
-await mcp.connect(new StdioServerTransport())
+// Bind the client's life to its stdio link to Claude Code. When CC exits it closes stdio; we
+// then deregister from the bus (POST /close) and exit — so a dead session leaves NO lingering
+// client squatting its name (the zombie the autopsy found). STANDALONE=1 (tests) opts out.
+let activeCtrl: AbortController | undefined
+let closing = false
+async function onParentGone(why: string) {
+  if (closing) return
+  closing = true
+  dbg(`parent gone (${why}) → /close + exit`)
+  try {
+    await fetch(`${BUS}/close`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session: SKEY || AGENT_ID }),
+    })
+  } catch {}
+  try { activeCtrl?.abort() } catch {}
+  process.exit(0)
+}
+const transport = new StdioServerTransport()
+await mcp.connect(transport)
+if (!STANDALONE) {
+  transport.onclose = () => onParentGone('transport-close')
+  process.stdin.on('end', () => onParentGone('stdin-end'))
+  process.stdin.on('close', () => onParentGone('stdin-close'))
+  process.on('SIGTERM', () => onParentGone('SIGTERM'))
+  process.on('SIGINT', () => onParentGone('SIGINT'))
+}
 
 // Inbound: subscribe to the bus, push each message into the session, ack it.
 const seen = new Set<number>() // dedupe redelivered messages within this session
@@ -128,9 +168,27 @@ async function ack(id: number) {
     await fetch(`${BUS}/ack`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agent: AGENT_ID, id }),
+      body: JSON.stringify({ session: SKEY || AGENT_ID, agent: AGENT_ID, id }),
     })
   } catch {}
+}
+
+import { appendFileSync as _append } from 'node:fs'
+// Tier-2 data plane: record an emitted id so the Stop hook can POST /read for it.
+function recordUnread(id: number, from: string) {
+  if (!UNREAD_FILE) return
+  try { _append(UNREAD_FILE, JSON.stringify({ id, from }) + '\n') } catch {}
+}
+// Render a receipt frame from the broker on THIS (sender) session — messenger-style.
+async function renderReceipt(m: { id: number; state: string; by_name?: string; by_session?: string }) {
+  const mark = m.state === 'read' ? '✓✓ read' : m.state === 'acked' ? '✓ delivered' : m.state
+  await mcp.notification({
+    method: 'notifications/claude/channel',
+    params: {
+      content: `${mark} · #${m.id}${m.by_name ? ` (${m.by_name})` : ''}`,
+      meta: { direction: 'receipt', id: String(m.id), state: m.state, by_session: m.by_session ?? '' },
+    },
+  }).catch(() => {})
 }
 
 import { appendFileSync } from 'node:fs'
@@ -141,7 +199,6 @@ function dbg(msg: string) {
 
 // Watch the name-file: if the resolved identity changes (SessionStart hook / /busname), force
 // the current stream to reconnect so the loop re-binds AGENT_ID and re-subscribes under it.
-let activeCtrl: AbortController | undefined
 setInterval(() => {
   if (resolveId() !== AGENT_ID) { dbg('name-file changed → forcing reconnect'); activeCtrl?.abort() }
 }, 3000)
@@ -183,7 +240,11 @@ async function pump() {
       // (across renames + SSE reconnects) to this one live transport. Omitted when unknown
       // (legacy) — the broker then treats the name as its own session key.
       const sessionQS = SESSION_ID ? `&session=${encodeURIComponent(SESSION_ID)}` : ''
-      const res = await fetch(`${BUS}/subscribe?agent=${encodeURIComponent(AGENT_ID)}${sessionQS}`, { signal: ctrl.signal })
+      // Presence meta so /status can show pid/cwd/version — lets the operator spot + kill a zombie
+      // and see which peers still run a legacy client (drives the strict-mode cutover).
+      const meta = { pid: process.pid, ppid: process.ppid, cwd: process.cwd(), title: AGENT_ID, client_version: CLIENT_VERSION }
+      const metaQS = `&meta=${encodeURIComponent(Buffer.from(JSON.stringify(meta)).toString('base64'))}`
+      const res = await fetch(`${BUS}/subscribe?agent=${encodeURIComponent(AGENT_ID)}${sessionQS}${metaQS}`, { signal: ctrl.signal })
       dbg(`fetch /subscribe resolved status=${res.status}`)
       if (!res.body) throw new Error('no response body')
       reader = res.body.getReader()
@@ -204,15 +265,31 @@ async function pump() {
           buf = buf.slice(i + 2)
           const line = frame.split('\n').find(l => l.startsWith('data: '))
           if (!line) continue
-          let m: { id: number; from: string; text: string; ts: number }
+          let m: any
           try { m = JSON.parse(line.slice(6)) } catch { continue }
+          // Control frames from the v2 broker.
+          if (m.type === 'name_taken') {
+            // A DIFFERENT live session already holds this name. Take a session-unique variant and
+            // reconnect under it — the client-side complement to the hook's unique-name derivation.
+            const frag = (SKEY || String(process.pid)).replace(/[^a-zA-Z0-9]/g, '').slice(0, 6)
+            const base = AGENT_ID.endsWith(`-${frag}`) ? AGENT_ID.slice(0, -(frag.length + 1)) : AGENT_ID
+            AGENT_ID = `${base}-${frag}`
+            if (NAME_FILE) try { writeFileSync(NAME_FILE, AGENT_ID) } catch {}
+            dbg(`name_taken → retry as ${AGENT_ID}`)
+            break // reconnect under the new unique name
+          }
+          if (m.type === 'upgrade_required') { dbg('broker strict mode: upgrade_required'); continue }
+          if (m.type === 'receipt') { await renderReceipt(m); continue } // a receipt for something WE sent
+          // Otherwise: an inbound peer message.
+          if (typeof m.id !== 'number') continue
           if (seen.has(m.id)) { await ack(m.id); continue } // duplicate: ack and skip
           seen.add(m.id)
           await mcp.notification({
             method: 'notifications/claude/channel',
             params: { content: `← ${m.text}`, meta: { from: m.from, msg_id: String(m.id) } },
           })
-          await ack(m.id) // deterministic: the message is now in the session
+          await ack(m.id)              // Tier-1: message is in the session
+          recordUnread(m.id, m.from)   // Tier-2: Stop hook will POST /read when a turn processes it
         }
       }
     } catch (e) {

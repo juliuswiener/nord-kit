@@ -1,0 +1,61 @@
+#!/usr/bin/env bun
+// agentbus — operator CLI over the broker's HTTP endpoints. Investigate peers, kill stragglers,
+// check receipts. Thin wrapper so the operator does not curl JSON by hand.
+//   agentbus peers            list LIVE peers (name, session, pid, cwd, age, pending)
+//   agentbus ghosts           dropped sessions (in grace) + pending-by-name (pre-launch/TTL'd)
+//   agentbus kill <name|sid>  deregister at the broker AND SIGTERM the client process
+//   agentbus receipt <id>     delivery state of a sent message (queued/delivered/acked/read)
+//   agentbus status           raw /status JSON
+const PORT = Number(process.env.AGENTBUS_PORT || 9000)
+const BUS = `http://127.0.0.1:${PORT}`
+const [cmd, arg] = process.argv.slice(2)
+
+const get = (p) => fetch(`${BUS}${p}`).then(r => r.json())
+const post = (p, b) => fetch(`${BUS}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(r => r.json())
+const age = (ms) => ms < 1000 ? `${ms}ms` : ms < 60000 ? `${(ms / 1000).toFixed(1)}s` : `${(ms / 60000).toFixed(1)}m`
+const pad = (s, n) => String(s ?? '').padEnd(n)
+
+async function main() {
+  try { await get('/status') } catch { console.error(`no broker on ${BUS}`); process.exit(1) }
+
+  if (!cmd || cmd === 'peers') {
+    const s = await get('/status')
+    const live = s.peers.filter(p => p.connected)
+    console.log(`${live.length} live peer(s):\n`)
+    console.log(pad('NAME(S)', 28) + pad('SESSION', 22) + pad('PID', 8) + pad('AGE', 8) + pad('PEND', 5) + 'CWD')
+    for (const p of live)
+      console.log(pad(p.names.join(','), 28) + pad(String(p.session).slice(0, 20), 22) + pad(p.pid ?? '-', 8) + pad(age(p.last_seen_ms), 8) + pad(p.pending, 5) + (p.cwd ?? '-'))
+    return
+  }
+  if (cmd === 'ghosts') {
+    const s = await get('/status')
+    const dropped = s.peers.filter(p => !p.connected)
+    console.log(`dropped (in grace, will be GC'd): ${dropped.length}`)
+    for (const p of dropped) console.log(`  ${p.names.join(',')}  session=${p.session}  age=${age(p.last_seen_ms)}`)
+    console.log(`\npending-by-name (pre-launch / TTL'd): ${Object.keys(s.pending_by_name || {}).length}`)
+    for (const [n, c] of Object.entries(s.pending_by_name || {})) console.log(`  ${n}: ${c}`)
+    return
+  }
+  if (cmd === 'kill') {
+    if (!arg) { console.error('usage: agentbus kill <name|session>'); process.exit(1) }
+    const body = arg.includes('-') && arg.length > 20 ? { session: arg } : { name: arg }
+    const res = await post('/kill', body)
+    if (!res.killed?.length) { console.log(`no live peer matched ${arg}`); return }
+    for (const k of res.killed) {
+      console.log(`deregistered ${k.names.join(',')} (session=${k.session})`)
+      if (k.pid) { try { process.kill(k.pid, 'SIGTERM'); console.log(`  SIGTERM pid ${k.pid}`) } catch (e) { console.log(`  could not signal pid ${k.pid}: ${e.message}`) } }
+    }
+    return
+  }
+  if (cmd === 'receipt') {
+    if (!arg) { console.error('usage: agentbus receipt <id>'); process.exit(1) }
+    const res = await fetch(`${BUS}/receipt?id=${encodeURIComponent(arg)}`)
+    console.log(JSON.stringify(await res.json(), null, 2))
+    return
+  }
+  if (cmd === 'status') { console.log(JSON.stringify(await get('/status'), null, 2)); return }
+
+  console.error(`unknown command: ${cmd}\ncommands: peers | ghosts | kill <name|sid> | receipt <id> | status`)
+  process.exit(1)
+}
+main()

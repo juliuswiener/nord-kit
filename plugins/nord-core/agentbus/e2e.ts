@@ -123,6 +123,22 @@ async function main() {
     (await status()).peers.some((p: any) => p.session === 'sess-D' && p.state === 'dropped'))
   check('4b after grace: swept', await waitFor(s => sessionGone(s, 'sess-D'), 2500))
 
+  // 4.5 — name HELD through the owner's grace window: no co-located hijack ---------
+  // Owner drops (SSE abort, no /close → grace applies). A DIFFERENT session claiming the same
+  // name DURING grace must be rejected, else it hijacks the name and the reconnecting owner gets
+  // displaced to a suffix. After GC the freed name becomes claimable again.
+  const E1 = sub('eve', 'sess-E1'); await waitFor(s => nameLive(s, 'eve'))
+  E1.stop(); await sleep(150) // within GRACE_MS (800): sess-E1 is dropped-but-in-grace
+  const E2 = sub('eve', 'sess-E2'); await sleep(200) // co-located claimant during grace
+  check('4.5a claim during owner grace rejected (no hijack)', E2.control.some(c => c.type === 'name_taken'))
+  check('4.5b name still held by the dropped original owner',
+    (await status()).peers.some((p: any) => p.session === 'sess-E1' && p.names.includes('eve')))
+  E2.stop()
+  await waitFor(s => sessionGone(s, 'sess-E1'), 2500) // grace expires → swept → name frees
+  const E3 = sub('eve', 'sess-E3')
+  check('4.5c freed name claimable after GC', await waitFor(s => nameLive(s, 'eve'), 2000))
+  E3.stop()
+
   // 5 — queued_pending (no owner) vs delivered (owner) ----------------------------
   const r5 = await send('sess-A', 'alice', 'anyone?', 'nobody-here')
   check('5a send to unknown name = queued_pending, not silent', r5.state === 'queued_pending' && r5.to_session === null, JSON.stringify(r5))

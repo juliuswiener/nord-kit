@@ -220,11 +220,18 @@ Bun.serve({
         start(ctrl) {
           const now = Date.now()
 
-          // Uniqueness: a DIFFERENT live session already owns this name -> reject. (Same
-          // session reconnecting is fine — it owns its own name.) In legacy dual-mode two
-          // no-session clients collapse to sid=name, so this path also needs the war-guard.
+          // Uniqueness: a DIFFERENT session still owning this name -> reject. (Same session
+          // reconnecting is fine — it owns its own name.) We gate on sessions.has, NOT isLive:
+          // a name is held through the owner's grace window (a transient SSE reconnect), not just
+          // while its stream is up. Otherwise a co-located same-name session (e.g. many agents
+          // deriving "main") can HIJACK the name during that blip; when the real owner reconnects
+          // it gets name_taken and is displaced to a suffix, and messages to the name silently
+          // route to the transient racer. A clean CC exit calls /close -> immediate GC (no grace),
+          // so grace is exclusively the same-sid reconnect window — a foreign claim there is always
+          // a hijack. In legacy dual-mode two no-session clients collapse to sid=name, so this path
+          // also needs the war-guard.
           const owner = nameIndex.get(name)
-          if (owner && owner !== sid && isLive(owner)) {
+          if (owner && owner !== sid && sessions.has(owner)) {
             console.error(`NAME_TAKEN name=${name} wanted-by=${sid} held-by=${owner}`)
             try { ctrl.enqueue(`data: {"type":"name_taken","name":${JSON.stringify(name)}}\n\n`); ctrl.close() } catch {}
             return
@@ -393,7 +400,7 @@ Bun.serve({
       const sid = b.session || (b.from ? (nameIndex.get(b.from) ?? b.from) : '')
       if (!b.to || !sid) return Response.json({ ok: false, error: 'session/to required' }, { status: 400 })
       const owner = nameIndex.get(b.to)
-      if (owner && owner !== sid && isLive(owner))
+      if (owner && owner !== sid && sessions.has(owner)) // held through grace, not just while live
         return Response.json({ ok: false, error: 'name_taken' }, { status: 409 })
       const rec = sessions.get(sid)
       if (rec) { rec.names.add(b.to); nameIndex.set(b.to, sid); drainPending(b.to, sid); deliver(sid) }

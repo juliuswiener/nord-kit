@@ -212,7 +212,10 @@ async function renderReceipt(m: { id: number; state: string; by_name?: string; b
 }
 
 import { appendFileSync } from 'node:fs'
-const DEBUG_LOG = process.env.AGENTBUS_DEBUG_LOG ?? `/tmp/agentbus-pump-${AGENT_ID}.log`
+// Key the debug log on the STABLE session id, not AGENT_ID: AGENT_ID is frozen at module load
+// under the derived name (often "main" for many co-located sessions), which collapsed every such
+// process into ONE shared /tmp/agentbus-pump-main.log — cross-talk that made incidents unreadable.
+const DEBUG_LOG = process.env.AGENTBUS_DEBUG_LOG ?? `/tmp/agentbus-pump-${SESSION_ID || AGENT_ID}.log`
 function dbg(msg: string) {
   try { appendFileSync(DEBUG_LOG, `${new Date().toISOString()} ${msg}\n`) } catch {}
 }

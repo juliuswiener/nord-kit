@@ -19,6 +19,9 @@ live here instead of per-device `~/.claude/CLAUDE.md`.
   (short-code approval), don't loosen the rule.
   Device note: `dcg` must be installed and wired in `settings.json` for this to hold. Where it is
   absent (legacy device), plain `rm` under `/tmp` may still stall on the old ask-rule — install `dcg`.
+- Repos with a build step go to `~/02_Software/`, never `/tmp` — `/tmp` is tmpfs (RAM, 16G,
+  `usrquota`). One Rust target fills it, and once it is full every Bash command fails with
+  exit 1 (heredocs and pipes need `/tmp`), which reads like a broken hook, not a full disk.
 
 ## Delegation routing (reach for the tool before working inline)
 On a task matching a shape below, the named skill/agent is the DEFAULT — working inline is the

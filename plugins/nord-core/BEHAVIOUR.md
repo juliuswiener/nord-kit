@@ -36,11 +36,36 @@ live here instead of per-device `~/.claude/CLAUDE.md`.
   heavy step, not as a global default — `/home` runs near full, and moving all scratch there
   trades a quota failure for a disk-full one.
 
+## Build discipline
+The YAGNI ladder in `CLAUDE.md` says what to skip. These say what makes skipping safe —
+without them "fewest lines" is code-golfing. Measured on ponytail's own agentic benchmark
+(Haiku 4.5, 12 feature + 6 safety tasks, n=4, scored on real `git diff`): the full ruleset
+cut LOC 54%, tokens 22%, cost 20%, time 27% at 100% safety, while a bare "YAGNI + one-liners"
+prompt cut less and dropped a path-traversal guard in one run of four.
+
+- **Reuse before stdlib.** Before reaching for the standard library, check whether this
+  codebase already has the helper, util or pattern. A second implementation of something
+  already here is worse than a slightly awkward call into the existing one.
+- **Non-trivial logic leaves ONE runnable check.** A branch, a loop, a parser, a money or
+  security path — leave the smallest thing that fails if the logic breaks: an assert-based
+  `demo()`/`__main__` self-check, or one small `test_*.py`. No frameworks, no fixtures, no
+  per-function suites unless asked. Trivial one-liners need no test. Lazy code without its
+  check is unfinished.
+- **Fix the root cause, not the call site.** When fixing a bug, grep every caller of the
+  function you touch and fix the shared function once. One guard there is a smaller diff
+  than one guard per caller — and the callers you did not find stay broken otherwise.
+- **Mark deliberate simplifications** with a `ponytail:` comment naming the ceiling and the
+  upgrade path: `# ponytail: global lock, per-account locks if throughput matters`. An
+  admitted limit is a decision; an unmarked one is a bug waiting to be discovered.
+
 ## Delegation routing (reach for the tool before working inline)
 On a task matching a shape below, the named skill/agent is the DEFAULT — working inline is the
 exception you justify in one line, not the reverse. Simplicity / ponytail / caveman govern the
 ARTIFACT (fewest lines of code, terse prose), never the PROCESS: spawning an agent or running a skill
-is not over-engineering. Threshold — delegate when the work is multi-file, multi-step, adversarial-worth,
+is not over-engineering. Note the two are not the same lever: ponytail cuts tokens because it skips
+work, caveman only shortens prose. Measured against a normal baseline, terse-prose-only came out at
+−20% LOC but **+7% tokens and +3% cost** — it is a readability preference worth keeping on its own
+terms, not an efficiency measure. Don't reach for caveman to save budget; reach for the ladder. Threshold — delegate when the work is multi-file, multi-step, adversarial-worth,
 or a read-heavy fan-out; stay inline for single-file / trivial / conversational (over-triggering wastes
 ~15× tokens — see Agent orchestration below). Match the shape, don't force it.
 

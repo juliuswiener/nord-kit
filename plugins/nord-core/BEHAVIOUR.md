@@ -24,6 +24,11 @@ live here instead of per-device `~/.claude/CLAUDE.md`.
   exit 1 (heredocs and pipes need `/tmp`), which reads like a broken hook, not a full disk.
   The error is `Disk quota exceeded (os error 122)`, not ENOSPC — so a bare `df` that still
   shows free space elsewhere is not reassurance. Check `df -h /tmp` first when Bash dies wholesale.
+  Same trap without a build: any step that bursts scratch writes — a full test suite, a large
+  extraction, a pre-push hook — can hit the quota on its own. Point those at quota-free disk
+  first: `export TMPDIR="${TMPDIR:-$HOME/.cache/<proj>-tmp}"; mkdir -p "$TMPDIR"`. Do this per
+  heavy step, not as a global default — `/home` runs near full, and moving all scratch there
+  trades a quota failure for a disk-full one.
 
 ## Delegation routing (reach for the tool before working inline)
 On a task matching a shape below, the named skill/agent is the DEFAULT — working inline is the

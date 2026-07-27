@@ -16,7 +16,13 @@ live here instead of per-device `~/.claude/CLAUDE.md`.
   `rm -rf` under `/tmp` and `/var/tmp` runs unprompted, elsewhere it asks, and anything under
   `$HOME` plus raw-device `dd` / `mkfs` / `git push --force` / `gh repo delete` is denied.
   No wrapper needed — `safe-tmp-rm` is retired. For a legitimate blocked case use `dcg allow-once`
-  (short-code approval), don't loosen the rule.
+  (short-code approval), don't loosen the rule. Call it bare: a pipe or redirect on the same line
+  drops the self-inspection exemption and the escape hatch blocks itself.
+  Working with the grain beats fighting it — most blocks have a cleaner form anyway:
+  `cargo clean --profile dev` instead of `rm -rf target/debug` (it keeps `release`), a literal
+  path instead of a shell variable before `git` (a variable trips alias-semantic analysis), and
+  a commit message written to a file via `git commit -F` when the text itself names destructive
+  commands (dcg scans the whole string, heredoc bodies included).
   Device note: `dcg` must be installed and wired in `settings.json` for this to hold. Where it is
   absent (legacy device), plain `rm` under `/tmp` may still stall on the old ask-rule — install `dcg`.
 - Repos with a build step go to `~/02_Software/`, never `/tmp` — `/tmp` is tmpfs (RAM, 16G,

@@ -12,9 +12,13 @@ live here instead of per-device `~/.claude/CLAUDE.md`.
   unless already authorized in this turn.
 - Keep secrets out of git — use `${ENV}` placeholders in committed config, real keys in each
   device's `~/.claude/settings.json` `env`.
-- Deleting anything under `/tmp`: use `safe-tmp-rm <absolute-path>` — never plain `rm`. Plain `rm`
-  hits the ask-rule and stalls on a permission prompt; the wrapper is allowlisted and runs unprompted.
-  One absolute path per call, no flags, no `&&`/`;`/pipes, no preceding `cd`; multiple targets = multiple calls.
+- Destructive commands are gated by `dcg` (deterministic shell-AST guard, PreToolUse Bash hook):
+  `rm -rf` under `/tmp` and `/var/tmp` runs unprompted, elsewhere it asks, and anything under
+  `$HOME` plus raw-device `dd` / `mkfs` / `git push --force` / `gh repo delete` is denied.
+  No wrapper needed — `safe-tmp-rm` is retired. For a legitimate blocked case use `dcg allow-once`
+  (short-code approval), don't loosen the rule.
+  Device note: `dcg` must be installed and wired in `settings.json` for this to hold. Where it is
+  absent (legacy device), plain `rm` under `/tmp` may still stall on the old ask-rule — install `dcg`.
 
 ## Delegation routing (reach for the tool before working inline)
 On a task matching a shape below, the named skill/agent is the DEFAULT — working inline is the

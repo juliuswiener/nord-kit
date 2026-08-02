@@ -134,6 +134,15 @@ trace/verify/nord-review = C. This pointer resolves because nord-router injects 
   files nord skills already persist — read that state and re-inject it, don't just leave it on disk.
 
 ## Agent orchestration (multi-agent = for BREADTH, not everything)
+- **Preset follows what the worker must PROVE, not what its role is called.** Before spawning, ask:
+  does the expected output contain a number the worker has to determine itself — commits, lines,
+  matches, timings? If yes it needs execution rights whatever the role is named, because otherwise
+  it estimates, and **an estimate looks exactly like a measurement in a finished report**. If no,
+  a read-only preset is right and safer. Paid for three times independently: a `researcher` preset
+  without Bash produced a report with every fact correct and three quarters of the pointers invented
+  (claimgate `fixtures/b3-1-cxpak.jsonl`), and twelve more agents were spawned the same way months
+  later — the evidence was committed in the repo and did not prevent the repeat. What was missing
+  was not the knowledge but a check at spawn time.
 - **Task-shape gate before fanning out.** Parallel subagents help only when the work DECOMPOSES into
   independent parts (research, review dimensions, per-file edits) — measured +80% on parallelizable
   tasks. On SEQUENTIAL / planning / shared-context work every multi-agent variant DEGRADES (−39% to

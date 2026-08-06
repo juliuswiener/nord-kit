@@ -12,19 +12,12 @@ live here instead of per-device `~/.claude/CLAUDE.md`.
   unless already authorized in this turn.
 - Keep secrets out of git — use `${ENV}` placeholders in committed config, real keys in each
   device's `~/.claude/settings.json` `env`.
-- Destructive commands are gated by `dcg` (deterministic shell-AST guard, PreToolUse Bash hook):
-  `rm -rf` under `/tmp` and `/var/tmp` runs unprompted, elsewhere it asks, and anything under
-  `$HOME` plus raw-device `dd` / `mkfs` / `git push --force` / `gh repo delete` is denied.
-  No wrapper needed — `safe-tmp-rm` is retired. For a legitimate blocked case use `dcg allow-once`
-  (short-code approval), don't loosen the rule. Call it bare: a pipe or redirect on the same line
-  drops the self-inspection exemption and the escape hatch blocks itself.
-  Working with the grain beats fighting it — most blocks have a cleaner form anyway:
-  `cargo clean --profile dev` instead of `rm -rf target/debug` (it keeps `release`), a literal
-  path instead of a shell variable before `git` (a variable trips alias-semantic analysis), and
-  a commit message written to a file via `git commit -F` when the text itself names destructive
-  commands (dcg scans the whole string, heredoc bodies included).
-  Device note: `dcg` must be installed and wired in `settings.json` for this to hold. Where it is
-  absent (legacy device), plain `rm` under `/tmp` may still stall on the old ask-rule — install `dcg`.
+- Destructive commands have no automated guard — `dcg` is retired, `safe-tmp-rm` before it.
+  Nothing inspects a Bash command before it runs, so the judgement is yours: think before
+  `rm -rf` outside `/tmp`, and treat anything under `$HOME` plus raw-device `dd` / `mkfs` /
+  `git push --force` / `gh repo delete` as needing an explicit go-ahead first. Prefer the
+  narrower form where one exists — `cargo clean --profile dev` over `rm -rf target/debug`
+  (it keeps `release`).
 - Repos with a build step go to `~/02_Software/`, never `/tmp` — `/tmp` is tmpfs (RAM, 16G,
   `usrquota`). One Rust target fills it, and once it is full every Bash command fails with
   exit 1 (heredocs and pipes need `/tmp`), which reads like a broken hook, not a full disk.

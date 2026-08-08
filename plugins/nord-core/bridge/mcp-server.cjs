@@ -20972,9 +20972,18 @@ ${result.diagnostics}`;
   }
 };
 var lspTools = [
+  lspHoverTool,
   lspGotoDefinitionTool,
   lspFindReferencesTool,
-  lspRenameTool
+  lspDocumentSymbolsTool,
+  lspWorkspaceSymbolsTool,
+  lspDiagnosticsTool,
+  lspDiagnosticsDirectoryTool,
+  lspServersTool,
+  lspPrepareRenameTool,
+  lspRenameTool,
+  lspCodeActionsTool,
+  lspCodeActionResolveTool
 ];
 
 // src/tools/ast-tools.ts
@@ -20995,23 +21004,23 @@ function encodeProjectPath(projectPath) {
 }
 
 // src/lib/worktree-paths.ts
-var WORKSPACE_MARKER = ".nord-workspace";
+var WORKSPACE_MARKER = ".omc-workspace";
 var OmcPaths = {
-  ROOT: ".nord",
-  STATE: ".nord/state",
-  SESSIONS: ".nord/state/sessions",
-  PLANS: ".nord/plans",
-  RESEARCH: ".nord/research",
-  NOTEPAD: ".nord/notepad.md",
-  PROJECT_MEMORY: ".nord/project-memory.json",
-  DRAFTS: ".nord/drafts",
-  NOTEPADS: ".nord/notepads",
-  LOGS: ".nord/logs",
-  SCIENTIST: ".nord/scientist",
-  AUTOPILOT: ".nord/autopilot",
-  SKILLS: ".nord/skills",
-  SHARED_MEMORY: ".nord/state/shared-memory",
-  DEEPINIT_MANIFEST: ".nord/deepinit-manifest.json"
+  ROOT: ".omc",
+  STATE: ".omc/state",
+  SESSIONS: ".omc/state/sessions",
+  PLANS: ".omc/plans",
+  RESEARCH: ".omc/research",
+  NOTEPAD: ".omc/notepad.md",
+  PROJECT_MEMORY: ".omc/project-memory.json",
+  DRAFTS: ".omc/drafts",
+  NOTEPADS: ".omc/notepads",
+  LOGS: ".omc/logs",
+  SCIENTIST: ".omc/scientist",
+  AUTOPILOT: ".omc/autopilot",
+  SKILLS: ".omc/skills",
+  SHARED_MEMORY: ".omc/state/shared-memory",
+  DEEPINIT_MANIFEST: ".omc/deepinit-manifest.json"
 };
 var MAX_WORKTREE_CACHE_SIZE = 8;
 var worktreeCacheMap = /* @__PURE__ */ new Map();
@@ -22736,6 +22745,51 @@ var pythonReplTool = {
     return {
       content: [{ type: "text", text: output }]
     };
+  }
+};
+
+// src/tools/bash-tool.ts
+var import_child_process10 = require("child_process");
+var import_util8 = require("util");
+var execAsync = (0, import_util8.promisify)(import_child_process10.exec);
+var bashTool = {
+  name: "Bash",
+  description: "Execute a bash command with timeout and truncation for security.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      CommandLine: { type: "string" },
+      Cwd: { type: "string" }
+    },
+    required: ["CommandLine"]
+  },
+  handler: async (args) => {
+    const command = args.CommandLine;
+    const cwd = args.Cwd || process.cwd();
+    const timeout = 6e4;
+    const maxLen = 8e3;
+    try {
+      const { stdout, stderr } = await execAsync(command, { cwd, timeout });
+      let out = stdout;
+      if (out.length > maxLen) out = out.substring(0, maxLen) + "\n...[TRUNCATED]";
+      let err = stderr;
+      if (err.length > maxLen) err = err.substring(0, maxLen) + "\n...[TRUNCATED]";
+      return {
+        content: [{ type: "text", text: `Stdout:
+${out}
+Stderr:
+${err}` }],
+        isError: false
+      };
+    } catch (e) {
+      let err = e.message || String(e);
+      if (err.length > maxLen) err = err.substring(0, maxLen) + "\n...[TRUNCATED]";
+      return {
+        content: [{ type: "text", text: `Error:
+${err}` }],
+        isError: true
+      };
+    }
   }
 };
 
@@ -25291,7 +25345,7 @@ var import_path18 = require("path");
 // src/hooks/rules-injector/constants.ts
 var import_path17 = require("path");
 var import_os5 = require("os");
-var OMC_STORAGE_DIR = (0, import_path17.join)((0, import_os5.homedir)(), ".nord");
+var OMC_STORAGE_DIR = (0, import_path17.join)((0, import_os5.homedir)(), ".omc");
 var RULES_INJECTOR_STORAGE = (0, import_path17.join)(OMC_STORAGE_DIR, "rules-injector");
 
 // src/hooks/project-memory/storage.ts
@@ -25928,7 +25982,7 @@ function getReplaySummary(directory, sessionId) {
 }
 
 // src/features/session-history-search/index.ts
-var import_child_process10 = require("child_process");
+var import_child_process11 = require("child_process");
 var import_fs19 = require("fs");
 var import_path26 = require("path");
 var import_readline = require("readline");
@@ -25963,7 +26017,7 @@ function parseSinceSpec(since) {
 }
 function getMainRepoRoot(projectRoot) {
   try {
-    const gitCommonDir = (0, import_child_process10.execSync)("git rev-parse --git-common-dir", {
+    const gitCommonDir = (0, import_child_process11.execSync)("git rev-parse --git-common-dir", {
       cwd: projectRoot,
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"]
@@ -26733,12 +26787,12 @@ No events recorded.`
     }
   }
 };
-var traceTools = [traceTimelineTool, traceSummaryTool];
+var traceTools = [traceTimelineTool, traceSummaryTool, sessionSearchTool];
 
 // src/lib/shared-memory.ts
 var import_fs21 = require("fs");
 var import_path28 = require("path");
-var CONFIG_FILE_NAME = ".nord-config.json";
+var CONFIG_FILE_NAME = ".omc-config.json";
 function isSharedMemoryEnabled() {
   try {
     const configPath = (0, import_path28.join)(getClaudeConfigDir(), CONFIG_FILE_NAME);
@@ -26952,7 +27006,7 @@ function listNamespaces(worktreeRoot) {
 }
 
 // src/tools/shared-memory-tools.ts
-var DISABLED_MSG = `Shared memory is disabled. Set agents.sharedMemory.enabled = true in ${getClaudeConfigDir()}/.nord-config.json to enable.`;
+var DISABLED_MSG = `Shared memory is disabled. Set agents.sharedMemory.enabled = true in ${getClaudeConfigDir()}/.omc-config.json to enable.`;
 function disabledResponse() {
   return {
     content: [{ type: "text", text: DISABLED_MSG }],
@@ -28209,7 +28263,7 @@ var wikiAddTool = {
         content: [{
           type: "text",
           text: `Wiki page created: ${result.created[0]}
-Path: .nord/wiki/${result.created[0]}`
+Path: .omc/wiki/${result.created[0]}`
         }]
       };
     } catch (error2) {
@@ -28387,7 +28441,7 @@ var import_path31 = require("path");
 var import_path30 = require("path");
 var import_os6 = require("os");
 var USER_SKILLS_DIR = (0, import_path30.join)(getClaudeConfigDir(), "skills", "omc-learned");
-var GLOBAL_SKILLS_DIR = (0, import_path30.join)((0, import_os6.homedir)(), ".nord", "skills");
+var GLOBAL_SKILLS_DIR = (0, import_path30.join)((0, import_os6.homedir)(), ".omc", "skills");
 var PROJECT_SKILLS_SUBDIR = OmcPaths.SKILLS;
 var PROJECT_AGENT_SKILLS_SUBDIR = (0, import_path30.join)(".agents", "skills");
 var MAX_RECURSION_DEPTH = 10;
@@ -28718,7 +28772,7 @@ function formatSkillOutput(skills) {
 }
 var loadLocalTool = {
   name: "load_omc_skills_local",
-  description: "Load and list skills from the project-local .nord/skills/ directory. Returns skill metadata (id, name, description, triggers, tags) for all discovered project-scoped skills.",
+  description: "Load and list skills from the project-local .omc/skills/ directory. Returns skill metadata (id, name, description, triggers, tags) for all discovered project-scoped skills.",
   schema: loadLocalSchema,
   handler: async (args) => {
     const projectRoot = args.projectRoot ? validateProjectRoot(args.projectRoot) : process.cwd();
@@ -28736,7 +28790,7 @@ ${formatSkillOutput(projectSkills)}`
 };
 var loadGlobalTool = {
   name: "load_omc_skills_global",
-  description: "Load and list skills from global user directories (~/.nord/skills/ and [$CLAUDE_CONFIG_DIR|~/.claude]/skills/omc-learned/). Returns skill metadata for all discovered user-scoped skills.",
+  description: "Load and list skills from global user directories (~/.omc/skills/ and [$CLAUDE_CONFIG_DIR|~/.claude]/skills/omc-learned/). Returns skill metadata for all discovered user-scoped skills.",
   schema: loadGlobalSchema,
   handler: async (_args) => {
     const allSkills = loadAllSkills(null);
@@ -28780,8 +28834,8 @@ ${formatSkillOutput(userSkills)}`;
 No skill files were discovered in any searched directories.
 
 Searched:
-- Project: .nord/skills/
-- Global: ~/.nord/skills/
+- Project: .omc/skills/
+- Global: ~/.omc/skills/
 - Claude config: ${getClaudeConfigDir()}/skills/omc-learned/`;
     }
     return {
@@ -28795,82 +28849,19 @@ Searched:
 var skillsTools = [loadLocalTool, loadGlobalTool, listSkillsTool];
 
 // src/mcp/tool-registry.ts
-var exaSearchTool = {
-  name: "exa_search",
-  description: "Search the web via Exa and get clean, ready-to-use content. Returns title, URL, highlights and a text snippet per result. Describe the ideal page, not just keywords (e.g. 'blog post comparing React and Vue performance', not 'React vs Vue').",
-  schema: {
-    query: external_exports.string().min(1).describe("Natural language search query — describe the ideal page, not just keywords."),
-    numResults: external_exports.number().int().min(1).max(25).optional().describe("Number of results to return (default 5).")
-  },
-  handler: async (args) => {
-    const apiKey = process.env.EXA_API_KEY;
-    if (!apiKey) {
-      return {
-        content: [{ type: "text", text: "EXA_API_KEY is not set in the environment." }],
-        isError: true
-      };
-    }
-    const numResults = args.numResults ?? 5;
-    try {
-      const resp = await fetch("https://api.exa.ai/search", {
-        method: "POST",
-        headers: { "x-api-key": apiKey, "content-type": "application/json" },
-        body: JSON.stringify({
-          query: args.query,
-          numResults,
-          type: "auto",
-          contents: {
-            text: { maxCharacters: 1e3 },
-            highlights: { numSentences: 3, highlightsPerUrl: 3 }
-          }
-        })
-      });
-      if (!resp.ok) {
-        const body = await resp.text().catch(() => "");
-        return {
-          content: [{ type: "text", text: `Exa API error ${resp.status}: ${body.slice(0, 500)}` }],
-          isError: true
-        };
-      }
-      const data = await resp.json();
-      const results = Array.isArray(data.results) ? data.results : [];
-      if (results.length === 0) {
-        return { content: [{ type: "text", text: `No results for: ${args.query}` }] };
-      }
-      const blocks = results.map((r) => {
-        const parts = [];
-        parts.push(`Title: ${r.title || "(untitled)"}`);
-        parts.push(`URL: ${r.url || ""}`);
-        if (r.publishedDate) parts.push(`Published: ${r.publishedDate}`);
-        if (r.author) parts.push(`Author: ${r.author}`);
-        if (Array.isArray(r.highlights) && r.highlights.length) {
-          parts.push(`Highlights:
-${r.highlights.map((h) => `  - ${h}`).join("\n")}`);
-        } else if (r.text) {
-          parts.push(`Snippet: ${String(r.text).slice(0, 500)}`);
-        }
-        return parts.join("\n");
-      });
-      const cost = data.costDollars?.total != null ? `
-
-(${results.length} results, $${data.costDollars.total})` : "";
-      return { content: [{ type: "text", text: blocks.join("\n\n---\n\n") + cost }] };
-    } catch (error2) {
-      return {
-        content: [{ type: "text", text: `Error calling Exa: ${error2 instanceof Error ? error2.message : String(error2)}` }],
-        isError: true
-      };
-    }
-  }
-};
 var allTools = [
   ...lspTools,
   ...astTools,
   pythonReplTool,
+  bashTool,
   ...stateTools,
+  ...notepadTools,
+  ...memoryTools,
   ...traceTools,
+  ...sharedMemoryTools,
   deepinitManifestTool,
-  exaSearchTool
+  ...wikiTools,
+  ...skillsTools
 ];
 function zodTypeToJsonSchema(zodType) {
   const result = {};

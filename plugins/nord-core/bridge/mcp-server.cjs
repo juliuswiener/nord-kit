@@ -3658,49 +3658,49 @@ var require_fast_uri = __commonJS({
       schemelessOptions.skipEscape = true;
       return serialize(resolved, schemelessOptions);
     }
-    function resolveComponent(base, relative10, options, skipNormalization) {
+    function resolveComponent(base, relative11, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
         base = parse9(serialize(base, options), options);
-        relative10 = parse9(serialize(relative10, options), options);
+        relative11 = parse9(serialize(relative11, options), options);
       }
       options = options || {};
-      if (!options.tolerant && relative10.scheme) {
-        target.scheme = relative10.scheme;
-        target.userinfo = relative10.userinfo;
-        target.host = relative10.host;
-        target.port = relative10.port;
-        target.path = removeDotSegments(relative10.path || "");
-        target.query = relative10.query;
+      if (!options.tolerant && relative11.scheme) {
+        target.scheme = relative11.scheme;
+        target.userinfo = relative11.userinfo;
+        target.host = relative11.host;
+        target.port = relative11.port;
+        target.path = removeDotSegments(relative11.path || "");
+        target.query = relative11.query;
       } else {
-        if (relative10.userinfo !== void 0 || relative10.host !== void 0 || relative10.port !== void 0) {
-          target.userinfo = relative10.userinfo;
-          target.host = relative10.host;
-          target.port = relative10.port;
-          target.path = removeDotSegments(relative10.path || "");
-          target.query = relative10.query;
+        if (relative11.userinfo !== void 0 || relative11.host !== void 0 || relative11.port !== void 0) {
+          target.userinfo = relative11.userinfo;
+          target.host = relative11.host;
+          target.port = relative11.port;
+          target.path = removeDotSegments(relative11.path || "");
+          target.query = relative11.query;
         } else {
-          if (!relative10.path) {
+          if (!relative11.path) {
             target.path = base.path;
-            if (relative10.query !== void 0) {
-              target.query = relative10.query;
+            if (relative11.query !== void 0) {
+              target.query = relative11.query;
             } else {
               target.query = base.query;
             }
           } else {
-            if (relative10.path[0] === "/") {
-              target.path = removeDotSegments(relative10.path);
+            if (relative11.path[0] === "/") {
+              target.path = removeDotSegments(relative11.path);
             } else {
               if ((base.userinfo !== void 0 || base.host !== void 0 || base.port !== void 0) && !base.path) {
-                target.path = "/" + relative10.path;
+                target.path = "/" + relative11.path;
               } else if (!base.path) {
-                target.path = relative10.path;
+                target.path = relative11.path;
               } else {
-                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative10.path;
+                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative11.path;
               }
               target.path = removeDotSegments(target.path);
             }
-            target.query = relative10.query;
+            target.query = relative11.query;
           }
           target.userinfo = base.userinfo;
           target.host = base.host;
@@ -3708,7 +3708,7 @@ var require_fast_uri = __commonJS({
         }
         target.scheme = base.scheme;
       }
-      target.fragment = relative10.fragment;
+      target.fragment = relative11.fragment;
       return target;
     }
     function equal(uriA, uriB, options) {
@@ -4325,7 +4325,7 @@ var require_core = __commonJS({
       errorsText(errors = this.errors, { separator = ", ", dataVar = "data" } = {}) {
         if (!errors || errors.length === 0)
           return "No errors";
-        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text, msg) => text + separator + msg);
+        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text2, msg) => text2 + separator + msg);
       }
       $dataMetaSchema(metaSchema, keywordsJsonPointers) {
         const rules = this.RULES.all;
@@ -18401,6 +18401,45 @@ function remainingDeadlineMs(deadlineAt) {
 function isDeadlineExceeded(deadlineAt) {
   return deadlineAt !== void 0 && remainingDeadlineMs(deadlineAt) === 0;
 }
+async function killProcessTree(pid, signal = "SIGTERM") {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  if (process.platform === "win32") {
+    return killProcessTreeWindows(pid, signal === "SIGKILL");
+  } else {
+    return killProcessTreeUnix(pid, signal);
+  }
+}
+async function killProcessTreeWindows(pid, force) {
+  try {
+    const args = ["/T", "/PID", String(pid)];
+    if (force) {
+      args.unshift("/F");
+    }
+    (0, import_child_process.execFileSync)("taskkill.exe", args, {
+      stdio: "ignore",
+      timeout: 5e3,
+      windowsHide: true
+    });
+    return true;
+  } catch (err) {
+    const error2 = err;
+    if (error2.status === 128) return true;
+    return false;
+  }
+}
+function killProcessTreeUnix(pid, signal) {
+  try {
+    process.kill(-pid, signal);
+    return true;
+  } catch {
+    try {
+      process.kill(pid, signal);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
 function isProcessAlive(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
@@ -18526,6 +18565,31 @@ async function getProcessStartTimeLinux(pid, deadlineAt) {
   } catch {
     return void 0;
   }
+}
+async function gracefulKill(pid, gracePeriodMs = 5e3) {
+  if (!isProcessAlive(pid)) return "graceful";
+  await killProcessTree(pid, "SIGTERM");
+  const deadline = Date.now() + gracePeriodMs;
+  while (Date.now() < deadline) {
+    if (!isProcessAlive(pid)) return "graceful";
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  await killProcessTree(pid, "SIGKILL");
+  await new Promise((r) => setTimeout(r, 1e3));
+  return isProcessAlive(pid) ? "failed" : "forced";
+}
+async function getProcessStartIdentity(pid, deadlineAt) {
+  const startTime = await getProcessStartTime(pid, deadlineAt);
+  return startTime === void 0 || isDeadlineExceeded(deadlineAt) ? null : String(startTime);
+}
+async function isProcessIdentityLive(pid, expectedStartIdentity, deadlineAt) {
+  if (!Number.isInteger(pid) || pid <= 0 || !expectedStartIdentity || isDeadlineExceeded(deadlineAt)) {
+    return isDeadlineExceeded(deadlineAt) ? "unknown" : "dead";
+  }
+  if (!isProcessAlive(pid)) return "dead";
+  const identity = await getProcessStartIdentity(pid, deadlineAt);
+  if (identity === null) return isProcessAlive(pid) ? "unknown" : "dead";
+  return identity === expectedStartIdentity ? "live" : "mismatch";
 }
 
 // src/platform/index.ts
@@ -18723,12 +18787,12 @@ async function spawnBridgeServer(sessionId, projectDir) {
   let stderrTruncated = false;
   proc.stderr?.on("data", (chunk) => {
     if (stderrTruncated) return;
-    const text = chunk.toString();
-    if (stderrBuffer.length + text.length > MAX_STDERR_CHARS) {
+    const text2 = chunk.toString();
+    if (stderrBuffer.length + text2.length > MAX_STDERR_CHARS) {
       stderrBuffer = stderrBuffer.slice(0, MAX_STDERR_CHARS - 20) + "\n...[truncated]";
       stderrTruncated = true;
     } else {
-      stderrBuffer += text;
+      stderrBuffer += text2;
     }
   });
   let procExitCode = null;
@@ -20369,23 +20433,23 @@ function formatLocation(location) {
 }
 function formatHover(hover) {
   if (!hover) return "No hover information available";
-  let text = "";
+  let text2 = "";
   if (typeof hover.contents === "string") {
-    text = hover.contents;
+    text2 = hover.contents;
   } else if (Array.isArray(hover.contents)) {
-    text = hover.contents.map((c) => {
+    text2 = hover.contents.map((c) => {
       if (typeof c === "string") return c;
       return c.value;
     }).join("\n\n");
   } else if ("value" in hover.contents) {
-    text = hover.contents.value;
+    text2 = hover.contents.value;
   }
   if (hover.range) {
-    text += `
+    text2 += `
 
 Range: ${formatRange(hover.range)}`;
   }
-  return text || "No hover information available";
+  return text2 || "No hover information available";
 }
 function formatLocations(locations) {
   if (!locations) return "No locations found";
@@ -20910,32 +20974,32 @@ var lspServersTool = {
     const servers = getAllServers();
     const installed = servers.filter((s) => s.installed);
     const notInstalled = servers.filter((s) => !s.installed);
-    let text = "## Language Server Status\n\n";
+    let text2 = "## Language Server Status\n\n";
     if (installed.length > 0) {
-      text += "### Installed:\n";
+      text2 += "### Installed:\n";
       for (const server2 of installed) {
-        text += `- ${server2.name} (${server2.command})
+        text2 += `- ${server2.name} (${server2.command})
 `;
-        text += `  Extensions: ${server2.extensions.join(", ")}
+        text2 += `  Extensions: ${server2.extensions.join(", ")}
 `;
       }
-      text += "\n";
+      text2 += "\n";
     }
     if (notInstalled.length > 0) {
-      text += "### Not Installed:\n";
+      text2 += "### Not Installed:\n";
       for (const server2 of notInstalled) {
-        text += `- ${server2.name} (${server2.command})
+        text2 += `- ${server2.name} (${server2.command})
 `;
-        text += `  Extensions: ${server2.extensions.join(", ")}
+        text2 += `  Extensions: ${server2.extensions.join(", ")}
 `;
-        text += `  Install: ${server2.installHint}
+        text2 += `  Install: ${server2.installHint}
 `;
       }
     }
     return {
       content: [{
         type: "text",
-        text
+        text: text2
       }]
     };
   }
@@ -22950,51 +23014,642 @@ var pythonReplTool = {
 };
 
 // src/custom/tools/bash-tool.ts
-var import_child_process10 = require("child_process");
-var import_util8 = require("util");
-var execAsync = (0, import_util8.promisify)(import_child_process10.exec);
-var bashTool = {
-  name: "Bash",
-  description: "Execute a bash command with timeout and truncation for security.",
-  // Must be a Zod raw shape: both the standalone server (zodToJsonSchema) and the
-  // in-process SDK server (tool()) read `schema`, not `inputSchema`.
-  schema: {
-    CommandLine: external_exports.string().describe("The bash command to execute"),
-    Cwd: external_exports.string().describe("Working directory (defaults to process.cwd())").optional()
-  },
-  handler: async (args) => {
-    const command = args.CommandLine;
-    const cwd = args.Cwd || process.cwd();
-    const timeout = 6e4;
-    const maxLen = 8e3;
-    try {
-      const { stdout, stderr } = await execAsync(command, { cwd, timeout });
-      let out = stdout;
-      if (out.length > maxLen) out = out.substring(0, maxLen) + "\n...[TRUNCATED]";
-      let err = stderr;
-      if (err.length > maxLen) err = err.substring(0, maxLen) + "\n...[TRUNCATED]";
+var import_node_child_process = require("node:child_process");
+var import_node_fs2 = require("node:fs");
+var import_node_path3 = require("node:path");
+
+// src/lib/shell-safety.ts
+var import_node_path = require("node:path");
+var ALLOW = { verdict: "allow" };
+var PROTECTED_PATHS = /* @__PURE__ */ new Set([
+  "/",
+  "/bin",
+  "/boot",
+  "/dev",
+  "/etc",
+  "/lib",
+  "/lib64",
+  "/proc",
+  "/root",
+  "/sbin",
+  "/sys",
+  "/usr",
+  "/var",
+  "/usr/bin",
+  "/usr/lib",
+  "/usr/sbin",
+  "/etc/passwd",
+  "/etc/shadow",
+  "/etc/group",
+  "/boot/grub"
+]);
+var DANGEROUS_PATTERNS = [
+  [/rm\s+(-[A-Za-z]*\s+)*(-[A-Za-z]*r[A-Za-z]*|--recursive)\s+.*(--no-preserve-root)/i, "recursive deletion with --no-preserve-root"],
+  [/find\s+\/\s+.*-delete/i, "find with delete starting from root"],
+  [/find\s+.*-exec\s+rm\s+-[A-Za-z]*r/i, "find with recursive delete"],
+  [/find\s+\/.*-execdir\s+rm/i, "find execdir with rm starting from root"],
+  [/\|\s*xargs\s+rm\s+-[A-Za-z]*r/i, "piping to xargs with recursive delete"],
+  [/dd\s+.*of=\/dev\/(sd|hd|nvme)/i, "writing directly to a disk device"],
+  [/mkfs\.\w+\s+\/dev\//i, "formatting a disk partition"],
+  [/:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/, "fork bomb"],
+  [/>\s*\/dev\/sd[a-z]/i, "redirecting output to a raw disk"],
+  [/chmod\s+-R\s+000/i, "recursive permission removal"],
+  [/>\s*\/etc\/(passwd|shadow|group|sudoers)/i, "overwriting a critical system file"]
+];
+var EXPANSION_PATTERNS = [
+  [/rm\s+-[A-Za-z]*r[A-Za-z]*\s+["']?\$\{[^}]*\}/i, "rm with a variable that may be unset"],
+  [/rm\s+-[A-Za-z]*r[A-Za-z]*\s+["']?\$[A-Z_]+\/?\s*$/i, "rm with an environment variable that may be unset"],
+  [/rm\s+-[A-Za-z]*r[A-Za-z]*\s+\*/i, "rm with an unquoted wildcard"]
+];
+function checkDangerousPatterns(command) {
+  for (const [pattern, reason] of DANGEROUS_PATTERNS) {
+    if (pattern.test(command)) return { verdict: "deny", reason, rule: "dangerous-pattern" };
+  }
+  return ALLOW;
+}
+function checkVariableExpansionRisk(command) {
+  for (const [pattern, reason] of EXPANSION_PATTERNS) {
+    if (pattern.test(command)) return { verdict: "warn", reason, rule: "variable-expansion" };
+  }
+  return ALLOW;
+}
+function splitSegments(command) {
+  return command.split(/\n|;|&&|\|\||\||&/).map((s) => s.trim()).filter(Boolean);
+}
+function stripQuotes(token) {
+  if (token.length >= 2) {
+    const first = token[0];
+    const last = token[token.length - 1];
+    if (first === '"' && last === '"' || first === "'" && last === "'") {
+      return token.slice(1, -1);
+    }
+  }
+  return token.replace(/["']/g, "");
+}
+function findRmInvocations(command) {
+  const found = [];
+  for (const segment of splitSegments(command)) {
+    const tokens = segment.split(/\s+/).filter(Boolean);
+    let i = 0;
+    while (i < tokens.length && (/^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i]) || tokens[i] === "sudo" || tokens[i] === "doas")) i++;
+    if (i >= tokens.length) continue;
+    const cmd = stripQuotes(tokens[i]);
+    if (cmd !== "rm" && !cmd.endsWith("/rm")) continue;
+    const invocation = { recursive: false, force: false, operands: [] };
+    let flagsDone = false;
+    for (let j = i + 1; j < tokens.length; j++) {
+      const raw = tokens[j];
+      if (raw === "--") {
+        flagsDone = true;
+        continue;
+      }
+      if (!flagsDone && raw.startsWith("-") && raw.length > 1) {
+        if (raw.startsWith("--")) {
+          if (raw === "--recursive") invocation.recursive = true;
+          if (raw === "--force") invocation.force = true;
+        } else {
+          if (/[rR]/.test(raw)) invocation.recursive = true;
+          if (/f/.test(raw)) invocation.force = true;
+        }
+        continue;
+      }
+      invocation.operands.push(stripQuotes(raw));
+    }
+    found.push(invocation);
+  }
+  return found;
+}
+function isHomeTarget(operand) {
+  return /^(~|\$HOME|\$\{HOME\})\/?$/.test(operand);
+}
+function protectedHit(operand) {
+  if (!operand.startsWith("/")) return null;
+  const normalized = import_node_path.posix.normalize(operand.replace(/\/\*+$/, "/")).replace(/\/+$/, "") || "/";
+  for (const p of PROTECTED_PATHS) {
+    if (normalized === p) return p;
+    if (p !== "/" && normalized.startsWith(p + "/")) return p;
+  }
+  if (/^\/\*+$/.test(operand)) return "/";
+  return null;
+}
+function checkProtectedPaths(command) {
+  for (const rm of findRmInvocations(command)) {
+    for (const operand of rm.operands) {
+      const hit = protectedHit(operand);
+      if (hit) {
+        return {
+          verdict: "deny",
+          reason: `deletes the protected system path ${hit} (target: ${operand})`,
+          rule: "protected-path"
+        };
+      }
+    }
+  }
+  return ALLOW;
+}
+function analyzeRmCommand(command) {
+  for (const rm of findRmInvocations(command)) {
+    for (const operand of rm.operands) {
+      if (isHomeTarget(operand)) {
+        return { verdict: "deny", reason: `recursive delete of the home directory (${operand})`, rule: "rm-home" };
+      }
+      if (operand === "/" || /^\/\*+$/.test(operand)) {
+        return { verdict: "deny", reason: `recursive delete of the root filesystem (${operand})`, rule: "rm-root" };
+      }
+      if (rm.recursive && (operand === "." || operand === "..")) {
+        return { verdict: "deny", reason: `recursive delete of ${operand}`, rule: "rm-relative-root" };
+      }
+    }
+    if (rm.recursive && rm.force && rm.operands.length > 0) {
       return {
-        content: [{ type: "text", text: `Stdout:
-${out}
-Stderr:
-${err}` }],
-        isError: false
-      };
-    } catch (e) {
-      let err = e.message || String(e);
-      if (err.length > maxLen) err = err.substring(0, maxLen) + "\n...[TRUNCATED]";
-      return {
-        content: [{ type: "text", text: `Error:
-${err}` }],
-        isError: true
+        verdict: "warn",
+        reason: `recursive force delete of: ${rm.operands.join(" ")}`,
+        rule: "rm-recursive-force"
       };
     }
+  }
+  return ALLOW;
+}
+function validateShellCommand(command, opts = {}) {
+  const strict = opts.strict ?? process.env.NORD_SHELL_STRICT === "1";
+  const checks = [
+    checkDangerousPatterns(command),
+    analyzeRmCommand(command),
+    checkProtectedPaths(command),
+    checkVariableExpansionRisk(command)
+  ];
+  const denial = checks.find((c) => c.verdict === "deny");
+  if (denial) return denial;
+  const warning = checks.find((c) => c.verdict === "warn");
+  if (warning) {
+    return strict ? { ...warning, verdict: "deny", reason: `${warning.reason} (NORD_SHELL_STRICT=1)` } : warning;
+  }
+  return ALLOW;
+}
+
+// src/lib/truncate-output.ts
+var DEFAULT_STDOUT_MAX_BYTES = 3e4;
+var DEFAULT_STDERR_MAX_BYTES = 1e4;
+var DEFAULT_HEAD_FRACTION = 0.4;
+function splitBudget(limits) {
+  const maxBytes = Math.max(0, Math.floor(limits.maxBytes));
+  const fraction = Math.min(1, Math.max(0, limits.headFraction ?? DEFAULT_HEAD_FRACTION));
+  const headBytes = Math.floor(maxBytes * fraction);
+  return { headBytes, tailBytes: maxBytes - headBytes };
+}
+function snapHeadToLine(head) {
+  const idx = head.lastIndexOf(10);
+  return idx > 0 ? head.subarray(0, idx) : head;
+}
+function snapTailToLine(tail) {
+  const idx = tail.indexOf(10);
+  return idx >= 0 && idx < tail.length - 1 ? tail.subarray(idx + 1) : tail;
+}
+function render(head, tail, totalBytes, omittedBytes) {
+  if (omittedBytes <= 0) {
+    return {
+      text: Buffer.concat([head, tail]).toString("utf8"),
+      totalBytes,
+      omittedBytes: 0,
+      truncated: false
+    };
+  }
+  const headText = snapHeadToLine(head).toString("utf8");
+  const tailText = snapTailToLine(tail).toString("utf8");
+  const marker = `
+... [${omittedBytes} bytes elided of ${totalBytes} total] ...
+`;
+  return { text: headText + marker + tailText, totalBytes, omittedBytes, truncated: true };
+}
+function createStreamCollector(limits) {
+  const { headBytes, tailBytes } = splitBudget(limits);
+  const head = [];
+  let headLen = 0;
+  let tail = [];
+  let tailLen = 0;
+  let total = 0;
+  let omitted = 0;
+  const compactTail = () => {
+    if (tailLen <= tailBytes) return;
+    const joined = Buffer.concat(tail, tailLen);
+    const keep = joined.subarray(joined.length - tailBytes);
+    omitted += joined.length - keep.length;
+    tail = [keep];
+    tailLen = keep.length;
+  };
+  return {
+    push(chunk) {
+      if (chunk.length === 0) return;
+      total += chunk.length;
+      let rest = chunk;
+      if (headLen < headBytes) {
+        const take = Math.min(headBytes - headLen, rest.length);
+        head.push(rest.subarray(0, take));
+        headLen += take;
+        rest = rest.subarray(take);
+      }
+      if (rest.length === 0) return;
+      tail.push(rest);
+      tailLen += rest.length;
+      if (tailLen > tailBytes * 2) compactTail();
+    },
+    totalBytes: () => total,
+    result() {
+      compactTail();
+      return render(Buffer.concat(head, headLen), Buffer.concat(tail, tailLen), total, omitted);
+    }
+  };
+}
+
+// src/lib/shell-jobs.ts
+var import_node_fs = require("node:fs");
+var import_node_path2 = require("node:path");
+var import_node_crypto = require("node:crypto");
+var JOB_ID_RE = /^[0-9a-f]{8}$/;
+var MAX_JOB_LOG_BYTES = 8 * 1024 * 1024;
+var MAX_TERMINAL_JOBS = 50;
+var DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1e3;
+function getShellJobsDir(root) {
+  return (0, import_node_path2.join)(getNordRoot(root), "state", "shell-jobs");
+}
+function newShellJobId() {
+  return (0, import_node_crypto.randomBytes)(4).toString("hex");
+}
+function isValidJobId(jobId) {
+  return JOB_ID_RE.test(jobId);
+}
+function assertJobId(jobId) {
+  if (!isValidJobId(jobId)) throw new Error(`invalid job id: ${jobId}`);
+}
+function jobDir(jobId, root) {
+  assertJobId(jobId);
+  return (0, import_node_path2.join)(getShellJobsDir(root), jobId);
+}
+var jobLogPath = (jobId, root) => (0, import_node_path2.join)(jobDir(jobId, root), "output.log");
+var jobExitPath = (jobId, root) => (0, import_node_path2.join)(jobDir(jobId, root), "exit");
+var jobMetaPath = (jobId, root) => (0, import_node_path2.join)(jobDir(jobId, root), "meta.json");
+function createJobDir(jobId, root) {
+  const dir = jobDir(jobId, root);
+  (0, import_node_fs.mkdirSync)(dir, { recursive: true });
+  return dir;
+}
+function openJobLog(jobId, root) {
+  return (0, import_node_fs.openSync)(jobLogPath(jobId, root), "a");
+}
+function writeJobRecord(rec, root) {
+  atomicWriteJsonSync(jobMetaPath(rec.jobId, root), rec);
+}
+function readJobRecord(jobId, root) {
+  try {
+    const raw = (0, import_node_fs.readFileSync)(jobMetaPath(jobId, root), "utf8");
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed.pid === "number" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function listJobRecords(root) {
+  const dir = getShellJobsDir(root);
+  if (!(0, import_node_fs.existsSync)(dir)) return [];
+  const records = [];
+  for (const entry of (0, import_node_fs.readdirSync)(dir)) {
+    if (!JOB_ID_RE.test(entry)) continue;
+    const rec = readJobRecord(entry, root);
+    if (rec) records.push(rec);
+  }
+  return records;
+}
+function countRunningJobs(root) {
+  return listJobRecords(root).filter((r) => r.status === "running").length;
+}
+async function reconcileJob(rec, root) {
+  if (rec.status !== "running") return rec;
+  const liveness = rec.startIdentity ? await isProcessIdentityLive(rec.pid, rec.startIdentity) : "unknown";
+  if (liveness === "live") return rec;
+  if (liveness === "unknown") return rec;
+  if (liveness === "mismatch") {
+    return { ...rec, status: "unknown", endedAt: (/* @__PURE__ */ new Date()).toISOString() };
+  }
+  const exitFile = jobExitPath(rec.jobId, root);
+  if ((0, import_node_fs.existsSync)(exitFile)) {
+    const code = Number.parseInt((0, import_node_fs.readFileSync)(exitFile, "utf8").trim(), 10);
+    return {
+      ...rec,
+      status: "exited",
+      exitCode: Number.isFinite(code) ? code : void 0,
+      endedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  return { ...rec, status: "killed", endedAt: (/* @__PURE__ */ new Date()).toISOString() };
+}
+function readNewOutput(rec, limits = { maxBytes: DEFAULT_STDOUT_MAX_BYTES }, root) {
+  const logPath = jobLogPath(rec.jobId, root);
+  const collector = createStreamCollector(limits);
+  if (!(0, import_node_fs.existsSync)(logPath)) {
+    return { chunk: collector.result(), nextOffset: rec.readOffset, capped: false };
+  }
+  const size = (0, import_node_fs.statSync)(logPath).size;
+  const capped = size > MAX_JOB_LOG_BYTES;
+  const from = Math.min(rec.readOffset, size);
+  if (size <= from) {
+    return { chunk: collector.result(), nextOffset: from, capped };
+  }
+  const fullBuffer = (0, import_node_fs.readFileSync)(logPath);
+  collector.push(fullBuffer.subarray(from, size));
+  return { chunk: collector.result(), nextOffset: size, capped };
+}
+function pruneShellJobs(root, maxAgeMs = DEFAULT_MAX_AGE_MS) {
+  const terminal = listJobRecords(root).filter((r) => r.status !== "running").sort((a, b) => (b.endedAt ?? b.startedAt).localeCompare(a.endedAt ?? a.startedAt));
+  const cutoff = Date.now() - maxAgeMs;
+  terminal.forEach((rec, index) => {
+    const endedMs = Date.parse(rec.endedAt ?? rec.startedAt);
+    const tooOld = Number.isFinite(endedMs) && endedMs < cutoff;
+    if (tooOld || index >= MAX_TERMINAL_JOBS) {
+      try {
+        (0, import_node_fs.rmSync)(jobDir(rec.jobId, root), { recursive: true, force: true });
+      } catch {
+      }
+    }
+  });
+}
+
+// src/custom/tools/bash-tool.ts
+var DEFAULT_TIMEOUT_MS = 12e4;
+var MAX_TIMEOUT_MS = 6e5;
+var MIN_TIMEOUT_MS = 1e3;
+var DEFAULT_MAX_BACKGROUND_JOBS = 5;
+var IS_WINDOWS = process.platform === "win32";
+var sessionCwd = null;
+function _clampTimeout(ms) {
+  if (typeof ms !== "number" || !Number.isFinite(ms)) return DEFAULT_TIMEOUT_MS;
+  return Math.min(MAX_TIMEOUT_MS, Math.max(MIN_TIMEOUT_MS, Math.floor(ms)));
+}
+var text = (s, isError = false) => ({
+  content: [{ type: "text", text: s }],
+  ...isError ? { isError: true } : {}
+});
+var shq = (s) => `'${s.replace(/'/g, `'\\''`)}'`;
+function resolveUnderRoot(root, candidate) {
+  const real = (0, import_node_fs2.realpathSync)((0, import_node_path3.resolve)(root, candidate));
+  if (!(0, import_node_fs2.statSync)(real).isDirectory()) throw new Error(`not a directory: ${candidate}`);
+  const rel = (0, import_node_path3.relative)((0, import_node_fs2.realpathSync)(root), real);
+  if (rel.startsWith("..") || (0, import_node_path3.isAbsolute)(rel)) {
+    throw new Error(`cwd '${candidate}' is outside the worktree root '${root}'`);
+  }
+  return real;
+}
+function foregroundPrelude() {
+  return `__nord_r() { printf '%s' "$PWD" >&3 2>/dev/null; }
+trap __nord_r EXIT
+`;
+}
+function backgroundPrelude(exitPath) {
+  return `__nord_r() { __rc=$?; printf '%s' "$__rc" > ${shq(exitPath)} 2>/dev/null; }
+trap __nord_r EXIT
+`;
+}
+function runForeground(command, cwd, timeoutMs) {
+  return new Promise((resolveRun) => {
+    const child = IS_WINDOWS ? (0, import_node_child_process.spawn)("cmd.exe", ["/c", command], { cwd, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }) : (0, import_node_child_process.spawn)("/bin/bash", ["-c", foregroundPrelude() + command], {
+      cwd,
+      windowsHide: true,
+      // fd 3 carries the final $PWD back without a temp file.
+      stdio: ["ignore", "pipe", "pipe", "pipe"],
+      // Process-group leader — the single line that makes the timeout able
+      // to reach grandchildren.
+      detached: true
+    });
+    const stdout = createStreamCollector({ maxBytes: DEFAULT_STDOUT_MAX_BYTES });
+    const stderr = createStreamCollector({ maxBytes: DEFAULT_STDERR_MAX_BYTES });
+    const cwdChunks = [];
+    let timedOut = false;
+    let settled = false;
+    child.stdout?.on("data", (b) => stdout.push(b));
+    child.stderr?.on("data", (b) => stderr.push(b));
+    const side = child.stdio[3];
+    if (side && typeof side.on === "function") {
+      side.on("data", (b) => cwdChunks.push(b));
+    }
+    const finish = (code, signal) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      clearTimeout(drainTimer);
+      const reported = Buffer.concat(cwdChunks).toString("utf8").trim();
+      resolveRun({
+        code,
+        signal,
+        stdout: stdout.result(),
+        stderr: stderr.result(),
+        reportedCwd: reported || null,
+        timedOut
+      });
+    };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      if (child.pid) void gracefulKill(child.pid, 2e3);
+    }, timeoutMs);
+    let drainTimer = setTimeout(() => void 0, 0);
+    child.on("exit", (code, signal) => {
+      clearTimeout(drainTimer);
+      drainTimer = setTimeout(() => finish(code, signal), 2e3);
+    });
+    child.on("close", (code, signal) => finish(code, signal));
+    child.on("error", (err) => {
+      stderr.push(Buffer.from(`failed to start command: ${err.message}
+`));
+      finish(null, null);
+    });
+  });
+}
+function renderForeground(result, timeoutMs, warning, cwdChanged) {
+  const lines = [];
+  if (warning) lines.push(`[safety] ${warning}`);
+  const exitCode = result.timedOut ? 124 : result.code ?? (result.signal ? 137 : 0);
+  lines.push(`Exit code: ${exitCode}`);
+  if (result.timedOut) lines.push(`[timed out after ${timeoutMs} ms \u2014 process group killed]`);
+  if (result.signal && !result.timedOut) lines.push(`[terminated by signal ${result.signal}]`);
+  if (cwdChanged) lines.push(`[cwd: ${cwdChanged}]`);
+  lines.push("--- stdout ---");
+  lines.push(result.stdout.text.length ? result.stdout.text : "(empty)");
+  if (result.stderr.text.length) {
+    lines.push("--- stderr ---");
+    lines.push(result.stderr.text);
+  }
+  return { rendered: lines.join("\n"), isError: result.timedOut || exitCode !== 0 };
+}
+var bashTool = {
+  name: "Bash",
+  description: "Run a bash command. Returns the exit code plus stdout and stderr on success and failure alike. The working directory persists between calls.",
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: true
+  },
+  schema: {
+    command: external_exports.string().describe("The bash command to run."),
+    timeout: external_exports.number().int().describe("Timeout in milliseconds (default 120000, max 600000). On timeout the whole process group is killed and partial output is returned.").optional(),
+    run_in_background: external_exports.boolean().describe("Run detached and return a bash_id immediately. Poll with BashOutput, stop with KillShell.").optional(),
+    cwd: external_exports.string().describe("Directory for this call only. Otherwise the directory persists from the previous call.").optional()
+  },
+  async handler(args) {
+    const command = String(args?.command ?? "").trim();
+    if (!command) return text("command is required.", true);
+    const safety = validateShellCommand(command);
+    if (safety.verdict === "deny") {
+      return text(
+        `Blocked by shell safety policy: ${safety.reason}
+Rule: ${safety.rule}
+No command was executed.`,
+        true
+      );
+    }
+    const warning = safety.verdict === "warn" ? `${safety.reason} (rule: ${safety.rule})` : null;
+    let root;
+    try {
+      root = validateWorkingDirectory();
+    } catch (error2) {
+      return text(`Could not resolve the worktree root: ${error2 instanceof Error ? error2.message : String(error2)}`, true);
+    }
+    let cwd;
+    try {
+      cwd = args?.cwd ? resolveUnderRoot(root, args.cwd) : sessionCwd ?? root;
+    } catch (error2) {
+      return text(error2 instanceof Error ? error2.message : String(error2), true);
+    }
+    const timeoutMs = _clampTimeout(args?.timeout);
+    if (args?.run_in_background === true) {
+      return startBackground(command, cwd, root, warning);
+    }
+    try {
+      const result = await runForeground(command, cwd, timeoutMs);
+      let cwdChanged = null;
+      if (!args?.cwd && !result.timedOut && result.reportedCwd) {
+        try {
+          const resolved = resolveUnderRoot(root, result.reportedCwd);
+          if (resolved !== (sessionCwd ?? root)) {
+            sessionCwd = resolved;
+            cwdChanged = resolved;
+          }
+        } catch {
+        }
+      }
+      const { rendered, isError } = renderForeground(result, timeoutMs, warning, cwdChanged);
+      return text(rendered, isError);
+    } catch (error2) {
+      return text(`Error running command: ${error2 instanceof Error ? error2.message : String(error2)}`, true);
+    }
+  }
+};
+async function startBackground(command, cwd, root, warning) {
+  if (IS_WINDOWS) return text("run_in_background is not supported on Windows.", true);
+  pruneShellJobs(root);
+  const limit = Number(process.env.NORD_MAX_BACKGROUND_TASKS) || DEFAULT_MAX_BACKGROUND_JOBS;
+  const running = countRunningJobs(root);
+  if (running >= limit) {
+    return text(`Background limit reached (${running}/${limit}). Stop one with KillShell or wait.`, true);
+  }
+  const jobId = newShellJobId();
+  createJobDir(jobId, root);
+  const exitPath = jobExitPath(jobId, root);
+  const logFd = openJobLog(jobId, root);
+  try {
+    const child = (0, import_node_child_process.spawn)("/bin/bash", ["-c", backgroundPrelude(exitPath) + command], {
+      cwd,
+      windowsHide: true,
+      // The kernel writes the child's output straight into the log, so it keeps
+      // accumulating even if this MCP server is restarted mid-job.
+      stdio: ["ignore", logFd, logFd],
+      detached: true
+    });
+    child.unref();
+    const pid = child.pid ?? 0;
+    if (!pid) return text("Could not start the background command.", true);
+    const record2 = {
+      jobId,
+      command,
+      cwd,
+      pid,
+      startIdentity: await getProcessStartIdentity(pid),
+      startedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      readOffset: 0,
+      status: "running"
+    };
+    writeJobRecord(record2, root);
+    const lines = [];
+    if (warning) lines.push(`[safety] ${warning}`);
+    lines.push("Started in background.");
+    lines.push(`bash_id: ${jobId}`);
+    lines.push(`pid: ${pid}`);
+    lines.push(`Poll with BashOutput(bash_id="${jobId}"), stop with KillShell(shell_id="${jobId}").`);
+    return text(lines.join("\n"));
+  } finally {
+    (0, import_node_fs2.closeSync)(logFd);
+  }
+}
+var bashOutputTool = {
+  name: "BashOutput",
+  description: "Read new output from a background command started by Bash. Each call returns only what arrived since the previous call.",
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  schema: { bash_id: external_exports.string().describe("The bash_id returned when the command was started.") },
+  async handler(args) {
+    const root = validateWorkingDirectory();
+    const bashId = String(args?.bash_id ?? "");
+    if (!isValidJobId(bashId)) return text(`invalid job id: ${bashId}`, true);
+    const record2 = readJobRecord(bashId, root);
+    if (!record2) return text(`No such background job: ${bashId}`, true);
+    const reconciled = await reconcileJob(record2, root);
+    const { chunk, nextOffset, capped } = readNewOutput(reconciled, { maxBytes: DEFAULT_STDOUT_MAX_BYTES }, root);
+    writeJobRecord({ ...reconciled, readOffset: nextOffset }, root);
+    const lines = [`Status: ${reconciled.status}`];
+    if (reconciled.exitCode !== void 0) lines.push(`Exit code: ${reconciled.exitCode}`);
+    if (capped) lines.push("[log has reached its size cap; older output was not retained]");
+    lines.push("--- new output ---");
+    lines.push(chunk.text.length ? chunk.text : "(no new output)");
+    const isError = reconciled.status === "killed" || (reconciled.exitCode ?? 0) !== 0;
+    return text(lines.join("\n"), isError);
+  }
+};
+var killShellTool = {
+  name: "KillShell",
+  description: "Stop a background command started by Bash, terminating its whole process group.",
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  schema: { shell_id: external_exports.string().describe("The bash_id returned when the command was started.") },
+  async handler(args) {
+    const root = validateWorkingDirectory();
+    const shellId = String(args?.shell_id ?? "");
+    if (!isValidJobId(shellId)) return text(`invalid job id: ${shellId}`, true);
+    const record2 = readJobRecord(shellId, root);
+    if (!record2) return text(`No such background job: ${shellId}`, true);
+    const reconciled = await reconcileJob(record2, root);
+    if (reconciled.status !== "running") {
+      writeJobRecord(reconciled, root);
+      return text(`Job ${reconciled.jobId} is already ${reconciled.status}.`);
+    }
+    if (reconciled.startIdentity) {
+      const liveness = await isProcessIdentityLive(reconciled.pid, reconciled.startIdentity);
+      if (liveness === "mismatch") {
+        writeJobRecord({ ...reconciled, status: "unknown" }, root);
+        return text(`Refusing to signal pid ${reconciled.pid}: it no longer belongs to job ${reconciled.jobId}.`, true);
+      }
+    }
+    const outcome = await gracefulKill(reconciled.pid, 3e3);
+    const after = await reconcileJob({ ...reconciled, status: "running" }, root);
+    const finalRecord = after.status === "running" && !isProcessAlive(reconciled.pid) ? { ...after, status: "killed", endedAt: (/* @__PURE__ */ new Date()).toISOString() } : after;
+    writeJobRecord(finalRecord, root);
+    return text(
+      `Killed job ${finalRecord.jobId} (pid ${finalRecord.pid}): ${outcome}. Status: ${finalRecord.status}.`,
+      outcome === "failed"
+    );
   }
 };
 
 // src/custom/index.ts
 var customTools = [
-  bashTool
+  bashTool,
+  bashOutputTool,
+  killShellTool
 ];
 
 // src/tools/state-tools.ts
@@ -23083,7 +23738,7 @@ function validatePayload(payload, limits = {}) {
 var import_fs12 = require("fs");
 var import_path13 = require("path");
 var import_crypto3 = require("crypto");
-var import_child_process11 = require("child_process");
+var import_child_process10 = require("child_process");
 function flockPath() {
   return process.env.NODE_ENV === "test" && process.env.NORD_TEST_FLOCK_AVAILABLE === "0" ? null : (0, import_fs12.existsSync)("/usr/bin/flock") ? "/usr/bin/flock" : (0, import_fs12.existsSync)("/bin/flock") ? "/bin/flock" : null;
 }
@@ -23150,7 +23805,7 @@ function writeAllSync2(fd, content, label) {
 function guardedLockRemoval(path13, operation, owner) {
   const flock = flockPath();
   if (!flock) return "unverifiable";
-  const result = (0, import_child_process11.spawnSync)(flock, ["-x", `${path13}.reclaim.guard`, process.execPath, "-e", LOCK_REMOVAL_SCRIPT, operation, path13, owner ? JSON.stringify(owner) : ""], { stdio: "ignore", timeout: 2e3 });
+  const result = (0, import_child_process10.spawnSync)(flock, ["-x", `${path13}.reclaim.guard`, process.execPath, "-e", LOCK_REMOVAL_SCRIPT, operation, path13, owner ? JSON.stringify(owner) : ""], { stdio: "ignore", timeout: 2e3 });
   if (result.status === 0) return "retry";
   if (result.status === 2) return "live";
   if (result.status === 4) return "replaced";
@@ -23444,7 +24099,7 @@ try {
 function guardedRecoveryClaim(path13, operation, owner) {
   const flock = flockPath();
   if (!flock) return "unverifiable";
-  const result = (0, import_child_process11.spawnSync)(flock, ["-x", `${path13}.recovery.guard`, process.execPath, "-e", RECOVERY_CLAIM_SCRIPT, operation, path13, JSON.stringify(owner)], { stdio: "ignore", timeout: 2e3 });
+  const result = (0, import_child_process10.spawnSync)(flock, ["-x", `${path13}.recovery.guard`, process.execPath, "-e", RECOVERY_CLAIM_SCRIPT, operation, path13, JSON.stringify(owner)], { stdio: "ignore", timeout: 2e3 });
   if (result.status === 0) return "claimed";
   if (result.status === 2) return "live";
   if (result.status === 4) return "replaced";
@@ -24621,7 +25276,7 @@ var CURSOR_EXECUTOR_TEAM_ROLE_SET = new Set(CURSOR_EXECUTOR_TEAM_ROLES);
 var KNOWN_AGENT_NAME_SET = new Set(KNOWN_AGENT_NAMES);
 
 // src/hooks/ralph/loop.ts
-var import_child_process12 = require("child_process");
+var import_child_process11 = require("child_process");
 var import_fs20 = require("fs");
 var import_path20 = require("path");
 
@@ -24649,7 +25304,7 @@ var import_fs21 = require("fs");
 var import_path21 = require("path");
 
 // src/utils/nord-cli-rendering.ts
-var import_child_process13 = require("child_process");
+var import_child_process12 = require("child_process");
 
 // src/hooks/autopilot/pipeline.ts
 var WORKFLOW_STAGE_SEQUENCES = [
@@ -24765,7 +25420,7 @@ function verifyWorkflowDescriptor(descriptor) {
 }
 
 // src/hooks/autopilot/named-workflow-resume-validator.ts
-var import_util9 = require("util");
+var import_util8 = require("util");
 var NAMED_SIGNALS = {
   ralplan: "PIPELINE_RALPLAN_COMPLETE",
   execution: "PIPELINE_EXECUTION_COMPLETE",
@@ -24866,7 +25521,7 @@ function validateNamedWorkflowStateStructure(state, sessionId) {
 }
 
 // src/hooks/merge-readiness/runtime.ts
-var import_child_process14 = require("child_process");
+var import_child_process13 = require("child_process");
 var import_fs24 = require("fs");
 var import_path24 = require("path");
 
@@ -24929,7 +25584,7 @@ function slugifyMergeReadiness(input) {
 }
 function runGit(directory, args) {
   try {
-    const stdout = (0, import_child_process14.execFileSync)("git", args, {
+    const stdout = (0, import_child_process13.execFileSync)("git", args, {
       cwd: directory,
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "pipe"],
@@ -26549,9 +27204,9 @@ var stateClearTool = {
           recordResult("legacy", cancelActiveSession());
         }
         const blocked = blockedSessions.length > 0;
-        const text = blocked ? `Merge-readiness cancellation FAILED for: ${blockedSessions.join(", ")}. The state could not be persisted (read-only state dir / full disk); the gate(s) remain active on disk. Resolve and re-run.` : cancelledSessions.length > 0 ? `Cancelled merge-readiness gate(s) with durable state audit records: ${cancelledSessions.join(", ")}` : "No active merge-readiness gate found; existing state audit records were preserved.";
+        const text2 = blocked ? `Merge-readiness cancellation FAILED for: ${blockedSessions.join(", ")}. The state could not be persisted (read-only state dir / full disk); the gate(s) remain active on disk. Resolve and re-run.` : cancelledSessions.length > 0 ? `Cancelled merge-readiness gate(s) with durable state audit records: ${cancelledSessions.join(", ")}` : "No active merge-readiness gate found; existing state audit records were preserved.";
         return {
-          content: [{ type: "text", text }],
+          content: [{ type: "text", text: text2 }],
           ...blocked ? { isError: true } : {}
         };
       }
@@ -27324,8 +27979,8 @@ var stateTools = [
         const result = state.result;
         const score = state.readiness_score;
         const persistFailed = result === "blocked" && (state.validation_errors ?? []).some((e) => e.includes("persisted"));
-        const text = persistFailed ? `Merge-readiness answer NOT recorded: state could not be persisted (read-only state dir / full disk / invalid path). The gate is still armed on disk. ${(state.validation_errors ?? []).join(" ")}` : result === "pass" || result === "paused" || result === "blocked" || result === "overridden" ? `Merge-readiness ${result}. Readiness score: ${score}. ${result === "pass" ? "The change may proceed to human merge approval." : result === "paused" ? "Explanation gap remains; reread the report and rerun /merge-readiness." : result === "blocked" ? "Missing evidence; produce it before rerunning." : "Gate overridden; terminal session state preserves the record."}` : `Answer recorded. Next question: ${state.pending_question?.id ?? "none"}. Answered: ${state.answers.length}/${state.questions.length}.`;
-        return { content: [{ type: "text", text }], ...persistFailed ? { isError: true } : {} };
+        const text2 = persistFailed ? `Merge-readiness answer NOT recorded: state could not be persisted (read-only state dir / full disk / invalid path). The gate is still armed on disk. ${(state.validation_errors ?? []).join(" ")}` : result === "pass" || result === "paused" || result === "blocked" || result === "overridden" ? `Merge-readiness ${result}. Readiness score: ${score}. ${result === "pass" ? "The change may proceed to human merge approval." : result === "paused" ? "Explanation gap remains; reread the report and rerun /merge-readiness." : result === "blocked" ? "Missing evidence; produce it before rerunning." : "Gate overridden; terminal session state preserves the record."}` : `Answer recorded. Next question: ${state.pending_question?.id ?? "none"}. Answered: ${state.answers.length}/${state.questions.length}.`;
+        return { content: [{ type: "text", text: text2 }], ...persistFailed ? { isError: true } : {} };
       } catch (error2) {
         return { content: [{ type: "text", text: `Merge-readiness error: ${error2 instanceof Error ? error2.message : String(error2)}` }], isError: true };
       }
@@ -28847,14 +29502,14 @@ function getReplaySummary(directory, sessionId) {
 }
 
 // src/features/session-history-search/index.ts
-var import_child_process15 = require("child_process");
+var import_child_process14 = require("child_process");
 var import_fs30 = require("fs");
 var import_path36 = require("path");
 var import_readline = require("readline");
 var DEFAULT_LIMIT = 10;
 var DEFAULT_CONTEXT_CHARS = 120;
-function compactWhitespace(text) {
-  return text.replace(/\s+/g, " ").trim();
+function compactWhitespace(text2) {
+  return text2.replace(/\s+/g, " ").trim();
 }
 function normalizeForSearch(value, caseSensitive) {
   const compacted = compactWhitespace(value);
@@ -28882,7 +29537,7 @@ function parseSinceSpec(since) {
 }
 function getMainRepoRoot(projectRoot) {
   try {
-    const gitCommonDir = (0, import_child_process15.execFileSync)("git", ["rev-parse", "--git-common-dir"], {
+    const gitCommonDir = (0, import_child_process14.execFileSync)("git", ["rev-parse", "--git-common-dir"], {
       cwd: projectRoot,
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
@@ -29107,8 +29762,8 @@ function buildSearchableEntry(entry, sourceType) {
   }
   return null;
 }
-function findMatchIndex(text, query, caseSensitive) {
-  const haystack = normalizeForSearch(text, caseSensitive);
+function findMatchIndex(text2, query, caseSensitive) {
+  const haystack = normalizeForSearch(text2, caseSensitive);
   const needle = normalizeForSearch(query, caseSensitive);
   const directIndex = haystack.indexOf(needle);
   if (directIndex >= 0) {
@@ -29121,8 +29776,8 @@ function findMatchIndex(text, query, caseSensitive) {
   }
   return -1;
 }
-function createExcerpt(text, matchIndex, contextChars) {
-  const compacted = compactWhitespace(text);
+function createExcerpt(text2, matchIndex, contextChars) {
+  const compacted = compactWhitespace(text2);
   if (compacted.length <= contextChars * 2) {
     return compacted;
   }
@@ -29151,8 +29806,8 @@ async function collectMatchesFromFile(target, options) {
       if (!matchesProjectFilter(entry.projectPath, options.projectFilter)) return [];
       const entryEpoch = entry.timestamp ? Date.parse(entry.timestamp) : fileMtime;
       if (options.sinceEpoch && Number.isFinite(entryEpoch) && entryEpoch < options.sinceEpoch) return [];
-      for (const text of entry.texts) {
-        const matchIndex = findMatchIndex(text, options.query, options.caseSensitive);
+      for (const text2 of entry.texts) {
+        const matchIndex = findMatchIndex(text2, options.query, options.caseSensitive);
         if (matchIndex < 0) continue;
         matches.push({
           sessionId: entry.sessionId,
@@ -29163,7 +29818,7 @@ async function collectMatchesFromFile(target, options) {
           line: 1,
           role: entry.role,
           entryType: entry.entryType,
-          excerpt: createExcerpt(text, matchIndex, options.contextChars)
+          excerpt: createExcerpt(text2, matchIndex, options.contextChars)
         });
         break;
       }
@@ -29192,8 +29847,8 @@ async function collectMatchesFromFile(target, options) {
       if (!matchesProjectFilter(entry.projectPath, options.projectFilter)) continue;
       const entryEpoch = entry.timestamp ? Date.parse(entry.timestamp) : fileMtime;
       if (options.sinceEpoch && Number.isFinite(entryEpoch) && entryEpoch < options.sinceEpoch) continue;
-      for (const text of entry.texts) {
-        const matchIndex = findMatchIndex(text, options.query, options.caseSensitive);
+      for (const text2 of entry.texts) {
+        const matchIndex = findMatchIndex(text2, options.query, options.caseSensitive);
         if (matchIndex < 0) continue;
         matches.push({
           sessionId: entry.sessionId,
@@ -29205,7 +29860,7 @@ async function collectMatchesFromFile(target, options) {
           line,
           role: entry.role,
           entryType: entry.entryType,
-          excerpt: createExcerpt(text, matchIndex, options.contextChars)
+          excerpt: createExcerpt(text2, matchIndex, options.contextChars)
         });
         break;
       }
@@ -29913,17 +30568,17 @@ var sharedMemoryWriteTool = {
     try {
       const root = validateWorkingDirectory(args.workingDirectory);
       const entry = writeEntry(args.namespace, args.key, args.value, args.ttl, root);
-      let text = `Successfully wrote to shared memory.
+      let text2 = `Successfully wrote to shared memory.
 
 - **Namespace:** ${entry.namespace}
 - **Key:** ${entry.key}
 - **Updated:** ${entry.updatedAt}`;
       if (entry.ttl) {
-        text += `
+        text2 += `
 - **TTL:** ${entry.ttl}s
 - **Expires:** ${entry.expiresAt}`;
       }
-      return { content: [{ type: "text", text }] };
+      return { content: [{ type: "text", text: text2 }] };
     } catch (error2) {
       return errorResponse(`Error writing shared memory: ${error2 instanceof Error ? error2.message : String(error2)}`);
     }
@@ -30109,8 +30764,8 @@ var sharedMemoryTools = [
 ];
 
 // src/tools/deepinit-manifest.ts
-var import_node_fs = require("node:fs");
-var import_node_path = require("node:path");
+var import_node_fs3 = require("node:fs");
+var import_node_path4 = require("node:path");
 
 // src/constants/names.ts
 var TOOL_CATEGORIES = {
@@ -30167,7 +30822,7 @@ function scanDirectories(projectRoot) {
   const visitedInodes = /* @__PURE__ */ new Set();
   let realProjectRoot;
   try {
-    realProjectRoot = (0, import_node_fs.realpathSync)(projectRoot);
+    realProjectRoot = (0, import_node_fs3.realpathSync)(projectRoot);
   } catch {
     realProjectRoot = projectRoot;
   }
@@ -30175,15 +30830,15 @@ function scanDirectories(projectRoot) {
   function walk(absDir, depth) {
     if (depth > MAX_DEPTH || dirCount > MAX_DIRECTORIES) return;
     try {
-      const realDir = (0, import_node_fs.realpathSync)(absDir);
-      if (realDir !== realProjectRoot && !realDir.startsWith(realProjectRoot + import_node_path.sep)) {
+      const realDir = (0, import_node_fs3.realpathSync)(absDir);
+      if (realDir !== realProjectRoot && !realDir.startsWith(realProjectRoot + import_node_path4.sep)) {
         return;
       }
     } catch {
       return;
     }
     try {
-      const stat = (0, import_node_fs.statSync)(absDir);
+      const stat = (0, import_node_fs3.statSync)(absDir);
       if (visitedInodes.has(stat.ino)) return;
       visitedInodes.add(stat.ino);
     } catch {
@@ -30192,7 +30847,7 @@ function scanDirectories(projectRoot) {
     dirCount++;
     let entries;
     try {
-      entries = (0, import_node_fs.readdirSync)(absDir, { withFileTypes: true });
+      entries = (0, import_node_fs3.readdirSync)(absDir, { withFileTypes: true });
     } catch {
       return;
     }
@@ -30207,20 +30862,20 @@ function scanDirectories(projectRoot) {
       }
     }
     if (files.length > 0) {
-      const relPath = (0, import_node_path.relative)(projectRoot, absDir).split(import_node_path.sep).join("/") || ".";
+      const relPath = (0, import_node_path4.relative)(projectRoot, absDir).split(import_node_path4.sep).join("/") || ".";
       result[relPath] = { files: [...files].sort() };
     }
     for (const sub of subdirs) {
-      walk((0, import_node_path.join)(absDir, sub), depth + 1);
+      walk((0, import_node_path4.join)(absDir, sub), depth + 1);
     }
   }
   walk(projectRoot, 0);
   return result;
 }
 function loadManifest(manifestPath) {
-  if (!(0, import_node_fs.existsSync)(manifestPath)) return null;
+  if (!(0, import_node_fs3.existsSync)(manifestPath)) return null;
   try {
-    const raw = (0, import_node_fs.readFileSync)(manifestPath, "utf-8");
+    const raw = (0, import_node_fs3.readFileSync)(manifestPath, "utf-8");
     const parsed = JSON.parse(raw);
     if (parsed.version !== MANIFEST_VERSION) return null;
     if (typeof parsed.directories !== "object" || parsed.directories === null) return null;
@@ -30299,7 +30954,7 @@ function computeDiff(previous, current) {
   return { entries: sorted, summary };
 }
 function resolveManifestPath(root) {
-  return (0, import_node_path.join)(getNordRoot(root), "deepinit-manifest.json");
+  return (0, import_node_path4.join)(getNordRoot(root), "deepinit-manifest.json");
 }
 function handleDiff(root, mode) {
   const current = scanDirectories(root);
@@ -30313,7 +30968,7 @@ function handleDiff(root, mode) {
   }
   const output = {
     mode,
-    manifestExists: (0, import_node_fs.existsSync)(manifestPath),
+    manifestExists: (0, import_node_fs3.existsSync)(manifestPath),
     ...diff
   };
   return { content: [{ type: "text", text: JSON.stringify(output, null, 2) }] };
@@ -30354,7 +31009,7 @@ Generated at: ${manifest.generatedAt}`
 }
 function handleCheck(root) {
   const manifestPath = resolveManifestPath(root);
-  const exists = (0, import_node_fs.existsSync)(manifestPath);
+  const exists = (0, import_node_fs3.existsSync)(manifestPath);
   if (!exists) {
     return {
       content: [{
@@ -30759,8 +31414,8 @@ function extractWikiLinks(content) {
 }
 
 // src/hooks/wiki/query.ts
-function tokenize(text) {
-  const lower = text.toLowerCase();
+function tokenize(text2) {
+  const lower = text2.toLowerCase();
   const tokens = [];
   const latinMatches = lower.match(/[a-z0-9\u00C0-\u024F]+/g);
   if (latinMatches) tokens.push(...latinMatches);

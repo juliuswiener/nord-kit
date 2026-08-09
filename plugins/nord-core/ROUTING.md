@@ -5,7 +5,7 @@ do not improvise among duplicates. (Injected each session by the nord-router Ses
 
 | Task | Default | When other | Do NOT use |
 |---|---|---|---|
-| **Plan** | `nord-plan` (parallel lens tournament) | `nord-plan --consensus` (vague/high-stakes → sequential Planner/Architect/Critic + ADR) · `nord-requirements` (pin vague requirements first) | omc plan, ralplan, make-plan, writing-plans, sw-planner, task_planner |
+| **Plan** | `nord-plan` (parallel lens tournament) | `nord-plan --consensus` (vague/high-stakes → sequential Planner/Architect/Critic + ADR) · `nord-requirements` (pin vague requirements first) | nord plan, ralplan, make-plan, writing-plans, sw-planner, task_planner |
 | **Brainstorm** | `brainstorm-adversarial` (decide between ideas) | `brainstorm` (explore idea space) | superpowers brainstorming |
 | **Code-gen (gated)** | `gate-loop` (cheap $0 worker `qwen3.6-plus` via bridge + DETERMINISTIC gate = exit code, escalate to frontier after 3 reds) — the bench sweet spot for anything with a test/compiler/lint gate | `nord-execute` (batch / no-gate) · `ralph`/`team`/`autopilot` (heavier) | self-verify loops, LLM-judge gates |
 | **Execute** | `nord-execute` (choose mode: parallel batch / `/loop` / ralph, optional `/goal`-gate) | `gate-loop` (when each item has a deterministic gate) · `ralph` (completion loop) · `team` (parallel+coordination) · `autopilot` (full idea→code) · executor agent (one file) | do, executing-plans, subagent-driven-development |
@@ -17,6 +17,7 @@ do not improvise among duplicates. (Injected each session by the nord-router Ses
 | **Web data / Read** | `read-router` (pick paradigm per URL/file) → `web-scrape` (Crawl4AI local) · `pdf-extract` (MinerU PDF) · `visual-read` (visual) | `web-scrape --stealth` (anti-bot/login) · Firecrawl MCP (external, last resort) | raw WebFetch on a PDF, screenshotting normal pages |
 | **Verify** | `verify` (before claiming done) | — | — |
 | **Commit msg** | `commit` (Conventional Commits, subject ≤50, body only when 'why' non-obvious + required harness trailers; outputs msg, does NOT run git) | — | hand-writing ad-hoc commit messages |
+| **Change/disable/replace a tool** | `TOOLING.md` (probe the built bundle, allowlist vs addition, two name forms, three copies) | — | editing only `src/`, trusting a green suite |
 | **Abort loop** | `cancel` (mark mode inactive + clear PRD so gate-persist stops blocking) | — | hand-deleting `.nord/state` files |
 | **Memory** | claude-mem `mem-search` (past work) | — | — |
 | **Prime codebase** | `deepinit` | claude-mem `learn-codebase` | — |

@@ -45,17 +45,24 @@ a `qwen3.6-plus`/`glm-5.1` worker id 404 mid-loop.
   and are already wired + bench-verified. nord **consumes** them — never edit bridge internals here.
 
 ## `t` MCP bundle — tool count vs the ≤3-5 active-budget rule
-`bridge/mcp-server.cjs` (the `t` server) ships ~49 tools (`lsp_*`, `ast_grep_*`, `trace_*`, `wiki_*`,
-`deepinit_manifest`, `python_repl`, `smart_*`). That does NOT violate the ≤3-5 active-tools rule: those
-tools surface to the model as **ToolSearch-DEFERRED** (e.g. `mcp__plugin_nord-core_t__lsp_*`), so they
-cost ~0 active-budget tokens until explicitly searched/loaded. The ≤3-5 rule is about *active* tools per
-task; `t` adds 0 to that set. Env-slim (`OMC_DISABLE_TOOLS`) is **not** an option — `grep -rc
-OMC_DISABLE_TOOLS bridge/mcp-server.cjs` = 0 and the 993KB bundle has no source to rebuild; a
-tools/list-filter proxy isn't worth a fragile extra process for a 0-budget win. **Decision: accept as-is.**
+`bridge/mcp-server.cjs` (the `t` server) ships **57** tools (`lsp_*`, `ast_grep_*`, `trace_*`, `wiki_*`,
+`state_*`, `notepad_*`, `project_memory_*`, `shared_memory_*`, `deepinit_manifest`, `python_repl`,
+`Bash`/`BashOutput`/`KillShell`). That does NOT violate the ≤3-5 active-tools rule: those tools surface
+to the model as **ToolSearch-DEFERRED** (e.g. `mcp__plugin_nord-core_t__lsp_*`), so they cost ~0
+active-budget tokens until explicitly searched/loaded. The ≤3-5 rule is about *active* tools per task.
+
+Two claims that used to stand here were wrong, and both mattered:
+- Env-slim IS available. `NORD_DISABLE_TOOLS` is wired (`disable-tools.ts`); measured,
+  `=custom` removes exactly `{Bash, BashOutput, KillShell}` and `=python` exactly `{python_repl}`.
+- The bundle DOES have source. `node scripts/build-mcp-server.mjs` builds it from
+  `src/mcp/standalone-server.ts` (esbuild). The old "no source to rebuild" note is why a dead
+  `tools/list` survived three releases unexamined — see TOOLING.md.
+
+Verify the surface with `npm run mcp:smoke` before and after any change to it.
 
 ## Cache mirror + version label
-The live copy CC loads is `cache/nord/nord-core/<installPath-ver>/` — currently the **1.4.0** cache dir,
-kept as the intentional live mirror of the 1.9.0 marketplace content (dir name frozen; the `version`
-label in `installed_plugins.json` tracks `plugin.json`). Any hook/skill edit must be mirrored into that
-cache dir or the running copy is stale (see gate-persist's two-copy note). If `claude plugin update`
-mis-resolves, re-point `installed_plugins.json`'s nord-core `installPath` to the 1.9.0 dir instead.
+The live copy CC loads is whatever `installed_plugins.json` names in nord-core's `installPath` —
+read it, never assume it. Any hook/skill/doc/bundle edit must be mirrored into that dir or the running
+copy is stale. `npm run plugin:copies` compares source, marketplace payload and live cache over the
+shipped paths and reports what differs; run it before and after a rollout, since only the diff between
+the two runs distinguishes new drift from old.

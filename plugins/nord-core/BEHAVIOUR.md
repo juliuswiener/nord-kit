@@ -12,12 +12,24 @@ live here instead of per-device `~/.claude/CLAUDE.md`.
   unless already authorized in this turn.
 - Keep secrets out of git — use `${ENV}` placeholders in committed config, real keys in each
   device's `~/.claude/settings.json` `env`.
-- Destructive commands have no automated guard — `dcg` is retired, `safe-tmp-rm` before it.
-  Nothing inspects a Bash command before it runs, so the judgement is yours: think before
-  `rm -rf` outside `/tmp`, and treat anything under `$HOME` plus raw-device `dd` / `mkfs` /
-  `git push --force` / `gh repo delete` as needing an explicit go-ahead first. Prefer the
-  narrower form where one exists — `cargo clean --profile dev` over `rm -rf target/debug`
-  (it keeps `release`).
+- Destructive commands are guarded asymmetrically, and the asymmetry is yours to know:
+
+  | shell | inspected by | `permissions.deny` `Bash(...)` rules |
+  |---|---|---|
+  | native `Bash` | the device's own `PreToolUse` hooks (e.g. `guard-rm.py`) | apply |
+  | `mcp__plugin_nord-core_t__Bash` | validation **inside the tool**, shipped in this plugin | do **not** apply |
+
+  Measured 2026-08-09: a `PreToolUse` matcher of `"Bash"` fires only for the native tool;
+  `"Bash|mcp__plugin_nord-core_t__Bash"` fires for both. So a hook you rely on covers the MCP
+  shell only once its matcher names it — and the MCP shell's own protection travels with the
+  plugin, which means a plugin update can change it. The in-tool validator denies root and
+  home deletion, raw-device writes and fork bombs; it warns on `rm -rf <target>` and still
+  runs it (`NORD_SHELL_STRICT=1` turns those warnings into refusals).
+
+  Either way the judgement is yours: think before `rm -rf` outside `/tmp`, and treat anything
+  under `$HOME` plus raw-device `dd` / `mkfs` / `git push --force` / `gh repo delete` as
+  needing an explicit go-ahead first. Prefer the narrower form where one exists —
+  `cargo clean --profile dev` over `rm -rf target/debug` (it keeps `release`).
 - Repos with a build step go to `~/02_Software/`, never `/tmp` — `/tmp` is tmpfs (RAM, 16G,
   `usrquota`). One Rust target fills it, and once it is full every Bash command fails with
   exit 1 (heredocs and pipes need `/tmp`), which reads like a broken hook, not a full disk.

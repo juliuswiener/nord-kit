@@ -4325,7 +4325,7 @@ var require_core = __commonJS({
       errorsText(errors = this.errors, { separator = ", ", dataVar = "data" } = {}) {
         if (!errors || errors.length === 0)
           return "No errors";
-        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text2, msg) => text2 + separator + msg);
+        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text3, msg) => text3 + separator + msg);
       }
       $dataMetaSchema(metaSchema, keywordsJsonPointers) {
         const rules = this.RULES.all;
@@ -18787,12 +18787,12 @@ async function spawnBridgeServer(sessionId, projectDir) {
   let stderrTruncated = false;
   proc.stderr?.on("data", (chunk) => {
     if (stderrTruncated) return;
-    const text2 = chunk.toString();
-    if (stderrBuffer.length + text2.length > MAX_STDERR_CHARS) {
+    const text3 = chunk.toString();
+    if (stderrBuffer.length + text3.length > MAX_STDERR_CHARS) {
       stderrBuffer = stderrBuffer.slice(0, MAX_STDERR_CHARS - 20) + "\n...[truncated]";
       stderrTruncated = true;
     } else {
-      stderrBuffer += text2;
+      stderrBuffer += text3;
     }
   });
   let procExitCode = null;
@@ -20433,23 +20433,23 @@ function formatLocation(location) {
 }
 function formatHover(hover) {
   if (!hover) return "No hover information available";
-  let text2 = "";
+  let text3 = "";
   if (typeof hover.contents === "string") {
-    text2 = hover.contents;
+    text3 = hover.contents;
   } else if (Array.isArray(hover.contents)) {
-    text2 = hover.contents.map((c) => {
+    text3 = hover.contents.map((c) => {
       if (typeof c === "string") return c;
       return c.value;
     }).join("\n\n");
   } else if ("value" in hover.contents) {
-    text2 = hover.contents.value;
+    text3 = hover.contents.value;
   }
   if (hover.range) {
-    text2 += `
+    text3 += `
 
 Range: ${formatRange(hover.range)}`;
   }
-  return text2 || "No hover information available";
+  return text3 || "No hover information available";
 }
 function formatLocations(locations) {
   if (!locations) return "No locations found";
@@ -20974,32 +20974,32 @@ var lspServersTool = {
     const servers = getAllServers();
     const installed = servers.filter((s) => s.installed);
     const notInstalled = servers.filter((s) => !s.installed);
-    let text2 = "## Language Server Status\n\n";
+    let text3 = "## Language Server Status\n\n";
     if (installed.length > 0) {
-      text2 += "### Installed:\n";
+      text3 += "### Installed:\n";
       for (const server2 of installed) {
-        text2 += `- ${server2.name} (${server2.command})
+        text3 += `- ${server2.name} (${server2.command})
 `;
-        text2 += `  Extensions: ${server2.extensions.join(", ")}
+        text3 += `  Extensions: ${server2.extensions.join(", ")}
 `;
       }
-      text2 += "\n";
+      text3 += "\n";
     }
     if (notInstalled.length > 0) {
-      text2 += "### Not Installed:\n";
+      text3 += "### Not Installed:\n";
       for (const server2 of notInstalled) {
-        text2 += `- ${server2.name} (${server2.command})
+        text3 += `- ${server2.name} (${server2.command})
 `;
-        text2 += `  Extensions: ${server2.extensions.join(", ")}
+        text3 += `  Extensions: ${server2.extensions.join(", ")}
 `;
-        text2 += `  Install: ${server2.installHint}
+        text3 += `  Install: ${server2.installHint}
 `;
       }
     }
     return {
       content: [{
         type: "text",
-        text: text2
+        text: text3
       }]
     };
   }
@@ -27205,9 +27205,9 @@ var stateClearTool = {
           recordResult("legacy", cancelActiveSession());
         }
         const blocked = blockedSessions.length > 0;
-        const text2 = blocked ? `Merge-readiness cancellation FAILED for: ${blockedSessions.join(", ")}. The state could not be persisted (read-only state dir / full disk); the gate(s) remain active on disk. Resolve and re-run.` : cancelledSessions.length > 0 ? `Cancelled merge-readiness gate(s) with durable state audit records: ${cancelledSessions.join(", ")}` : "No active merge-readiness gate found; existing state audit records were preserved.";
+        const text3 = blocked ? `Merge-readiness cancellation FAILED for: ${blockedSessions.join(", ")}. The state could not be persisted (read-only state dir / full disk); the gate(s) remain active on disk. Resolve and re-run.` : cancelledSessions.length > 0 ? `Cancelled merge-readiness gate(s) with durable state audit records: ${cancelledSessions.join(", ")}` : "No active merge-readiness gate found; existing state audit records were preserved.";
         return {
-          content: [{ type: "text", text: text2 }],
+          content: [{ type: "text", text: text3 }],
           ...blocked ? { isError: true } : {}
         };
       }
@@ -27980,8 +27980,8 @@ var stateTools = [
         const result = state.result;
         const score = state.readiness_score;
         const persistFailed = result === "blocked" && (state.validation_errors ?? []).some((e) => e.includes("persisted"));
-        const text2 = persistFailed ? `Merge-readiness answer NOT recorded: state could not be persisted (read-only state dir / full disk / invalid path). The gate is still armed on disk. ${(state.validation_errors ?? []).join(" ")}` : result === "pass" || result === "paused" || result === "blocked" || result === "overridden" ? `Merge-readiness ${result}. Readiness score: ${score}. ${result === "pass" ? "The change may proceed to human merge approval." : result === "paused" ? "Explanation gap remains; reread the report and rerun /merge-readiness." : result === "blocked" ? "Missing evidence; produce it before rerunning." : "Gate overridden; terminal session state preserves the record."}` : `Answer recorded. Next question: ${state.pending_question?.id ?? "none"}. Answered: ${state.answers.length}/${state.questions.length}.`;
-        return { content: [{ type: "text", text: text2 }], ...persistFailed ? { isError: true } : {} };
+        const text3 = persistFailed ? `Merge-readiness answer NOT recorded: state could not be persisted (read-only state dir / full disk / invalid path). The gate is still armed on disk. ${(state.validation_errors ?? []).join(" ")}` : result === "pass" || result === "paused" || result === "blocked" || result === "overridden" ? `Merge-readiness ${result}. Readiness score: ${score}. ${result === "pass" ? "The change may proceed to human merge approval." : result === "paused" ? "Explanation gap remains; reread the report and rerun /merge-readiness." : result === "blocked" ? "Missing evidence; produce it before rerunning." : "Gate overridden; terminal session state preserves the record."}` : `Answer recorded. Next question: ${state.pending_question?.id ?? "none"}. Answered: ${state.answers.length}/${state.questions.length}.`;
+        return { content: [{ type: "text", text: text3 }], ...persistFailed ? { isError: true } : {} };
       } catch (error2) {
         return { content: [{ type: "text", text: `Merge-readiness error: ${error2 instanceof Error ? error2.message : String(error2)}` }], isError: true };
       }
@@ -29307,6 +29307,92 @@ var memoryTools = [
   projectMemoryAddDirectiveTool
 ];
 
+// src/tools/claude-mem-tools.ts
+var import_node_fs3 = require("node:fs");
+var import_node_os = require("node:os");
+var import_node_path4 = require("node:path");
+var SETTINGS = (0, import_node_path4.join)((0, import_node_os.homedir)(), ".claude-mem", "settings.json");
+var REQUEST_TIMEOUT_MS = 15e3;
+function workerBaseUrl() {
+  const host = process.env.CLAUDE_MEM_WORKER_HOST ?? readSetting("CLAUDE_MEM_WORKER_HOST") ?? "127.0.0.1";
+  const port = process.env.CLAUDE_MEM_WORKER_PORT ?? readSetting("CLAUDE_MEM_WORKER_PORT") ?? String(37700 + (process.getuid?.() ?? 77) % 100);
+  return `http://${host}:${port}`;
+}
+function readSetting(key) {
+  try {
+    const parsed = JSON.parse((0, import_node_fs3.readFileSync)(SETTINGS, "utf8"));
+    const value = parsed[key];
+    return typeof value === "string" && value.trim() ? value.trim() : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function defaultProject() {
+  const base = process.cwd().split(/[\\/]/).filter(Boolean).pop();
+  return base || void 0;
+}
+var text2 = (s, isError = false) => ({
+  content: [{ type: "text", text: s }],
+  ...isError ? { isError: true } : {}
+});
+var memorySaveTool = {
+  name: "memory_save",
+  description: "Write a note into claude-mem so later sessions find it. Use for decisions, gotchas and constraints worth keeping \u2014 not for what the transcript already records.",
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false
+  },
+  schema: {
+    text: external_exports.string().describe("The note. Write it so it is useful without this conversation: what was decided or found, and why."),
+    title: external_exports.string().describe("Short headline. Defaults to the first 60 characters of the note.").optional(),
+    project: external_exports.string().describe("Project to file it under. Defaults to the current directory name.").optional()
+  },
+  async handler(args) {
+    const note = String(args?.text ?? "").trim();
+    if (!note) return text2("text is required \u2014 an empty note cannot be filed.", true);
+    const project = args?.project?.trim() || defaultProject();
+    const base = workerBaseUrl();
+    let response;
+    try {
+      response = await fetch(`${base}/api/memory/save`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          text: note,
+          ...args?.title?.trim() ? { title: args.title.trim() } : {},
+          ...project ? { project } : {}
+        }),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+      });
+    } catch (error2) {
+      const reason = error2 instanceof Error ? error2.message : String(error2);
+      return text2(
+        `Could not reach the claude-mem worker at ${base}: ${reason}
+The note was NOT saved. Check it is running (GET ${base}/api/health).`,
+        true
+      );
+    }
+    let body = null;
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
+    }
+    if (!response.ok || body?.success !== true || typeof body.id !== "number") {
+      const detail = body?.error ?? body?.message ?? `HTTP ${response.status}`;
+      return text2(`claude-mem did not confirm the write: ${detail}
+The note was NOT saved.`, true);
+    }
+    return text2(
+      `Saved as observation #${body.id} in project "${body.project ?? project ?? "unknown"}".
+Find it later with the claude-mem search tools.`
+    );
+  }
+};
+var claudeMemTools = [memorySaveTool];
+
 // src/tools/trace-tools.ts
 var import_fs31 = require("fs");
 var import_path37 = require("path");
@@ -29509,8 +29595,8 @@ var import_path36 = require("path");
 var import_readline = require("readline");
 var DEFAULT_LIMIT = 10;
 var DEFAULT_CONTEXT_CHARS = 120;
-function compactWhitespace(text2) {
-  return text2.replace(/\s+/g, " ").trim();
+function compactWhitespace(text3) {
+  return text3.replace(/\s+/g, " ").trim();
 }
 function normalizeForSearch(value, caseSensitive) {
   const compacted = compactWhitespace(value);
@@ -29763,8 +29849,8 @@ function buildSearchableEntry(entry, sourceType) {
   }
   return null;
 }
-function findMatchIndex(text2, query, caseSensitive) {
-  const haystack = normalizeForSearch(text2, caseSensitive);
+function findMatchIndex(text3, query, caseSensitive) {
+  const haystack = normalizeForSearch(text3, caseSensitive);
   const needle = normalizeForSearch(query, caseSensitive);
   const directIndex = haystack.indexOf(needle);
   if (directIndex >= 0) {
@@ -29777,8 +29863,8 @@ function findMatchIndex(text2, query, caseSensitive) {
   }
   return -1;
 }
-function createExcerpt(text2, matchIndex, contextChars) {
-  const compacted = compactWhitespace(text2);
+function createExcerpt(text3, matchIndex, contextChars) {
+  const compacted = compactWhitespace(text3);
   if (compacted.length <= contextChars * 2) {
     return compacted;
   }
@@ -29807,8 +29893,8 @@ async function collectMatchesFromFile(target, options) {
       if (!matchesProjectFilter(entry.projectPath, options.projectFilter)) return [];
       const entryEpoch = entry.timestamp ? Date.parse(entry.timestamp) : fileMtime;
       if (options.sinceEpoch && Number.isFinite(entryEpoch) && entryEpoch < options.sinceEpoch) return [];
-      for (const text2 of entry.texts) {
-        const matchIndex = findMatchIndex(text2, options.query, options.caseSensitive);
+      for (const text3 of entry.texts) {
+        const matchIndex = findMatchIndex(text3, options.query, options.caseSensitive);
         if (matchIndex < 0) continue;
         matches.push({
           sessionId: entry.sessionId,
@@ -29819,7 +29905,7 @@ async function collectMatchesFromFile(target, options) {
           line: 1,
           role: entry.role,
           entryType: entry.entryType,
-          excerpt: createExcerpt(text2, matchIndex, options.contextChars)
+          excerpt: createExcerpt(text3, matchIndex, options.contextChars)
         });
         break;
       }
@@ -29848,8 +29934,8 @@ async function collectMatchesFromFile(target, options) {
       if (!matchesProjectFilter(entry.projectPath, options.projectFilter)) continue;
       const entryEpoch = entry.timestamp ? Date.parse(entry.timestamp) : fileMtime;
       if (options.sinceEpoch && Number.isFinite(entryEpoch) && entryEpoch < options.sinceEpoch) continue;
-      for (const text2 of entry.texts) {
-        const matchIndex = findMatchIndex(text2, options.query, options.caseSensitive);
+      for (const text3 of entry.texts) {
+        const matchIndex = findMatchIndex(text3, options.query, options.caseSensitive);
         if (matchIndex < 0) continue;
         matches.push({
           sessionId: entry.sessionId,
@@ -29861,7 +29947,7 @@ async function collectMatchesFromFile(target, options) {
           line,
           role: entry.role,
           entryType: entry.entryType,
-          excerpt: createExcerpt(text2, matchIndex, options.contextChars)
+          excerpt: createExcerpt(text3, matchIndex, options.contextChars)
         });
         break;
       }
@@ -30569,17 +30655,17 @@ var sharedMemoryWriteTool = {
     try {
       const root = validateWorkingDirectory(args.workingDirectory);
       const entry = writeEntry(args.namespace, args.key, args.value, args.ttl, root);
-      let text2 = `Successfully wrote to shared memory.
+      let text3 = `Successfully wrote to shared memory.
 
 - **Namespace:** ${entry.namespace}
 - **Key:** ${entry.key}
 - **Updated:** ${entry.updatedAt}`;
       if (entry.ttl) {
-        text2 += `
+        text3 += `
 - **TTL:** ${entry.ttl}s
 - **Expires:** ${entry.expiresAt}`;
       }
-      return { content: [{ type: "text", text: text2 }] };
+      return { content: [{ type: "text", text: text3 }] };
     } catch (error2) {
       return errorResponse(`Error writing shared memory: ${error2 instanceof Error ? error2.message : String(error2)}`);
     }
@@ -30765,8 +30851,8 @@ var sharedMemoryTools = [
 ];
 
 // src/tools/deepinit-manifest.ts
-var import_node_fs3 = require("node:fs");
-var import_node_path4 = require("node:path");
+var import_node_fs4 = require("node:fs");
+var import_node_path5 = require("node:path");
 
 // src/constants/names.ts
 var TOOL_CATEGORIES = {
@@ -30823,7 +30909,7 @@ function scanDirectories(projectRoot) {
   const visitedInodes = /* @__PURE__ */ new Set();
   let realProjectRoot;
   try {
-    realProjectRoot = (0, import_node_fs3.realpathSync)(projectRoot);
+    realProjectRoot = (0, import_node_fs4.realpathSync)(projectRoot);
   } catch {
     realProjectRoot = projectRoot;
   }
@@ -30831,15 +30917,15 @@ function scanDirectories(projectRoot) {
   function walk(absDir, depth) {
     if (depth > MAX_DEPTH || dirCount > MAX_DIRECTORIES) return;
     try {
-      const realDir = (0, import_node_fs3.realpathSync)(absDir);
-      if (realDir !== realProjectRoot && !realDir.startsWith(realProjectRoot + import_node_path4.sep)) {
+      const realDir = (0, import_node_fs4.realpathSync)(absDir);
+      if (realDir !== realProjectRoot && !realDir.startsWith(realProjectRoot + import_node_path5.sep)) {
         return;
       }
     } catch {
       return;
     }
     try {
-      const stat = (0, import_node_fs3.statSync)(absDir);
+      const stat = (0, import_node_fs4.statSync)(absDir);
       if (visitedInodes.has(stat.ino)) return;
       visitedInodes.add(stat.ino);
     } catch {
@@ -30848,7 +30934,7 @@ function scanDirectories(projectRoot) {
     dirCount++;
     let entries;
     try {
-      entries = (0, import_node_fs3.readdirSync)(absDir, { withFileTypes: true });
+      entries = (0, import_node_fs4.readdirSync)(absDir, { withFileTypes: true });
     } catch {
       return;
     }
@@ -30863,20 +30949,20 @@ function scanDirectories(projectRoot) {
       }
     }
     if (files.length > 0) {
-      const relPath = (0, import_node_path4.relative)(projectRoot, absDir).split(import_node_path4.sep).join("/") || ".";
+      const relPath = (0, import_node_path5.relative)(projectRoot, absDir).split(import_node_path5.sep).join("/") || ".";
       result[relPath] = { files: [...files].sort() };
     }
     for (const sub of subdirs) {
-      walk((0, import_node_path4.join)(absDir, sub), depth + 1);
+      walk((0, import_node_path5.join)(absDir, sub), depth + 1);
     }
   }
   walk(projectRoot, 0);
   return result;
 }
 function loadManifest(manifestPath) {
-  if (!(0, import_node_fs3.existsSync)(manifestPath)) return null;
+  if (!(0, import_node_fs4.existsSync)(manifestPath)) return null;
   try {
-    const raw = (0, import_node_fs3.readFileSync)(manifestPath, "utf-8");
+    const raw = (0, import_node_fs4.readFileSync)(manifestPath, "utf-8");
     const parsed = JSON.parse(raw);
     if (parsed.version !== MANIFEST_VERSION) return null;
     if (typeof parsed.directories !== "object" || parsed.directories === null) return null;
@@ -30955,7 +31041,7 @@ function computeDiff(previous, current) {
   return { entries: sorted, summary };
 }
 function resolveManifestPath(root) {
-  return (0, import_node_path4.join)(getNordRoot(root), "deepinit-manifest.json");
+  return (0, import_node_path5.join)(getNordRoot(root), "deepinit-manifest.json");
 }
 function handleDiff(root, mode) {
   const current = scanDirectories(root);
@@ -30969,7 +31055,7 @@ function handleDiff(root, mode) {
   }
   const output = {
     mode,
-    manifestExists: (0, import_node_fs3.existsSync)(manifestPath),
+    manifestExists: (0, import_node_fs4.existsSync)(manifestPath),
     ...diff
   };
   return { content: [{ type: "text", text: JSON.stringify(output, null, 2) }] };
@@ -31010,7 +31096,7 @@ Generated at: ${manifest.generatedAt}`
 }
 function handleCheck(root) {
   const manifestPath = resolveManifestPath(root);
-  const exists = (0, import_node_fs3.existsSync)(manifestPath);
+  const exists = (0, import_node_fs4.existsSync)(manifestPath);
   if (!exists) {
     return {
       content: [{
@@ -31415,8 +31501,8 @@ function extractWikiLinks(content) {
 }
 
 // src/hooks/wiki/query.ts
-function tokenize(text2) {
-  const lower = text2.toLowerCase();
+function tokenize(text3) {
+  const lower = text3.toLowerCase();
   const tokens = [];
   const latinMatches = lower.match(/[a-z0-9\u00C0-\u024F]+/g);
   if (latinMatches) tokens.push(...latinMatches);
@@ -32441,6 +32527,7 @@ var allTools = [
   ...tagCategory(stateTools, TOOL_CATEGORIES.STATE),
   ...tagCategory(notepadTools, TOOL_CATEGORIES.NOTEPAD),
   ...tagCategory(memoryTools, TOOL_CATEGORIES.MEMORY),
+  ...tagCategory(claudeMemTools, TOOL_CATEGORIES.MEMORY),
   ...tagCategory(traceTools, TOOL_CATEGORIES.TRACE),
   ...tagCategory(sharedMemoryTools, TOOL_CATEGORIES.SHARED_MEMORY),
   { ...deepinitManifestTool, category: TOOL_CATEGORIES.DEEPINIT },

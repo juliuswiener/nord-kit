@@ -29894,7 +29894,7 @@ function renderLocal(corpora) {
 }
 var docsSourcesTool = {
   name: "docs_sources",
-  description: 'List documentation sources matching a library name, from context7 and from local corpora on disk. Returns CANDIDATES \u2014 it never picks one. The first hit is routinely the wrong library (query "picom" returns the JavaScript glob matcher picomatch, not the X11 compositor), so read the candidates and choose. Pass the chosen `source` to docs_chat. Shows last update, size in tokens, and trust score; the local copy is usually the older one.',
+  description: 'List documentation sources matching a library name, from context7 and from local corpora on disk. Returns CANDIDATES \u2014 it never picks one. The first hit is routinely the wrong library (query "picom" returns the JavaScript glob matcher picomatch, not the X11 compositor), so read the candidates and choose the one the question is actually about. Pass the chosen `source` to docs_fetch. Shows last update, size in tokens, and trust score; the local copy is usually the older one.',
   category: TOOL_CATEGORIES.DOCS,
   annotations: { readOnlyHint: true, openWorldHint: true },
   schema: {
@@ -29929,7 +29929,7 @@ var docsSourcesTool = {
     const nothing = remoteLines.length === 0 && local.length === 0;
     lines.push(
       "",
-      nothing ? "No candidate matched. Do not guess a library id \u2014 try another name, or report that no documentation exists for it." : "Pick one `source` from the list above (a context7 id like /org/repo, or local:<name>) and pass it to docs_chat. Do not assume the first entry is right."
+      nothing ? "No candidate matched. Do not guess a library id \u2014 try another name, or report that no documentation exists for it." : "Pick one `source` from the list above (a context7 id like /org/repo, or local:<name>) and pass it to docs_fetch. Do not assume the first entry is right. context7 rows are not evidence the library exists \u2014 if none of these is the thing the question is actually about, report that no documentation exists for it rather than taking the nearest-looking row."
     );
     return { content: [{ type: "text", text: lines.join("\n") }] };
   }
@@ -30043,7 +30043,9 @@ var NON_DOCS_CATEGORIES = "lsp,ast,python,custom,state,memory,trace,deepinit,ski
 var DEFAULT_TIMEOUT_MS3 = 3e5;
 var DEFAULT_MODEL = "sonnet";
 var CHILD_MCP_SERVER = "docs";
-var CHILD_TOOL = `mcp__${CHILD_MCP_SERVER}__docs_fetch`;
+var CHILD_TOOLS = ["docs_sources", "docs_fetch"].map(
+  (name) => `mcp__${CHILD_MCP_SERVER}__${name}`
+);
 var CHILD_ENV_PASSTHROUGH = [
   "HOME",
   "PATH",
@@ -30075,19 +30077,36 @@ function resolveServerEntry(env = process.env) {
     "cannot locate the MCP server entry to spawn the docs agent \u2014 set NORD_DOCS_MCP_ENTRY"
   );
 }
-function buildSystemPrompt(source) {
+function buildSystemPrompt() {
   return [
-    `You answer questions from the documentation of ${source} and from nothing else.`,
+    "You answer the question you were asked from library documentation and from nothing else.",
     "",
-    "Use the docs_fetch tool. Choose its `topic` yourself, from the question you were asked:",
-    "the topic reranks a fixed budget rather than truncating it, so specific nouns from the question",
-    'find answers that generic words like "configuration options" bury. If the returned slice does not',
-    "contain the answer, fetch again with different terms before concluding anything.",
+    "STEP 1 \u2014 resolve the source. The question names a library or tool. Call docs_sources with that",
+    "name; it lists candidates from context7 and from the local corpora on disk. Judge them by title",
+    'and description, never by rank or score. context7 has no "not found": a name it does not index',
+    "still comes back as a full page of confident-looking rows, and its own score sorts backwards \u2014",
+    "a nonsense query scored 424 while the genuine `picom` scored -28. results[0] is routinely the",
+    "wrong library: `picom` returns /micromatch/picomatch, a JavaScript glob matcher, while the X11",
+    "compositor of the same name exists only in the local corpora. Read the question for which one",
+    "it means, and search a different name if the first list does not contain it.",
     "",
+    "context7 returning rows is NOT evidence that the library exists. The local corpora are the honest",
+    "signal \u2014 they answer 0 when they hold nothing. If no candidate is actually the thing the question",
+    "is about, say that its documentation is not available and stop there. Never invent a library id,",
+    "never settle for the closest-looking row, and never answer from memory about a library you could",
+    "not resolve.",
+    "",
+    "STEP 2 \u2014 read it. Call docs_fetch on the source you chose. Choose its `topic` yourself, from the",
+    "question you were asked: the topic reranks a fixed budget rather than truncating it, so specific",
+    'nouns from the question find answers that generic words like "configuration options" bury. If the',
+    "returned slice does not contain the answer, fetch again with different terms \u2014 and reconsider",
+    "whether you resolved the right source \u2014 before concluding anything.",
+    "",
+    "Open your answer with one line naming the source you resolved to and why that one.",
     "Every claim you make must cite the `Source:` line of the section it rests on \u2014 quote the URL or path.",
     "If the documentation does not answer the question, say so plainly and say what you did look at.",
     "Never fill a gap from memory, and never invent a source line.",
-    "If docs_fetch reports a failure, report that failure \u2014 a failed fetch is not an empty answer."
+    "If a tool reports a failure, report that failure \u2014 a failed fetch is not an empty answer."
   ].join("\n");
 }
 function parseChildOutput(stdout) {
@@ -30132,15 +30151,16 @@ spawn failed: ${e.message}`, timedOut });
 }
 var docsChatTool = {
   name: "docs_chat",
-  description: "Ask a free-text question about one documentation source and get a cited answer. Resolve `source` with docs_sources first (a context7 id like /org/repo, or local:<name>). A separate agent process reads the documentation, so none of it enters this context. It picks its own retrieval terms from your question \u2014 ask the real question, in full, rather than naming a topic.",
+  description: 'Ask a free-text question about a library or tool and get a cited answer from its documentation. Name the library and the situation in the question itself \u2014 "picom, the X11 compositor, how do I exclude windows from shadows" \u2014 because a separate agent process resolves which documentation that is, reads it, and answers. None of the documentation enters this context. Ask the real question, in full: the agent derives both the source and its retrieval terms from it, and names in one line which source it chose.',
   category: TOOL_CATEGORIES.DOCS,
   annotations: { readOnlyHint: true, openWorldHint: true },
   schema: {
-    source: external_exports.string().describe("Documentation source from docs_sources: /org/repo or local:<name>"),
-    prompt: external_exports.string().describe("The question, in free text. Ask what you actually want to know."),
+    prompt: external_exports.string().describe(
+      "The question, in free text. Name the library and enough context to tell it from a same-named one."
+    ),
     timeout_ms: external_exports.number().int().min(1e4).max(9e5).optional().describe(`Give up after this long (default ${DEFAULT_TIMEOUT_MS3}).`)
   },
-  handler: async ({ source, prompt, timeout_ms }) => {
+  handler: async ({ prompt, timeout_ms }) => {
     const timeoutMs = timeout_ms ?? DEFAULT_TIMEOUT_MS3;
     let entry;
     try {
@@ -30178,9 +30198,9 @@ var docsChatTool = {
       configPath,
       "--strict-mcp-config",
       "--allowedTools",
-      CHILD_TOOL,
+      CHILD_TOOLS.join(","),
       "--append-system-prompt",
-      buildSystemPrompt(source)
+      buildSystemPrompt()
     ];
     const childEnv = {
       ...process.env,
@@ -30200,7 +30220,7 @@ var docsChatTool = {
         content: [
           {
             type: "text",
-            text: `docs_chat timed out after ${timeoutMs}ms asking ${source}.
+            text: `docs_chat timed out after ${timeoutMs}ms.
 ${run.stderr.trim().slice(-2e3)}`
           }
         ],
@@ -30212,7 +30232,7 @@ ${run.stderr.trim().slice(-2e3)}`
         content: [
           {
             type: "text",
-            text: `docs_chat failed (claude -p exited ${run.code}) asking ${source}.
+            text: `docs_chat failed (claude -p exited ${run.code}).
 ${run.stderr.trim().slice(-2e3)}
 ${run.stdout.trim().slice(-2e3)}`
           }
@@ -30225,7 +30245,7 @@ ${run.stdout.trim().slice(-2e3)}`
     const footer = `
 
 ---
-source: ${source} | agent turns: ${result.turns ?? "?"} | cost: ${cost} | ${Math.round((result.durationMs ?? wallMs) / 1e3)}s`;
+agent turns: ${result.turns ?? "?"} | cost: ${cost} | ${Math.round((result.durationMs ?? wallMs) / 1e3)}s`;
     return {
       content: [{ type: "text", text: (result.answer || "(empty answer)") + footer }],
       isError: result.isError
@@ -30234,8 +30254,8 @@ source: ${source} | agent turns: ${result.turns ?? "?"} | cost: ${cost} | ${Math
 };
 
 // src/tools/docs/index.ts
-var CALLER_TOOLS = [docsSourcesTool, docsChatTool];
-var AGENT_TOOLS = [docsFetchTool];
+var CALLER_TOOLS = [docsChatTool];
+var AGENT_TOOLS = [docsSourcesTool, docsFetchTool];
 function getDocsTools(env = process.env) {
   return isDocsAgentProcess(env) ? AGENT_TOOLS : CALLER_TOOLS;
 }
@@ -30295,7 +30315,7 @@ var allTools = [
   ...tagCategory(traceTools, TOOL_CATEGORIES.TRACE),
   { ...deepinitManifestTool, category: TOOL_CATEGORIES.DEEPINIT },
   ...tagCategory(skillsTools, TOOL_CATEGORIES.SKILLS),
-  // docs_sources + docs_chat here; docs_fetch only inside the agent docs_chat spawns.
+  // docs_chat alone here; docs_sources + docs_fetch only inside the agent it spawns.
   ...getDocsTools()
 ];
 function getEnabledTools(envValue) {

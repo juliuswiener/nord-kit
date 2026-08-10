@@ -52,7 +52,7 @@ Workflow({
   - `thorough` — the original 3-skeptics-per-finding, majority-refute-drops behaviour. Reserve for acquisition / high-stakes / multi-contributor audits where a false positive is genuinely costly.
 - `lanes` — array of core lane keys to run *instead of* all core lanes (e.g. `['security', 'deps', 'tests']`) for a cheap targeted pass. Conditional/`extraLanes` still apply on top.
 - `cheapGather` (EXPERIMENTAL, default OFF) — route the **lane specialists** (Phase 2 gather) to a $0
-  bridge worker (`qwen3.6-plus`, needs CC launched through the bridge — see `../../WORKERS.md`) while
+  bridge worker (class `worker`, needs CC launched through the bridge — see `../../WORKERS.md`) while
   **Phase 3 adversarial verification + Phase 5 synthesis stay on the frontier**. This is a no-runtime-gate
   judgment skill, so the confident-wrong floor applies (`../gate-loop/references/gate-pattern.md`); keep
   OFF until a side-by-side run shows no quality regression vs the baseline. NOTE: wiring point is the

@@ -11,11 +11,15 @@ matches that id against its `[routing]` model-glob rules → provider:
 
 | model id (glob) | provider | cost | use |
 |---|---|---|---|
-| `qwen3.6-plus` (default), `glm-5.1` (fallback), `deepseek*`, `kimi*`, `mimo*`, `minimax*` | `opencode_zen` | **$0** flatrate | cheap workers (volume) |
+| `worker`, `worker-gemini` | bridge-resolved | **$0** flatrate | cheap workers (volume) |
 | `gemini-2.5-flash`, `gemini-3*-preview` | `google` | subscription | grounded web research |
 | `claude-*` (opus/sonnet) | `claude_max` | subscription | frontier / escalation |
 
-Canonical worker = **`qwen3.6-plus`** (HARD 84 / best cheap, P1-verified); fallback **`glm-5.1`**.
+Canonical worker = **`worker`**. Ask the bridge rather than this table: `curl -s $ANTHROPIC_BASE_URL/v1/models`
+lists what is routable. Measured 2026-08-10, the catalog holds claude-* plus the classes `compact`,
+`orchestrator`, `researcher`, `worker`, `worker-gemini` — every raw vendor id that used to stand here
+(`qwen3.6-plus`, `glm-5.1`, `deepseek*`, `kimi*`, `minimax*`) now fails with "may not exist or you may
+not have access to it".
 Avoid `minimax-m3` (weakest). Both dispatch paths verified: Task subagent `model:` (gate-worker) AND
 Workflow `agent({model})` forward arbitrary ids to the bridge.
 

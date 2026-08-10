@@ -1,6 +1,6 @@
 ---
 name: gate-loop
-description: "Orchestrator-worker loop — a cheap $0 worker (qwen3.6-plus via claude_bridge) implements, a DETERMINISTIC gate (pytest/ruff/compiler exit code) is the only verdict, the frontier (this Opus thread) escalates after 3 consecutive red gates. Use for code-gen / anything with a test, compiler, or lint gate. Requires CC launched through the bridge."
+description: "Orchestrator-worker loop — a cheap $0 worker (class `worker` via claude_bridge) implements, a DETERMINISTIC gate (pytest/ruff/compiler exit code) is the only verdict, the frontier (this Opus thread) escalates after 3 consecutive red gates. Use for code-gen / anything with a test, compiler, or lint gate. Requires CC launched through the bridge."
 ---
 
 # gate-loop
@@ -14,14 +14,14 @@ INPUT: `$ARGUMENTS` — `<goal>  [gate: <command>]`
 
 ## 0. Preflight + setup
 
-**Preflight (MUST pass before any worker spawn)** — the cheap `gate-worker` (`model: qwen3.6-plus`)
+**Preflight (MUST pass before any worker spawn)** — the cheap `gate-worker` (`model: worker`)
 only routes to the $0 opencode-zen coder when CC is launched through the bridge:
 ```sh
 test "${ANTHROPIC_BASE_URL%/}" = "http://127.0.0.1:8318" \
   && curl -sf --max-time 5 http://127.0.0.1:8318/healthz >/dev/null
 ```
 On failure: STOP and tell the user `ANTHROPIC_BASE_URL=http://127.0.0.1:8318 claude`, or proceed with a
-normal-tier worker — never let `qwen3.6-plus` 404 mid-loop. (See `WORKERS.md` for the id→provider table
+normal-tier worker — never let a worker id 404 mid-loop. (See `WORKERS.md` for the id→provider table
 + fallback `glm-5.1`.)
 
 Parse the GOAL and GATE command from the input. The gate MUST be a single deterministic command whose
@@ -96,7 +96,7 @@ this session.
 For a goal too big for one gate, decompose into a **PRD** = a list of stories, each with its OWN
 deterministic gate, then run the single-story loop above per story until ALL are green. The
 `gate-persist` Stop-hook (registered) enforces persistence: it refuses to let the session quit while
-stories are red, bumps the iteration counter, and forces escalation — replacing omc's persistent-mode +
+stories are red, bumps the iteration counter, and forces escalation — replacing nord's persistent-mode +
 LLM-reviewer with a deterministic-gate loop, no judge (per `references/gate-pattern.md`).
 
 ### State contract (single-writer — do not violate)

@@ -17,7 +17,7 @@ INPUT: `<goal>` (work-list of independent items).
    files it touches — used for disjointness). Write `.nord/state/team-state.json`
    `{mode:"team",active:true,iteration:0,max:<max(12,6*stories)>,startedAt:"<iso>"}` (write prd.json first).
 3. **Drive parallel:** dispatch stories whose `files` are **disjoint** concurrently — one `gate-worker`
-   (qwen3.6-plus) per story via `parallel()` / multiple Task spawns in one message. Stories that share
+   (class `worker`) per story via `parallel()` / multiple Task spawns in one message. Stories that share
    files run sequentially. Gate each independently (exit 0 = `passes:true` + `redCount:0`; red = `redCount++`);
    escalate a story to the frontier after 3 reds. **Never write `iteration` — the hook owns it.**
 4. **Complete** when ALL stories `passes:true` (each gate re-run to exit 0). Set `active:false`, report per

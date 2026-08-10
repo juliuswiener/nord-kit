@@ -42,7 +42,7 @@ command and treats **exit 0 = pass**, non-zero = **fail** (no LLM judge — see
 `../gate-loop/references/gate-pattern.md`). A gated item that fails is returned with
 `escalate:"gate-loop"` — hand it to the `gate-loop` skill (cheap worker + gate + frontier escalation)
 rather than retrying blindly here. An item with **no `gate` is marked `unverified`**, never reported as
-green. Gated verify uses a `qwen3.6-plus` runner → needs CC launched through the bridge (see
+green. Gated verify uses a cheap `worker`-class runner → needs CC launched through the bridge (see
 `../../WORKERS.md`); without a bridge, pass items without `gate` (they'll be `unverified`).
 
 ```javascript
@@ -67,7 +67,7 @@ const results = await pipeline(
   (res, it) => {
     if (it.gate) {  // deterministic gate: run the command, exit code = verdict (gate-pattern.md)
       return agent(`Run EXACTLY this command and report only its result — do NOT fix anything:\n${it.gate}\nReturn {exitCode (the shell exit status), tail (last ~15 lines of output)}.`,
-        { label:`gate:${it.id||''}`, phase:'Verify', schema:G, model:'qwen3.6-plus' })
+        { label:`gate:${it.id||''}`, phase:'Verify', schema:G, model:'worker' })
         .then(g => { const ok = !!g && g.exitCode === 0
           return { id: it.id, ...res, gate: it.gate, status: ok ? 'pass' : 'fail', exitCode: g && g.exitCode, gateTail: g && g.tail } })
     }

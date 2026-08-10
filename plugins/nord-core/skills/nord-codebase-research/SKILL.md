@@ -258,7 +258,7 @@ QUALITY GATE (schema-validated; findings that fail are DROPPED):
   - Every finding must have >= 1 evidence entry with an absolute file path (starts with /)
   - Every finding must have confidence: HIGH | MEDIUM | LOW
   - No speculative findings without direct code evidence`,
-      { label: `investigate:${s.name}`, phase: 'Investigate', model: (cheapGather && s.model !== 'opus') ? 'qwen3.6-plus' : s.model, schema: FINDING_SCHEMA }
+      { label: `investigate:${s.name}`, phase: 'Investigate', model: (cheapGather && s.model !== 'opus') ? 'worker' : s.model, schema: FINDING_SCHEMA }
     ).then(r => ({ ...(r || { stageId: s.id, findings: [] }), stageName: s.name, stageTier: s.tier, stageModel: s.model }))
   )
 )

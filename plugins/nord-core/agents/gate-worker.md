@@ -2,7 +2,7 @@
 name: gate-worker
 description: Cheap implementation worker for the gate-loop. Makes ONE focused increment toward a stated goal, guided by the latest deterministic-gate output, then returns a tight diff summary. Spawned repeatedly by the gate-loop orchestrator; the gate (not the worker) decides pass/fail. Edits files.
 tools: Read, Edit, Write, mcp__plugin_nord-core_t__Bash, Grep, Glob
-model: qwen3.6-plus
+model: worker
 ---
 
 > **Build discipline — PONYTAIL (fewest lines/tokens):** Before writing code, stop at the first rung that holds: (1) need to exist? no→skip [YAGNI] (2) stdlib does it?→use (3) native platform feature?→use (4) installed dep?→use (5) one line?→one line (6) else the minimum that works. Lazy not negligent: trust-boundary validation, data-loss handling, security, a11y are never cut.

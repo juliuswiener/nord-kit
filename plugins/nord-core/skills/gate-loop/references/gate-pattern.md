@@ -17,7 +17,7 @@ The one invariant behind nord's cheap-worker seams. Bench-verified
 5. **Worker prompts stay terse** — "smallest change to green", JSON/exact schema only. Verbose
    schema/CoT prompts are flat-to-NEGATIVE for cheap workers (P2) and can break tool-selection.
 6. **Workers are the cheap tier; routing & prompt are NOT levers.** The lever is the gate executing
-   the work + escalation. Pick the best cheap worker (`qwen3.6-plus`), don't agonize.
+   the work + escalation. Pick the cheap worker class (`worker`), don't agonize.
 
 ## The floor (know it)
 Where **no runtime gate exists** (tool-call/judgment steps), ~15-20% of cheap-worker steps are
@@ -28,6 +28,6 @@ remains — closing it needs the gold, a judge, or a real runtime gate. **If the
 deterministic gate AND stakes are high, do not trust the cheap tier alone.**
 
 ## Picks
-- Cheap worker: `qwen3.6-plus` (default), `glm-5.1` (fallback). Avoid `minimax-m3`.
+- Cheap worker: class `worker` (default), `worker-gemini` (fallback). Raw vendor ids are no longer routable.
 - Frontier / escalation: `claude-*` (Opus orchestrator / sonnet via bridge). NOT a lateral tier.
 - Substrate + launch + preflight: see `WORKERS.md` (nord-core).

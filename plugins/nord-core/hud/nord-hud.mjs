@@ -121,7 +121,7 @@ if (typeof wk === 'number') parts.push(c(grad(wk), 'wk ' + Math.round(wk) + '%')
 const active = readActiveAgents(s.transcript_path);
 if (active) parts.push(c(212, '▶ ' + active));
 
-// active OMC/nord execution mode (best-effort, fresh state files only)
+// active NORD/nord execution mode (best-effort, fresh state files only)
 const mode = readMode(cwd, s.session_id);
 if (mode) parts.push(c(215, '⚙ ' + mode));
 

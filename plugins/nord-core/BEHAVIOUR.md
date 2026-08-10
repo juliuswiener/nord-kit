@@ -103,7 +103,7 @@ or a read-heavy fan-out; stay inline for single-file / trivial / conversational 
 - nord's cheap-worker seams (gate-loop; optionally nord-execute + review/audit/research gather lanes)
   route `model:` ids through `claude_bridge` (:8318). Launch CC with
   `ANTHROPIC_BASE_URL=http://127.0.0.1:8318` or worker ids 404. Full substrate + id→provider table +
-  preflight: see `WORKERS.md` (nord-core). Default worker `qwen3.6-plus`, frontier `claude-*`.
+  preflight: see `WORKERS.md` (nord-core). Default worker `worker` (a bridge CLASS, not a model id), frontier `claude-*`.
 
 ## Provenance & confidence vocabulary (canonical — every skill that emits a claim/score)
 One vocabulary toolkit-wide so a claim/score reads the same everywhere. This block is the source of

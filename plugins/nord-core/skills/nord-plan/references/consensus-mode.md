@@ -78,7 +78,7 @@ Required sections per mode:
 
 Plans are saved to `.nord/plans/ralplan-<timestamp>.md` (naming required — autopilot glob `.nord/plans/ralplan-*.md` depends on it). Drafts go to `.nord/drafts/`.
 
-## State Persistence (nord-native, no omc dep)
+## State Persistence (nord-native, no nord dep)
 
 In `--consensus` mode, manage lifecycle state via a plain JSON file — no `state_write` MCP required:
 
@@ -88,7 +88,7 @@ In `--consensus` mode, manage lifecycle state via a plain JSON file — no `stat
 
 `<slug>` = first 3 meaningful words of the task, lowercased, hyphenated (e.g., `add-user-auth`).
 
-This replaces `state_write`/`state_clear` from omc — nord-plan is self-contained and carries no omc state-hook dependency.
+This replaces `state_write`/`state_clear` from nord — nord-plan is self-contained and carries no nord state-hook dependency.
 
 ## Provider Overrides (optional)
 
@@ -100,5 +100,5 @@ nord-plan --consensus --critic codex "task"
 nord-plan --consensus --architect codex --critic codex "task"
 ```
 
-Implementation: invoke `omc ask codex --agent-prompt <role> "<full review prompt>"` for that step.
-If `omc ask codex` is unavailable, briefly note the fallback and continue with default Claude for that stage — do NOT abort.
+Implementation: invoke `nord ask codex --agent-prompt <role> "<full review prompt>"` for that step.
+If `nord ask codex` is unavailable, briefly note the fallback and continue with default Claude for that stage — do NOT abort.

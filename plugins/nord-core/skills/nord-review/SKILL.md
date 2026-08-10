@@ -99,7 +99,7 @@ const VERDICT_SCHEMA = { type:'object', properties:{ isReal:{type:'boolean'}, co
 const results = await pipeline(
   DIMENSIONS,
   d => agent(`Review ${target} for ${d.key} issues. ${d.prompt} Report concrete findings with exact file:line and a one-line fix. Annotate each finding with severity (critical/high/medium/low) AND confidence (high/medium/low). No praise, no nits.`,
-        { label:`review:${d.key}`, phase:'Review', schema:FINDINGS_SCHEMA, ...(cheapGather ? { model:'qwen3.6-plus' } : {}) }),
+        { label:`review:${d.key}`, phase:'Review', schema:FINDINGS_SCHEMA, ...(cheapGather ? { model:'worker' } : {}) }),
   (review, d) => parallel(((review && review.findings) || []).map(f => () =>
     agent(`Verify this ${d.key} finding. PREFER a DETERMINISTIC reproducer over opinion:\n` +
           `1. If the finding is reproducible (most correctness/security bugs are), WRITE a minimal failing test or repro command that would pass iff the bug exists, and RUN it. Bug reproduces → reproduced="confirmed" (deterministically REAL). Repro does NOT trigger → reproduced="refuted" (deterministically NOT real). Put the exact command in reproCmd.\n` +

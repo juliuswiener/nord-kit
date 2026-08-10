@@ -73,7 +73,7 @@ were unreachable. Nobody noticed for three releases. The probe finds it in under
   ASK — and an MCP handler has no channel to ask, so ASK means execute. A literal port would have
   blocked routine cleanup and permitted the one thing worth blocking.
 - **Budget the schema for your CHEAPEST consumer.** ≤1 required parameter, ≤7 properties, a short
-  description. `gate-worker` runs on `qwen3.6-plus`; see
+  description. `gate-worker` runs on the cheap `worker` class; see
   `skills/gate-loop/references/gate-pattern.md` on verbose schemas and tool selection. Verify by
   A/B with a deliberately bloated third arm — if that arm does not score worse, the harness is not
   sensitive enough for "no difference" to mean anything.

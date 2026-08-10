@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // nord gate-persist — Stop-hook continuation+escalation enforcer for PRD-mode skills
-// (ralph/team/autopilot driving gate-loop). The persistence GUARANTEE half of omc's
+// (ralph/team/autopilot driving gate-loop). The persistence GUARANTEE half of nord's
 // persistent-mode, on nord's deterministic-gate engine — no gh-poll, no notifications,
 // no LLM judge, no 8-mode zoo. (Fusion plan: minimal-glue, consensus 9/9/9.)
 //
@@ -9,7 +9,7 @@
 // and re-inject what to do next — forcing escalation for any story stuck at >=3 reds.
 // ALLOW the stop on: all stories green, iteration cap, staleness, or a safety bypass
 // (context-limit / >=95% context / user-abort / auth-error / session-cancel) so a
-// blocked stop at full context can never DEADLOCK (omc #213).
+// blocked stop at full context can never DEADLOCK (nord #213).
 //
 // STATE CONTRACT (single-writer-per-field):
 //   prd.json            — SKILL only (goal, stories[{id,desc,gate,passes,redCount,escalated,files?,lastFail?}])
@@ -34,7 +34,7 @@ function atomicWrite(file, obj) {
 }
 
 // --- safety bypasses (allow stop; prevent compaction deadlock). Field names vary
-// across CC versions, so check many keys. Ported from omc persistent-mode/context-guard. ---
+// across CC versions, so check many keys. Ported from nord persistent-mode/context-guard. ---
 function bypassReason(inp) {
   const reason = String(
     inp.stop_reason || inp.stopReason || inp.end_turn_reason || inp.reason || ""

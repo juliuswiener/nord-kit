@@ -13,7 +13,7 @@ and escalates on stall. Full engine: `../gate-loop/SKILL.md` (§ PRD mode); cont
 INPUT: `<task>` (+ optional `gate:` per story is derived during decompose).
 
 ## Run
-1. **Preflight** the bridge (see gate-loop §0) — cheap `gate-worker` (qwen3.6-plus) needs it.
+1. **Preflight** the bridge (see gate-loop §0) — cheap `gate-worker` (class `worker`) needs it.
 2. **Decompose** the task into `.nord/prd.json` stories (fields per gate-loop state contract:
    id/desc/gate/passes/redCount/escalated). Write `.nord/state/ralph-state.json`
    `{mode:"ralph",active:true,iteration:0,max:<max(12,6*stories)>,startedAt:"<iso>"}` (exact filename —

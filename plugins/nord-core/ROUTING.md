@@ -7,7 +7,7 @@ do not improvise among duplicates. (Injected each session by the nord-router Ses
 |---|---|---|---|
 | **Plan** | `nord-plan` (parallel lens tournament) | `nord-plan --consensus` (vague/high-stakes → sequential Planner/Architect/Critic + ADR) · `nord-requirements` (pin vague requirements first) | nord plan, ralplan, make-plan, writing-plans, sw-planner, task_planner |
 | **Brainstorm** | `brainstorm-adversarial` (decide between ideas) | `brainstorm` (explore idea space) | superpowers brainstorming |
-| **Code-gen (gated)** | `gate-loop` (cheap $0 worker `qwen3.6-plus` via bridge + DETERMINISTIC gate = exit code, escalate to frontier after 3 reds) — the bench sweet spot for anything with a test/compiler/lint gate | `nord-execute` (batch / no-gate) · `ralph`/`team`/`autopilot` (heavier) | self-verify loops, LLM-judge gates |
+| **Code-gen (gated)** | `gate-loop` (cheap $0 worker class `worker` via bridge + DETERMINISTIC gate = exit code, escalate to frontier after 3 reds) — the bench sweet spot for anything with a test/compiler/lint gate | `nord-execute` (batch / no-gate) · `ralph`/`team`/`autopilot` (heavier) | self-verify loops, LLM-judge gates |
 | **Execute** | `nord-execute` (choose mode: parallel batch / `/loop` / ralph, optional `/goal`-gate) | `gate-loop` (when each item has a deterministic gate) · `ralph` (completion loop) · `team` (parallel+coordination) · `autopilot` (full idea→code) · executor agent (one file) | do, executing-plans, subagent-driven-development |
 | **Review** | `nord-review` (deep multi-agent) | `/code-review` (quick diff) · `/security-review` | elite-code-reviewer, requesting-code-review |
 | **Cleanup** | `nord-cleanup` (multi-agent safe-delete) | `/simplify` (quick quality) | ai-slop-cleaner (superseded) |

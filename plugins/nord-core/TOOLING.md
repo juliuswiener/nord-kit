@@ -42,6 +42,28 @@ were unreachable. Nobody noticed for three releases. The probe finds it in under
   `NORD_DISABLE_TOOLS=python` silently dropped the shell along with `python_repl`. Name a category
   for what you would want to turn off together, not for what the code imports. Verify with a set
   difference, never a count: a count-only check is green when the wrong tool disappears.
+- **An `external:` dependency has to exist on the machine, and at the pinned version.** The
+  plugin payload ships **no `node_modules`**. Anything listed in the build's `external:` array
+  (`@ast-grep/napi`, `better-sqlite3`, …) is resolved at runtime through the `NODE_PATH` that the
+  bundle's banner derives from `npm root -g`. Declaring it in `package.json` gets it into the
+  source repo's tree and nowhere else — measured 2026-08-10: `@ast-grep/napi@^0.31.0` was declared,
+  installed locally, and absent globally, so both AST tools answered `Cannot find package` on every
+  machine including this one.
+
+  Pin the global install to the declared range. `npm install -g @ast-grep/napi` takes the latest,
+  and from 0.45 the grammars moved into separate `@ast-grep/lang-*` packages: 24 languages became
+  5. Go, Python and Rust then resolve to `undefined` — and the old code swallowed that per file and
+  reported `No matches found`. A wrong version is worse than a missing one, because a missing one
+  says so.
+
+  Prerequisites for this plugin, verified with `node -e "require('<pkg>')"` **from `/tmp` with
+  `NODE_PATH=$(npm root -g)`**, never from the repo — the repo's own `node_modules` will answer and
+  hide the gap:
+
+  ```
+  npm install -g @ast-grep/napi@0.31.1
+  ```
+
 - **Two name forms, one per path. Never write both in one file.**
 
   | path | form | appears in |
@@ -110,3 +132,9 @@ were unreachable. Nobody noticed for three releases. The probe finds it in under
 - Do NOT `git push` from nord-core.
 - Do NOT trust a green suite as evidence that a tool works. It says the code compiles and the unit
   behaves; it says nothing about whether the shipped server can answer.
+- Do NOT probe an `external:` dependency from inside the repo. `node -e "require('@ast-grep/napi')"`
+  succeeds there via the local `node_modules` and says nothing about the deployed plugin, which has
+  none. Probe from `/tmp` with `NODE_PATH=$(npm root -g)`, or against the cache bundle.
+- Do NOT read "0 calls" as "not wanted". Measured 2026-08-10: 7 calls to the structural search tools
+  across 11,243 sessions — and both implementations were simply broken. Call the tool before you cut
+  it. See `docs/TOOL-MAP.md`.

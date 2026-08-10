@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "nord",
-  "description": "Claude Code marketplace \u2014 personal skills, agents, a task-routing hook, a custom statusline, and MCP servers.",
+  "description": "Claude Code marketplace — personal skills, agents, a task-routing hook, a custom statusline, and MCP servers.",
   "owner": {
     "name": "Julius Brussee",
     "email": "gyptii@gmail.com"
@@ -10,7 +10,7 @@
     {
       "name": "nord-core",
       "description": "nord core: multi-agent skills (review/cleanup/plan/exec), task-routing hook, nord-hud statusline, brainstorm/audit, skill-authoring, MCP.",
-      "version": "1.23.0",
+      "version": "1.27.0",
       "source": "./plugins/nord-core",
       "category": "productivity",
       "tags": [
@@ -60,7 +60,7 @@
     },
     {
       "name": "oh-my-claudecode",
-      "description": "nord fork of oh-my-claudecode: multi-agent runtime (ralph/team/autopilot/trace/sciomc/CLI). Planning/cleanup/skill-authoring skills pruned \u2014 superseded by nord-core's merged versions.",
+      "description": "nord fork of oh-my-claudecode: multi-agent runtime (ralph/team/autopilot/trace/sciomc/CLI). Planning/cleanup/skill-authoring skills pruned — superseded by nord-core's merged versions.",
       "source": {
         "source": "url",
         "url": "https://github.com/juliuswiener/oh-my-claudecode.git"

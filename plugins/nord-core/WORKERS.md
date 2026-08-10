@@ -49,9 +49,12 @@ a `qwen3.6-plus`/`glm-5.1` worker id 404 mid-loop.
   and are already wired + bench-verified. nord **consumes** them — never edit bridge internals here.
 
 ## `t` MCP bundle — tool count vs the ≤3-5 active-budget rule
-`bridge/mcp-server.cjs` (the `t` server) ships **57** tools (`lsp_*`, `ast_grep_*`, `trace_*`, `wiki_*`,
-`state_*`, `notepad_*`, `project_memory_*`, `shared_memory_*`, `deepinit_manifest`, `python_repl`,
-`Bash`/`BashOutput`/`KillShell`). That does NOT violate the ≤3-5 active-tools rule: those tools surface
+`bridge/mcp-server.cjs` (the `t` server) ships **35** tools (`lsp_*`, `ast_grep_*`, `trace_*`,
+`state_*`, `merge_readiness_*`, `deepinit_manifest`, `python_repl`, `memory_save`,
+`Bash`/`BashOutput`/`KillShell`). It was 58 until 2026-08-10, when the five memory families
+(`wiki_*`, `notepad_*`, `project_memory_*`, `shared_memory_*`, `session_search`) were removed —
+0 calls across 11,243 sessions, with claude-mem covering the same ground and being used 55 times
+over the same history. That does NOT violate the ≤3-5 active-tools rule: those tools surface
 to the model as **ToolSearch-DEFERRED** (e.g. `mcp__plugin_nord-core_t__lsp_*`), so they cost ~0
 active-budget tokens until explicitly searched/loaded. The ≤3-5 rule is about *active* tools per task.
 

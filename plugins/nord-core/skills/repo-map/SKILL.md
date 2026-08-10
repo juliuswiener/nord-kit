@@ -17,7 +17,6 @@ Emits the most important symbols across a repo as a compact `file: line: signatu
 | Definition / references / rename of a known symbol | `t` lsp_goto_definition / lsp_find_references / lsp_rename |
 | Structural pattern across files (shape, not importance) | `t` ast_grep_search |
 | Outline / structure of ONE file | claude-mem smart_outline / smart_search |
-| Did directory structure change (for AGENTS.md regen) | `t` deepinit_manifest |
 
 Reach for it **before planning a change in an unfamiliar tree** or when orienting — one cheap call beats reading a dozen files.
 

@@ -141,8 +141,7 @@ Each worker must:
 Useful evidence sources include:
 
 - relevant code, tests, configs, docs, logs, outputs, and benchmark artifacts
-- existing trace artifacts via `trace_timeline`
-- existing aggregate trace evidence via `trace_summary`
+- prior findings from claude-mem (`search`, `timeline`, `get_observations`)
 
 Recommended worker return structure:
 

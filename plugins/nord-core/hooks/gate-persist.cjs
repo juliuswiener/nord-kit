@@ -83,6 +83,17 @@ for (const f of files) {
   const fp = path.join(stateDir, f);
   let st;
   try { st = JSON.parse(fs.readFileSync(fp, "utf8")); } catch { continue; }
+  // A SIGNAL is not a mode state. cancel-signal-state.json ends in "-state.json"
+  // and so passed the filename filter above, and it carries `active` and `mode`
+  // like a real state does — so the file whose entire meaning is "stop looping"
+  // was read as "a loop is running" and had its iteration bumped. Evidence on
+  // disk: cancel-signal-state.json holds `iteration` and `updatedAt`, the two
+  // fields this file's own header declares HOOK-only, next to
+  // `"source": "state_clear"`.
+  //
+  // Discriminate by shape, not by name: a signal expires, durable state does not.
+  // A name check would miss the next signal file someone adds.
+  if (st && (st.expires_at || st.requested_at)) continue;
   if (!st || !st.active) continue;                                   // skill marked done/cancelled
   if (st.session_id && sid && st.session_id !== sid) continue;       // another session's loop
   const ts = Date.parse(st.updatedAt || st.startedAt || "") || 0;

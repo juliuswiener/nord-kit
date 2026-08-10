@@ -80,7 +80,7 @@ Plans are saved to `.nord/plans/ralplan-<timestamp>.md` (naming required — aut
 
 ## State Persistence (nord-native, no nord dep)
 
-In `--consensus` mode, manage lifecycle state via a plain JSON file — no `state_write` MCP required:
+In `--consensus` mode, manage lifecycle state via a plain JSON file:
 
 - **On entry**: create `.nord/state/nord-plan-<slug>.json` with `{ "active": true, "phase": "planning", "slug": "<slug>", "startedAt": "<iso-timestamp>" }`
 - **On approval handoff** (→ ralph/team): set `active: false` (do NOT delete — execution mode may reference it)
@@ -88,7 +88,7 @@ In `--consensus` mode, manage lifecycle state via a plain JSON file — no `stat
 
 `<slug>` = first 3 meaningful words of the task, lowercased, hyphenated (e.g., `add-user-auth`).
 
-This replaces `state_write`/`state_clear` from nord — nord-plan is self-contained and carries no nord state-hook dependency.
+nord-plan is self-contained and carries no nord state-hook dependency. (This section predates the removal of the `state_*` MCP tools; every mode now works this way.)
 
 ## Provider Overrides (optional)
 

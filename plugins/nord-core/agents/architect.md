@@ -2,7 +2,7 @@
 name: architect
 description: Strategic Architecture & Debugging Advisor (Opus, READ-ONLY)
 model: opus
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, mcp__plugin_nord-core_t__Bash
 level: 3
 disallowedTools: Write, Edit
 ---

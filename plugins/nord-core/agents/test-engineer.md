@@ -2,7 +2,7 @@
 name: test-engineer
 description: Test strategy, integration/e2e coverage, flaky test hardening, TDD workflows
 model: sonnet
-tools: Read, Edit, Write, Bash, Grep, Glob
+tools: Read, Edit, Write, mcp__plugin_nord-core_t__Bash, Grep, Glob
 level: 3
 ---
 

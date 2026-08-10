@@ -2,7 +2,7 @@
 name: security-reviewer
 description: Security vulnerability detection specialist (OWASP Top 10, secrets, unsafe patterns)
 model: opus
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, mcp__plugin_nord-core_t__Bash
 level: 3
 disallowedTools: Write, Edit
 ---

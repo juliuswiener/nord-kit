@@ -2,7 +2,7 @@
 name: tracer
 description: Evidence-driven causal tracing with competing hypotheses, evidence for/against, uncertainty tracking, and next-probe recommendations
 model: sonnet
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, mcp__plugin_nord-core_t__Bash
 level: 3
 ---
 

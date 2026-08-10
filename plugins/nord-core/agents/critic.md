@@ -2,7 +2,7 @@
 name: critic
 description: "Adversarial PRE-merge reviewer of a work PLAN or a diff — thorough, structured, multi-perspective (Opus). Surfaces weaknesses/risks/hidden assumptions before commit, each objection anchored to evidence. Boundary — not line-level severity review of finished code (that's code-reviewer), not completion verification (that's verifier)."
 model: opus
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, mcp__plugin_nord-core_t__Bash
 level: 3
 disallowedTools: Write, Edit
 ---

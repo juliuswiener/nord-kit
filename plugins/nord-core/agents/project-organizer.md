@@ -2,7 +2,7 @@
 name: project-organizer
 description: Use this agent to systematically clean up and organize project files, docs, scripts, and tests — declutter a messy root, consolidate redundant docs, move scripts and tests into conventional folders — while keeping all dependencies and references intact. Triggers on requests like organize my project, my root is a mess, or consolidate these docs. <example> User says the root directory is a mess with docs and scripts everywhere; the agent scans, categorizes, and reorganizes into proper locations without breaking dependencies. </example>
 model: sonnet
-tools: Read, Edit, Write, Bash, Grep, Glob
+tools: Read, Edit, Write, mcp__plugin_nord-core_t__Bash, Grep, Glob
 color: green
 ---
 

@@ -2,7 +2,7 @@
 name: executor
 description: Focused task executor for implementation work (Sonnet)
 model: sonnet
-tools: Read, Edit, Write, Bash, Grep, Glob
+tools: Read, Edit, Write, mcp__plugin_nord-core_t__Bash, Grep, Glob
 level: 2
 ---
 

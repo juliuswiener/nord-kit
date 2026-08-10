@@ -25150,7 +25150,8 @@ function buildDefaultConfig() {
       onError: "warn"
     },
     permissions: {
-      allowBash: true,
+      // Native Bash off: the MCP shell (mcp__t__Bash) replaces it.
+      allowBash: false,
       allowEdit: true,
       allowWrite: true,
       maxBackgroundTasks: 5

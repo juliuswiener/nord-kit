@@ -1,7 +1,7 @@
 ---
 name: gate-worker
 description: Cheap implementation worker for the gate-loop. Makes ONE focused increment toward a stated goal, guided by the latest deterministic-gate output, then returns a tight diff summary. Spawned repeatedly by the gate-loop orchestrator; the gate (not the worker) decides pass/fail. Edits files.
-tools: Read, Edit, Write, Bash, Grep, Glob
+tools: Read, Edit, Write, mcp__plugin_nord-core_t__Bash, Grep, Glob
 model: qwen3.6-plus
 ---
 

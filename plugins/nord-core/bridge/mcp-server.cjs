@@ -19419,6 +19419,13 @@ var LSP_SERVERS = {
     extensions: [".vue"],
     installHint: "npm install -g @vue/language-server"
   },
+  toml: {
+    name: "Taplo (TOML)",
+    command: "taplo",
+    args: ["lsp", "stdio"],
+    extensions: [".toml"],
+    installHint: "cargo install taplo-cli --locked, or your package manager"
+  },
   yaml: {
     name: "YAML Language Server",
     command: "yaml-language-server",
@@ -19521,6 +19528,8 @@ var DEFAULT_LSP_REQUEST_TIMEOUT_MS = (() => {
   return readPositiveIntEnv("NORD_LSP_TIMEOUT_MS", 15e3);
 })();
 var LSP_CONTENT_MODIFIED = -32801;
+var LSP_METHOD_NOT_FOUND = -32601;
+var DIAGNOSTICS_SETTLE_MS = readPositiveIntEnv("NORD_LSP_DIAGNOSTICS_SETTLE_MS", 150);
 var CONTENT_MODIFIED_MAX_ATTEMPTS = 3;
 var CONTENT_MODIFIED_BACKOFF_MS = [50, 150];
 var INDEX_READY_RETRY_BUDGET_MS = readPositiveIntEnv("NORD_LSP_INDEX_RETRY_BUDGET_MS", 5e3);
@@ -19577,12 +19586,31 @@ var LspClient = class _LspClient {
   openDocuments = /* @__PURE__ */ new Set();
   diagnostics = /* @__PURE__ */ new Map();
   diagnosticWaiters = /* @__PURE__ */ new Map();
+  /** When the newest publishDiagnostics for a URI arrived. Basis for the settle window. */
+  diagnosticsUpdatedAt = /* @__PURE__ */ new Map();
+  /**
+   * How many publishDiagnostics have arrived for a URI.
+   *
+   * A counter, not a timestamp: Date.now() has millisecond granularity and the
+   * publish answering a didChange routinely lands in the SAME millisecond the
+   * change was sent, so "newer than sentAt" was false for an answer that had
+   * already arrived. Measured cost of that off-by-one-millisecond: a TOML edit
+   * that should take ~600ms sat for the full 4s budget and then returned the
+   * right answer anyway.
+   */
+  diagnosticsSeq = /* @__PURE__ */ new Map();
+  /** Latest didChange version per open document, for full-text replacements. */
+  documentVersions = /* @__PURE__ */ new Map();
+  /** URIs the server has actually answered about. See diagnosticsAnswered(). */
+  diagnosticsAnsweredFor = /* @__PURE__ */ new Set();
   workspaceRoot;
   serverConfig;
   devContainerContext;
   initialized = false;
   _serverCapabilities = null;
   _supportsPullDiagnostics = false;
+  /** Set once a server that advertised pull diagnostics has refused the request. */
+  pullDiagnosticsRefused = false;
   /** When `initialize` completed. Basis for the cold window when a server offers no readiness signal. */
   connectedAt = 0;
   /** Whether this server has ever sent a readiness notification we understand. */
@@ -19780,6 +19808,8 @@ ${content}`);
     if (notification.method === "textDocument/publishDiagnostics") {
       const params = this.translateIncomingPayload(notification.params);
       this.diagnostics.set(params.uri, params.diagnostics);
+      this.diagnosticsUpdatedAt.set(params.uri, Date.now());
+      this.diagnosticsSeq.set(params.uri, (this.diagnosticsSeq.get(params.uri) ?? 0) + 1);
       const waiters = this.diagnosticWaiters.get(params.uri);
       if (waiters && waiters.length > 0) {
         this.diagnosticWaiters.delete(params.uri);
@@ -19932,6 +19962,17 @@ ${content}`;
       processId: process.pid,
       rootUri: this.getWorkspaceRootUri(),
       rootPath: this.getServerWorkspaceRoot(),
+      // We advertise workspace.workspaceFolders below, so a server is entitled
+      // to read this list — and omitting it is not the same as not supporting
+      // folders. Measured on taplo: with the field absent it logs "using
+      // detached workspace" and answers every .toml with the single hint
+      // "this document has been excluded" instead of linting it, so a file with
+      // a duplicate key reported clean. Sending the one folder we already know
+      // about turns the same file into "conflicting keys" (severity 1).
+      workspaceFolders: [{
+        uri: this.getWorkspaceRootUri(),
+        name: (0, import_path7.basename)(this.getServerWorkspaceRoot()) || "workspace"
+      }],
       capabilities: {
         textDocument: {
           hover: { contentFormat: ["markdown", "plaintext"] },
@@ -20150,6 +20191,119 @@ ${content}`;
     }));
   }
   /**
+   * Diagnostics for a file, by whichever model the server actually honours.
+   *
+   * Capability advertisement is not a promise. Measured today:
+   *   - vscode-json-language-server advertises `diagnosticProvider` and answers
+   *     `textDocument/diagnostic` with -32601 "Unhandled method". The pull-only
+   *     path turned that into "Error in diagnostics: ..." and reported nothing,
+   *     while the very same server was pushing "Trailing comma" over
+   *     publishDiagnostics the whole time.
+   *   - taplo and yaml-language-server advertise no provider at all and are
+   *     push-only.
+   *
+   * So: try pull when it is advertised, and on a *method not found* refusal fall
+   * back to the push cache and stop asking for the rest of the connection. Only
+   * -32601 is treated this way — a timeout or ContentModified is a real failure
+   * and must not be silently downgraded into "the server had nothing to say".
+   */
+  async collectDiagnostics(filePath, pushWaitMs = 3e4, publishedAfterSeq = -1) {
+    if (this._supportsPullDiagnostics && !this.pullDiagnosticsRefused) {
+      try {
+        const pulled = await this.pullDiagnostics(filePath);
+        this.diagnosticsAnsweredFor.add(fileUri(filePath));
+        return pulled;
+      } catch (error2) {
+        const refused = error2 instanceof LspResponseError && error2.code === LSP_METHOD_NOT_FOUND;
+        if (!refused) {
+          throw error2;
+        }
+        this.pullDiagnosticsRefused = true;
+      }
+    }
+    await this.waitForDiagnosticsSettled(filePath, pushWaitMs, DIAGNOSTICS_SETTLE_MS, publishedAfterSeq);
+    if (this.diagnosticsUpdatedAt.has(fileUri(filePath))) {
+      this.diagnosticsAnsweredFor.add(fileUri(filePath));
+    }
+    return this.getDiagnostics(filePath);
+  }
+  /**
+   * Whether the server has actually said anything about this file — a pull
+   * response, or at least one publishDiagnostics.
+   *
+   * An empty diagnostic list is ambiguous on its own: it is what a clean file
+   * and a server that has not looked yet both produce. This separates the two,
+   * so a caller can decline to claim "clean" rather than guess. It is about
+   * diagnostics specifically, unlike indexState, which describes the
+   * workspace-wide index that reference/implementation queries depend on.
+   */
+  diagnosticsAnswered(filePath) {
+    return this.diagnosticsAnsweredFor.has(fileUri(filePath));
+  }
+  /**
+   * Wait for a push-model server's diagnostics to stop changing.
+   *
+   * First publish, then quiet for DIAGNOSTICS_SETTLE_MS. See that constant for
+   * the measurement this exists for: the first publish is routinely a stale or
+   * empty placeholder, and returning on it reports "clean" for a broken file.
+   */
+  async waitForDiagnosticsSettled(filePath, timeoutMs = 3e4, settleMs = DIAGNOSTICS_SETTLE_MS, publishedAfterSeq = -1) {
+    const uri = fileUri(filePath);
+    const deadline = Date.now() + timeoutMs;
+    while ((this.diagnosticsSeq.get(uri) ?? 0) <= publishedAfterSeq && Date.now() < deadline) {
+      await this.awaitPublish(uri, deadline - Date.now());
+    }
+    if (!this.diagnostics.has(uri)) {
+      await this.waitForDiagnostics(filePath, Math.max(0, deadline - Date.now()));
+    }
+    if (!this.diagnosticsUpdatedAt.has(uri)) {
+      return;
+    }
+    for (; ; ) {
+      const quietFor = Date.now() - (this.diagnosticsUpdatedAt.get(uri) ?? 0);
+      const remaining = deadline - Date.now();
+      if (quietFor >= settleMs || remaining <= 0) {
+        return;
+      }
+      await sleep2(Math.min(settleMs - quietFor, remaining));
+    }
+  }
+  /**
+   * Open a document using text we supply rather than the bytes on disk.
+   *
+   * LSP treats the client as the owner of an open document's content, so this
+   * is how the server can be asked about a version of the file that is not (or
+   * is no longer) on disk — without ever writing that version to the real path.
+   * The real path is still used, so imports, tsconfig and crate layout resolve
+   * exactly as they do for the actual file.
+   */
+  async openDocumentWithText(filePath, text3) {
+    const hostUri = fileUri(filePath);
+    const uri = this.toServerUri(hostUri);
+    this.notify("textDocument/didOpen", {
+      textDocument: { uri, languageId: this.getLanguageId(filePath), version: 1, text: text3 }
+    });
+    this.openDocuments.add(hostUri);
+    this.documentVersions.set(hostUri, 1);
+  }
+  /**
+   * Replace the content of an already-open document (full-text didChange).
+   * Returns the moment the change was sent, so a caller can tell a publish that
+   * answers this change apart from one that answered the previous content.
+   */
+  changeDocument(filePath, text3) {
+    const hostUri = fileUri(filePath);
+    const uri = this.toServerUri(hostUri);
+    const version2 = (this.documentVersions.get(hostUri) ?? 1) + 1;
+    const seenSeq = this.diagnosticsSeq.get(hostUri) ?? 0;
+    this.notify("textDocument/didChange", {
+      textDocument: { uri, version: version2 },
+      contentChanges: [{ text: text3 }]
+    });
+    this.documentVersions.set(hostUri, version2);
+    return seenSeq;
+  }
+  /**
    * Wait for the server to publish diagnostics for a file.
    * Resolves as soon as textDocument/publishDiagnostics fires for the URI,
    * or after `timeoutMs` milliseconds (whichever comes first).
@@ -20160,6 +20314,15 @@ ${content}`;
     if (this.diagnostics.has(uri)) {
       return Promise.resolve();
     }
+    return this.awaitPublish(uri, timeoutMs);
+  }
+  /**
+   * Wait for the NEXT publishDiagnostics for a URI, whether or not one is
+   * already cached. Needed after a didChange: the cache still holds the answer
+   * to the previous content, so the cached-value shortcut would return a
+   * verdict about text the server has already been told to forget.
+   */
+  awaitPublish(uri, timeoutMs) {
     return new Promise((resolve8) => {
       let resolved = false;
       const timer = setTimeout(() => {
@@ -21255,13 +21418,7 @@ var lspDiagnosticsTool = {
     const { file, severity } = args;
     return withLspClient(file, "diagnostics", async (client) => {
       await client.openDocument(file);
-      let diagnostics;
-      if (client.supportsPullDiagnostics) {
-        diagnostics = await client.pullDiagnostics(file);
-      } else {
-        await client.waitForDiagnostics(file, 3e4);
-        diagnostics = client.getDiagnostics(file);
-      }
+      let diagnostics = await client.collectDiagnostics(file, 3e4);
       if (severity) {
         const severityMap = {
           "error": 1,

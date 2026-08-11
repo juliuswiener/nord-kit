@@ -2245,8 +2245,8 @@ var require_resolve = __commonJS({
       }
       return count;
     }
-    function getFullPath(resolver, id = "", normalize7) {
-      if (normalize7 !== false)
+    function getFullPath(resolver, id = "", normalize4) {
+      if (normalize4 !== false)
         id = normalizeId(id);
       const p = resolver.parse(id);
       return _getFullPath(resolver, p);
@@ -2994,7 +2994,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve8.call(this, root, ref);
+      let _sch = resolve7.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a = root.localRefs) === null || _a === void 0 ? void 0 : _a[ref];
         const { schemaId } = this.opts;
@@ -3021,7 +3021,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve8(root, ref) {
+    function resolve7(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3642,7 +3642,7 @@ var require_fast_uri = __commonJS({
     "use strict";
     var { normalizeIPv6, removeDotSegments, recomposeAuthority, normalizePercentEncoding, normalizePathEncoding, escapePreservingEscapes, reescapeHostDelimiters, isIPv4, nonSimpleDomain } = require_utils();
     var { SCHEMES, getSchemeHandler } = require_schemes();
-    function normalize7(uri, options) {
+    function normalize4(uri, options) {
       if (typeof uri === "string") {
         uri = /** @type {T} */
         normalizeString(uri, options);
@@ -3652,55 +3652,55 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve8(baseURI, relativeURI, options) {
+    function resolve7(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const resolved = resolveComponent(parse8(baseURI, schemelessOptions), parse8(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
       return serialize(resolved, schemelessOptions);
     }
-    function resolveComponent(base, relative6, options, skipNormalization) {
+    function resolveComponent(base, relative5, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
         base = parse8(serialize(base, options), options);
-        relative6 = parse8(serialize(relative6, options), options);
+        relative5 = parse8(serialize(relative5, options), options);
       }
       options = options || {};
-      if (!options.tolerant && relative6.scheme) {
-        target.scheme = relative6.scheme;
-        target.userinfo = relative6.userinfo;
-        target.host = relative6.host;
-        target.port = relative6.port;
-        target.path = removeDotSegments(relative6.path || "");
-        target.query = relative6.query;
+      if (!options.tolerant && relative5.scheme) {
+        target.scheme = relative5.scheme;
+        target.userinfo = relative5.userinfo;
+        target.host = relative5.host;
+        target.port = relative5.port;
+        target.path = removeDotSegments(relative5.path || "");
+        target.query = relative5.query;
       } else {
-        if (relative6.userinfo !== void 0 || relative6.host !== void 0 || relative6.port !== void 0) {
-          target.userinfo = relative6.userinfo;
-          target.host = relative6.host;
-          target.port = relative6.port;
-          target.path = removeDotSegments(relative6.path || "");
-          target.query = relative6.query;
+        if (relative5.userinfo !== void 0 || relative5.host !== void 0 || relative5.port !== void 0) {
+          target.userinfo = relative5.userinfo;
+          target.host = relative5.host;
+          target.port = relative5.port;
+          target.path = removeDotSegments(relative5.path || "");
+          target.query = relative5.query;
         } else {
-          if (!relative6.path) {
+          if (!relative5.path) {
             target.path = base.path;
-            if (relative6.query !== void 0) {
-              target.query = relative6.query;
+            if (relative5.query !== void 0) {
+              target.query = relative5.query;
             } else {
               target.query = base.query;
             }
           } else {
-            if (relative6.path[0] === "/") {
-              target.path = removeDotSegments(relative6.path);
+            if (relative5.path[0] === "/") {
+              target.path = removeDotSegments(relative5.path);
             } else {
               if ((base.userinfo !== void 0 || base.host !== void 0 || base.port !== void 0) && !base.path) {
-                target.path = "/" + relative6.path;
+                target.path = "/" + relative5.path;
               } else if (!base.path) {
-                target.path = relative6.path;
+                target.path = relative5.path;
               } else {
-                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative6.path;
+                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative5.path;
               }
               target.path = removeDotSegments(target.path);
             }
-            target.query = relative6.query;
+            target.query = relative5.query;
           }
           target.userinfo = base.userinfo;
           target.host = base.host;
@@ -3708,7 +3708,7 @@ var require_fast_uri = __commonJS({
         }
         target.scheme = base.scheme;
       }
-      target.fragment = relative6.fragment;
+      target.fragment = relative5.fragment;
       return target;
     }
     function equal(uriA, uriB, options) {
@@ -3909,8 +3909,8 @@ var require_fast_uri = __commonJS({
     }
     var fastUri = {
       SCHEMES,
-      normalize: normalize7,
-      resolve: resolve8,
+      normalize: normalize4,
+      resolve: resolve7,
       resolveComponent,
       equal,
       serialize,
@@ -16761,7 +16761,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve8) => setTimeout(resolve8, pollInterval));
+        await new Promise((resolve7) => setTimeout(resolve7, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error2) {
@@ -16778,7 +16778,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve8, reject) => {
+    return new Promise((resolve7, reject) => {
       const earlyReject = (error2) => {
         reject(error2);
       };
@@ -16856,7 +16856,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve8(parseResult.data);
+            resolve7(parseResult.data);
           }
         } catch (error2) {
           reject(error2);
@@ -17117,12 +17117,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve8, reject) => {
+    return new Promise((resolve7, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve8, interval);
+      const timeoutId = setTimeout(resolve7, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -17851,12 +17851,12 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve8) => {
+    return new Promise((resolve7) => {
       const json = serializeMessage(message);
       if (this._stdout.write(json)) {
-        resolve8();
+        resolve7();
       } else {
-        this._stdout.once("drain", resolve8);
+        this._stdout.once("drain", resolve7);
       }
     });
   }
@@ -18147,26 +18147,6 @@ var import_os2 = require("os");
 // src/utils/config-dir.ts
 var import_path = require("path");
 var import_os = require("os");
-function stripTrailingSep(p) {
-  if (!p.endsWith(import_path.sep)) {
-    return p;
-  }
-  return p === (0, import_path.parse)(p).root ? p : p.slice(0, -1);
-}
-function getClaudeConfigDir() {
-  const home = (0, import_os.homedir)();
-  const configured = process.env.CLAUDE_CONFIG_DIR?.trim();
-  if (!configured) {
-    return stripTrailingSep((0, import_path.normalize)((0, import_path.join)(home, ".claude")));
-  }
-  if (configured === "~") {
-    return stripTrailingSep((0, import_path.normalize)(home));
-  }
-  if (configured.startsWith("~/") || configured.startsWith("~\\")) {
-    return stripTrailingSep((0, import_path.normalize)((0, import_path.join)(home, configured.slice(2))));
-  }
-  return stripTrailingSep((0, import_path.normalize)(configured));
-}
 
 // src/utils/paths.ts
 function getConfigDir() {
@@ -19012,7 +18992,7 @@ async function removeFileIfExists(filePath) {
   }
 }
 function sleep(ms) {
-  return new Promise((resolve8) => setTimeout(resolve8, ms));
+  return new Promise((resolve7) => setTimeout(resolve7, ms));
 }
 
 // src/tools/lsp/client.ts
@@ -19555,7 +19535,7 @@ var INDEX_DEPENDENT_METHODS = /* @__PURE__ */ new Set([
   "workspace/symbol"
 ]);
 function sleep2(ms) {
-  return new Promise((resolve8) => setTimeout(resolve8, ms));
+  return new Promise((resolve7) => setTimeout(resolve7, ms));
 }
 function isEmptyLspResult(value) {
   if (value === null || value === void 0) return true;
@@ -19638,7 +19618,7 @@ var LspClient = class _LspClient {
 Install with: ${this.serverConfig.installHint}`
       );
     }
-    return new Promise((resolve8, reject) => {
+    return new Promise((resolve7, reject) => {
       const command = this.devContainerContext ? "docker" : this.serverConfig.command;
       const args = this.devContainerContext ? ["exec", "-i", "-w", this.devContainerContext.containerWorkspaceRoot, this.devContainerContext.containerId, this.serverConfig.command, ...this.serverConfig.args] : this.serverConfig.args;
       this.process = (0, import_child_process6.spawn)(command, args, {
@@ -19666,7 +19646,7 @@ Install with: ${this.serverConfig.installHint}`
       this.initialize().then(() => {
         this.initialized = true;
         this.connectedAt = Date.now();
-        resolve8();
+        resolve7();
       }).catch(reject);
     });
   }
@@ -19942,13 +19922,13 @@ ${content}`);
     const message = `Content-Length: ${Buffer.byteLength(content)}\r
 \r
 ${content}`;
-    return new Promise((resolve8, reject) => {
+    return new Promise((resolve7, reject) => {
       const timeoutHandle = setTimeout(() => {
         this.pendingRequests.delete(id);
         reject(new Error(`LSP request '${method}' timed out after ${effectiveTimeout}ms`));
       }, effectiveTimeout);
       this.pendingRequests.set(id, {
-        resolve: resolve8,
+        resolve: resolve7,
         reject,
         timeout: timeoutHandle
       });
@@ -20046,7 +20026,7 @@ ${content}`;
       }
     });
     this.openDocuments.add(hostUri);
-    await new Promise((resolve8) => setTimeout(resolve8, 100));
+    await new Promise((resolve7) => setTimeout(resolve7, 100));
   }
   /**
    * Close a document
@@ -20344,13 +20324,13 @@ ${content}`;
    * verdict about text the server has already been told to forget.
    */
   awaitPublish(uri, timeoutMs) {
-    return new Promise((resolve8) => {
+    return new Promise((resolve7) => {
       let resolved = false;
       const timer = setTimeout(() => {
         if (!resolved) {
           resolved = true;
           this.diagnosticWaiters.delete(uri);
-          resolve8();
+          resolve7();
         }
       }, timeoutMs);
       const existing = this.diagnosticWaiters.get(uri) || [];
@@ -20358,7 +20338,7 @@ ${content}`;
         if (!resolved) {
           resolved = true;
           clearTimeout(timer);
-          resolve8();
+          resolve7();
         }
       });
       this.diagnosticWaiters.set(uri, existing);
@@ -22805,7 +22785,7 @@ var SessionLock = class {
   }
 };
 function sleep3(ms) {
-  return new Promise((resolve8) => setTimeout(resolve8, ms));
+  return new Promise((resolve7) => setTimeout(resolve7, ms));
 }
 
 // src/tools/python-repl/socket-client.ts
@@ -22835,7 +22815,7 @@ var JsonRpcError = class extends Error {
   }
 };
 async function sendSocketRequest(socketPath, method, params, timeout = 6e4) {
-  return new Promise((resolve8, reject) => {
+  return new Promise((resolve7, reject) => {
     const id = (0, import_crypto2.randomUUID)();
     const request = {
       jsonrpc: "2.0",
@@ -22925,7 +22905,7 @@ async function sendSocketRequest(socketPath, method, params, timeout = 6e4) {
           }
           if (!settled) {
             settled = true;
-            resolve8(response.result);
+            resolve7(response.result);
           }
         } catch (e) {
           if (!settled) {
@@ -24132,430 +24112,6 @@ Find it later with the claude-mem search tools.`
 };
 var claudeMemTools = [memorySaveTool];
 
-// src/tools/skills-tools.ts
-var import_path16 = require("path");
-var import_os5 = require("os");
-
-// src/hooks/learner/loader.ts
-var import_fs13 = require("fs");
-var import_crypto3 = require("crypto");
-var import_path15 = require("path");
-
-// src/hooks/learner/finder.ts
-var import_fs12 = require("fs");
-var import_path14 = require("path");
-
-// src/hooks/learner/constants.ts
-var import_path13 = require("path");
-var import_os4 = require("os");
-var USER_SKILLS_DIR = (0, import_path13.join)(getClaudeConfigDir(), "skills", "nord-learned");
-var GLOBAL_SKILLS_DIR = (0, import_path13.join)((0, import_os4.homedir)(), ".nord", "skills");
-var PROJECT_SKILLS_SUBDIR = NordPaths.SKILLS;
-var PROJECT_AGENT_SKILLS_SUBDIR = (0, import_path13.join)(".agents", "skills");
-var MAX_RECURSION_DEPTH = 10;
-var SKILL_EXTENSION = ".md";
-var DEBUG_ENABLED = process.env.NORD_DEBUG === "1";
-
-// src/hooks/learner/finder.ts
-function findSkillFilesRecursive(dir, results, depth = 0) {
-  if (!(0, import_fs12.existsSync)(dir)) return;
-  if (depth > MAX_RECURSION_DEPTH) return;
-  try {
-    const entries = (0, import_fs12.readdirSync)(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = (0, import_path14.join)(dir, entry.name);
-      if (entry.isDirectory()) {
-        findSkillFilesRecursive(fullPath, results, depth + 1);
-      } else if (entry.isFile() && entry.name.endsWith(SKILL_EXTENSION)) {
-        results.push(fullPath);
-      }
-    }
-  } catch (error2) {
-    if (DEBUG_ENABLED) {
-      console.error("[learner] Error scanning directory:", error2);
-    }
-  }
-}
-function safeRealpathSync(filePath) {
-  try {
-    return (0, import_fs12.realpathSync)(filePath);
-  } catch {
-    return filePath;
-  }
-}
-function isWithinBoundary(realPath, boundary) {
-  const normalizedReal = (0, import_path14.normalize)(realPath);
-  const normalizedBoundary = (0, import_path14.normalize)(safeRealpathSync(boundary));
-  return normalizedReal === normalizedBoundary || normalizedReal.startsWith(normalizedBoundary + import_path14.sep);
-}
-function findSkillFiles(projectRoot, options) {
-  const candidates = [];
-  const seenRealPaths = /* @__PURE__ */ new Set();
-  const scope = options?.scope ?? "all";
-  if (projectRoot && (scope === "project" || scope === "all")) {
-    const projectSkillDirs = [
-      (0, import_path14.join)(projectRoot, PROJECT_SKILLS_SUBDIR),
-      (0, import_path14.join)(projectRoot, PROJECT_AGENT_SKILLS_SUBDIR)
-    ];
-    for (const projectSkillsDir of projectSkillDirs) {
-      const projectFiles = [];
-      findSkillFilesRecursive(projectSkillsDir, projectFiles);
-      for (const filePath of projectFiles) {
-        const realPath = safeRealpathSync(filePath);
-        if (seenRealPaths.has(realPath)) continue;
-        if (!isWithinBoundary(realPath, projectSkillsDir)) {
-          if (DEBUG_ENABLED) {
-            console.warn("[learner] Symlink escape blocked:", filePath);
-          }
-          continue;
-        }
-        seenRealPaths.add(realPath);
-        candidates.push({
-          path: filePath,
-          realPath,
-          scope: "project",
-          sourceDir: projectSkillsDir
-        });
-      }
-    }
-  }
-  if (scope === "user" || scope === "all") {
-    const userDirs = [GLOBAL_SKILLS_DIR, USER_SKILLS_DIR];
-    for (const userDir of userDirs) {
-      const userFiles = [];
-      findSkillFilesRecursive(userDir, userFiles);
-      for (const filePath of userFiles) {
-        const realPath = safeRealpathSync(filePath);
-        if (seenRealPaths.has(realPath)) continue;
-        if (!isWithinBoundary(realPath, userDir)) {
-          if (DEBUG_ENABLED) {
-            console.warn("[learner] Symlink escape blocked:", filePath);
-          }
-          continue;
-        }
-        seenRealPaths.add(realPath);
-        candidates.push({
-          path: filePath,
-          realPath,
-          scope: "user",
-          sourceDir: userDir
-        });
-      }
-    }
-  }
-  return candidates;
-}
-
-// src/hooks/learner/parser.ts
-function parseSkillFile(rawContent) {
-  const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
-  const match = rawContent.match(frontmatterRegex);
-  if (!match) {
-    return {
-      metadata: {},
-      content: rawContent,
-      valid: false,
-      errors: ["Missing YAML frontmatter"]
-    };
-  }
-  const yamlContent = match[1];
-  const content = match[2].trim();
-  const errors = [];
-  try {
-    const metadata = parseYamlMetadata(yamlContent);
-    if (!metadata.id && metadata.name) {
-      metadata.id = metadata.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-    }
-    if (!metadata.source) {
-      metadata.source = "manual";
-    }
-    if (!metadata.name) errors.push("Missing required field: name");
-    if (!metadata.description) errors.push("Missing required field: description");
-    if (!metadata.triggers || metadata.triggers.length === 0) {
-      errors.push("Missing required field: triggers");
-    }
-    return {
-      metadata,
-      content,
-      valid: errors.length === 0,
-      errors
-    };
-  } catch (e) {
-    return {
-      metadata: {},
-      content: rawContent,
-      valid: false,
-      errors: [`YAML parse error: ${e}`]
-    };
-  }
-}
-function parseYamlMetadata(yamlContent) {
-  const lines = yamlContent.split("\n");
-  const metadata = {};
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    const colonIndex = line.indexOf(":");
-    if (colonIndex === -1) {
-      i++;
-      continue;
-    }
-    const key = line.slice(0, colonIndex).trim();
-    const rawValue = line.slice(colonIndex + 1).trim();
-    switch (key) {
-      case "id":
-        metadata.id = parseStringValue(rawValue);
-        break;
-      case "name":
-        metadata.name = parseStringValue(rawValue);
-        break;
-      case "description":
-        metadata.description = parseStringValue(rawValue);
-        break;
-      case "source":
-        metadata.source = parseStringValue(rawValue);
-        break;
-      case "createdAt":
-        metadata.createdAt = parseStringValue(rawValue);
-        break;
-      case "sessionId":
-        metadata.sessionId = parseStringValue(rawValue);
-        break;
-      case "model":
-        metadata.model = parseStringValue(rawValue);
-        break;
-      case "agent":
-        metadata.agent = parseStringValue(rawValue);
-        break;
-      case "matching":
-        metadata.matching = parseStringValue(rawValue);
-        break;
-      case "quality":
-        metadata.quality = parseInt(rawValue, 10) || void 0;
-        break;
-      case "usageCount":
-        metadata.usageCount = parseInt(rawValue, 10) || 0;
-        break;
-      case "triggers":
-      case "tags": {
-        const { value, consumed } = parseArrayValue(rawValue, lines, i);
-        if (key === "triggers") {
-          metadata.triggers = normalizeStringArray(value);
-        } else {
-          metadata.tags = normalizeStringArray(value);
-        }
-        i += consumed - 1;
-        break;
-      }
-    }
-    i++;
-  }
-  return metadata;
-}
-function parseStringValue(value) {
-  if (!value) return "";
-  if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
-    return value.slice(1, -1);
-  }
-  return value;
-}
-function normalizeStringArray(value) {
-  const values = Array.isArray(value) ? value : [value];
-  return values.map((item) => item.trim()).filter(Boolean);
-}
-function parseArrayValue(rawValue, lines, currentIndex) {
-  if (rawValue.startsWith("[")) {
-    const endIdx = rawValue.lastIndexOf("]");
-    if (endIdx === -1) return { value: [], consumed: 1 };
-    const content = rawValue.slice(1, endIdx).trim();
-    if (!content) return { value: [], consumed: 1 };
-    const items = content.split(",").map((s) => parseStringValue(s.trim())).filter(Boolean);
-    return { value: items, consumed: 1 };
-  }
-  if (!rawValue || rawValue === "") {
-    const items = [];
-    let consumed = 1;
-    for (let j = currentIndex + 1; j < lines.length; j++) {
-      const nextLine = lines[j];
-      const arrayMatch = nextLine.match(/^\s+-\s*(.*)$/);
-      if (arrayMatch) {
-        const itemValue = parseStringValue(arrayMatch[1].trim());
-        if (itemValue) items.push(itemValue);
-        consumed++;
-      } else if (nextLine.trim() === "") {
-        consumed++;
-      } else {
-        break;
-      }
-    }
-    if (items.length > 0) {
-      return { value: items, consumed };
-    }
-  }
-  return { value: parseStringValue(rawValue), consumed: 1 };
-}
-
-// src/hooks/learner/loader.ts
-function createContentHash(content) {
-  return (0, import_crypto3.createHash)("sha256").update(content).digest("hex").slice(0, 16);
-}
-function loadAllSkills(projectRoot) {
-  const candidates = findSkillFiles(projectRoot);
-  const seenIds = /* @__PURE__ */ new Map();
-  for (const candidate of candidates) {
-    try {
-      const rawContent = (0, import_fs13.readFileSync)(candidate.path, "utf-8");
-      const { metadata, content, valid, errors } = parseSkillFile(rawContent);
-      if (!valid) {
-        if (DEBUG_ENABLED) {
-          console.warn(`Invalid skill file ${candidate.path}: ${errors.join(", ")}`);
-        }
-        continue;
-      }
-      const skillId = metadata.id;
-      const relativePath = (0, import_path15.normalize)((0, import_path15.relative)(candidate.sourceDir, candidate.path));
-      const skill = {
-        path: candidate.path,
-        relativePath,
-        scope: candidate.scope,
-        metadata,
-        content,
-        contentHash: createContentHash(content),
-        priority: candidate.scope === "project" ? 1 : 0
-      };
-      const existing = seenIds.get(skillId);
-      if (!existing || skill.priority > existing.priority) {
-        seenIds.set(skillId, skill);
-      }
-    } catch (e) {
-      if (DEBUG_ENABLED) {
-        console.warn(`Error loading skill ${candidate.path}:`, e);
-      }
-    }
-  }
-  return Array.from(seenIds.values()).sort((a, b) => b.priority - a.priority);
-}
-
-// src/tools/skills-tools.ts
-var ALLOWED_BOUNDARIES = [process.cwd(), (0, import_os5.homedir)()];
-function validateProjectRoot(input) {
-  const normalized = (0, import_path16.normalize)((0, import_path16.resolve)(input));
-  if (input.includes("..")) {
-    throw new Error("Invalid project root: path traversal not allowed");
-  }
-  const isWithinAllowed = ALLOWED_BOUNDARIES.some((boundary) => {
-    const normalizedBoundary = (0, import_path16.normalize)(boundary);
-    return normalized === normalizedBoundary || normalized.startsWith(normalizedBoundary + import_path16.sep);
-  });
-  if (!isWithinAllowed) {
-    throw new Error("Invalid project root: path is outside allowed directories");
-  }
-  return normalized;
-}
-var loadLocalSchema = {
-  projectRoot: external_exports.string().max(500).optional().describe("Project root directory (defaults to cwd)")
-};
-var loadGlobalSchema = {};
-var listSkillsSchema = {
-  projectRoot: external_exports.string().max(500).optional().describe("Project root directory (defaults to cwd)")
-};
-function formatSkillOutput(skills) {
-  if (skills.length === 0) {
-    return "No skills found in the searched directories.";
-  }
-  const lines = [];
-  for (const skill of skills) {
-    lines.push(`### ${skill.metadata.id}`);
-    lines.push(`- **Name:** ${skill.metadata.name}`);
-    lines.push(`- **Description:** ${skill.metadata.description}`);
-    lines.push(`- **Triggers:** ${skill.metadata.triggers.join(", ")}`);
-    if (skill.metadata.tags?.length) {
-      lines.push(`- **Tags:** ${skill.metadata.tags.join(", ")}`);
-    }
-    lines.push(`- **Scope:** ${skill.scope}`);
-    lines.push(`- **Path:** ${skill.relativePath}`);
-    lines.push("");
-  }
-  return lines.join("\n");
-}
-var loadLocalTool = {
-  name: "load_nord_skills_local",
-  description: "Load and list skills from the project-local .nord/skills/ directory. Returns skill metadata (id, name, description, triggers, tags) for all discovered project-scoped skills.",
-  schema: loadLocalSchema,
-  handler: async (args) => {
-    const projectRoot = args.projectRoot ? validateProjectRoot(args.projectRoot) : process.cwd();
-    const allSkills = loadAllSkills(projectRoot);
-    const projectSkills = allSkills.filter((s) => s.scope === "project");
-    return {
-      content: [{
-        type: "text",
-        text: `## Project Skills (${projectSkills.length})
-
-${formatSkillOutput(projectSkills)}`
-      }]
-    };
-  }
-};
-var loadGlobalTool = {
-  name: "load_nord_skills_global",
-  description: "Load and list skills from global user directories (~/.nord/skills/ and [$CLAUDE_CONFIG_DIR|~/.claude]/skills/nord-learned/). Returns skill metadata for all discovered user-scoped skills.",
-  schema: loadGlobalSchema,
-  handler: async (_args) => {
-    const allSkills = loadAllSkills(null);
-    const userSkills = allSkills.filter((s) => s.scope === "user");
-    return {
-      content: [{
-        type: "text",
-        text: `## Global User Skills (${userSkills.length})
-
-${formatSkillOutput(userSkills)}`
-      }]
-    };
-  }
-};
-var listSkillsTool = {
-  name: "list_nord_skills",
-  description: "List all available skills (both project-local and global user skills). Project skills take priority over user skills with the same ID.",
-  schema: listSkillsSchema,
-  handler: async (args) => {
-    const projectRoot = args.projectRoot ? validateProjectRoot(args.projectRoot) : process.cwd();
-    const skills = loadAllSkills(projectRoot);
-    const projectSkills = skills.filter((s) => s.scope === "project");
-    const userSkills = skills.filter((s) => s.scope === "user");
-    let output = `## All Available Skills (${skills.length} total)
-
-`;
-    if (projectSkills.length > 0) {
-      output += `### Project Skills (${projectSkills.length})
-
-${formatSkillOutput(projectSkills)}
-`;
-    }
-    if (userSkills.length > 0) {
-      output += `### User Skills (${userSkills.length})
-
-${formatSkillOutput(userSkills)}`;
-    }
-    if (skills.length === 0) {
-      output = `## No Skills Found
-
-No skill files were discovered in any searched directories.
-
-Searched:
-- Project: .nord/skills/
-- Global: ~/.nord/skills/
-- Claude config: ${getClaudeConfigDir()}/skills/nord-learned/`;
-    }
-    return {
-      content: [{
-        type: "text",
-        text: output
-      }]
-    };
-  }
-};
-var skillsTools = [loadLocalTool, loadGlobalTool, listSkillsTool];
-
 // src/constants/names.ts
 var TOOL_CATEGORIES = {
   LSP: "lsp",
@@ -24566,7 +24122,6 @@ var TOOL_CATEGORIES = {
   // The kill switch `NORD_DISABLE_TOOLS=memory` therefore means something else
   // than it did — it now removes the write path into claude-mem's observations.
   MEMORY: "memory",
-  SKILLS: "skills",
   DOCS: "docs",
   INTEROP: "interop",
   CODEX: "codex",
@@ -24914,7 +24469,7 @@ ${text3}`
 };
 
 // src/tools/docs/docs-chat-tool.ts
-var NON_DOCS_CATEGORIES = "lsp,ast,python,custom,state,memory,trace,deepinit,skills";
+var NON_DOCS_CATEGORIES = "lsp,ast,python,custom,state,memory,trace,deepinit";
 var DEFAULT_TIMEOUT_MS3 = 3e5;
 var DEFAULT_MODEL = "sonnet";
 var CHILD_MCP_SERVER = "docs";
@@ -24999,7 +24554,7 @@ function parseChildOutput(stdout) {
   }
 }
 function runChild(args, env, timeoutMs) {
-  return new Promise((resolve8) => {
+  return new Promise((resolve7) => {
     const child = (0, import_node_child_process2.spawn)("claude", args, { env, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
@@ -25015,12 +24570,12 @@ function runChild(args, env, timeoutMs) {
     child.stderr.on("data", (d) => stderr += d);
     child.on("error", (e) => {
       clearTimeout(timer);
-      resolve8({ code: null, stdout, stderr: `${stderr}
+      resolve7({ code: null, stdout, stderr: `${stderr}
 spawn failed: ${e.message}`, timedOut });
     });
     child.on("close", (code) => {
       clearTimeout(timer);
-      resolve8({ code, stdout, stderr, timedOut });
+      resolve7({ code, stdout, stderr, timedOut });
     });
   });
 }
@@ -25145,7 +24700,6 @@ var DISABLE_TOOLS_GROUP_MAP = {
   "custom": TOOL_CATEGORIES.CUSTOM,
   "bash": TOOL_CATEGORIES.CUSTOM,
   "memory": TOOL_CATEGORIES.MEMORY,
-  "skills": TOOL_CATEGORIES.SKILLS,
   "docs": TOOL_CATEGORIES.DOCS,
   "interop": TOOL_CATEGORIES.INTEROP,
   "codex": TOOL_CATEGORIES.CODEX,
@@ -25182,7 +24736,6 @@ var allTools = [
   { ...pythonReplTool, category: TOOL_CATEGORIES.PYTHON },
   ...tagCategory(customTools, TOOL_CATEGORIES.CUSTOM),
   ...tagCategory(claudeMemTools, TOOL_CATEGORIES.MEMORY),
-  ...tagCategory(skillsTools, TOOL_CATEGORIES.SKILLS),
   // docs_chat alone here; docs_sources + docs_fetch only inside the agent it spawns.
   ...getDocsTools()
 ];

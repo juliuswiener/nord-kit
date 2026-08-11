@@ -49,15 +49,19 @@ a `qwen3.6-plus`/`glm-5.1` worker id 404 mid-loop.
   and are already wired + bench-verified. nord **consumes** them — never edit bridge internals here.
 
 ## `t` MCP bundle — tool count vs the ≤3-5 active-budget rule
-`bridge/mcp-server.cjs` (the `t` server) ships **27** tools (`lsp_*`, `ast_grep_*`, `python_repl`,
-`memory_save`, `list_nord_skills`/`load_nord_skills_*`, `docs_chat`,
-`Bash`/`BashOutput`/`KillShell`). It was 58 until 2026-08-10, when the five memory families
+`bridge/mcp-server.cjs` (the `t` server) ships **24** tools (`lsp_*`, `ast_grep_*`, `python_repl`,
+`memory_save`, `docs_chat`, `Bash`/`BashOutput`/`KillShell`). It was 58 until 2026-08-10,
+when the five memory families
 (`wiki_*`, `notepad_*`, `project_memory_*`, `shared_memory_*`, `session_search`) were removed —
 0 calls across 11,243 sessions, with claude-mem covering the same ground and being used 55 times
 over the same history. It went 40 → 27 with the runtime-internal cut: `state_*` (5), `trace_*` (2),
 `merge_readiness_*` (5) and `deepinit_manifest` (1). The state FILES are untouched — the skills and
 the `gate-persist` hook write and read `.nord/state/*.json` directly, which is how they always
-worked; only the MCP entrance closed. That does NOT violate the ≤3-5 active-tools rule: those tools surface
+worked; only the MCP entrance closed. It went 27 → 24 on 2026-08-11 with the skills cut:
+`list_nord_skills` and `load_nord_skills_local`/`_global` all read `.nord/skills/`,
+`~/.nord/skills/` and `~/.claude/skills/nord-learned/`, and no such directory exists anywhere —
+`scripts/skill-injector.mjs` still reads the same paths from the prompt hook, so only the second,
+manual entrance closed. That does NOT violate the ≤3-5 active-tools rule: those tools surface
 to the model as **ToolSearch-DEFERRED** (e.g. `mcp__plugin_nord-core_t__lsp_*`), so they cost ~0
 active-budget tokens until explicitly searched/loaded. The ≤3-5 rule is about *active* tools per task.
 

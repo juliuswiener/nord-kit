@@ -19528,10 +19528,12 @@ var DEFAULT_LSP_REQUEST_TIMEOUT_MS = (() => {
   return readPositiveIntEnv("NORD_LSP_TIMEOUT_MS", 15e3);
 })();
 var LSP_CONTENT_MODIFIED = -32801;
+var LSP_SERVER_CANCELLED = -32802;
 var LSP_METHOD_NOT_FOUND = -32601;
 var DIAGNOSTICS_SETTLE_MS = readPositiveIntEnv("NORD_LSP_DIAGNOSTICS_SETTLE_MS", 150);
 var CONTENT_MODIFIED_MAX_ATTEMPTS = 3;
 var CONTENT_MODIFIED_BACKOFF_MS = [50, 150];
+var RETRYABLE_LSP_CODES = /* @__PURE__ */ new Set([LSP_CONTENT_MODIFIED, LSP_SERVER_CANCELLED]);
 var INDEX_READY_RETRY_BUDGET_MS = readPositiveIntEnv("NORD_LSP_INDEX_RETRY_BUDGET_MS", 5e3);
 var INDEX_COLD_WINDOW_MS = readPositiveIntEnv("NORD_LSP_COLD_WINDOW_MS", 5e3);
 var LspResponseError = class extends Error {
@@ -19667,6 +19669,16 @@ Install with: ${this.serverConfig.installHint}`
         resolve8();
       }).catch(reject);
     });
+  }
+  /**
+   * Pid of the language server this client owns, if it is running.
+   *
+   * Exposed so the daemon can report which processes it is responsible for, and
+   * so a leak probe can count language servers by ownership rather than by
+   * pattern-matching a process list.
+   */
+  get serverPid() {
+    return this.process?.pid;
   }
   /**
    * Synchronously kill the LSP server process.
@@ -19853,6 +19865,10 @@ ${content}`);
    * "Error in goto implementation: content modified", which reads as a dead end
    * and pushes a caller back to grep; re-asking is what it actually calls for.
    *
+   * `ServerCancelled` (-32802) is the same deal from the other side: the server
+   * dropped the request itself and the spec says to re-send. It only became
+   * reachable once clients started outliving a single request — see the constant.
+   *
    * Matching is on the numeric code, never the message: the message is
    * server-chosen prose and may be reworded or localised.
    */
@@ -19861,14 +19877,15 @@ ${content}`);
       try {
         return await this.sendRequestOnce(method, params, timeout);
       } catch (error2) {
-        const isContentModified = error2 instanceof LspResponseError && error2.code === LSP_CONTENT_MODIFIED;
-        if (!isContentModified) {
+        const retryable = error2 instanceof LspResponseError && RETRYABLE_LSP_CODES.has(error2.code);
+        if (!retryable) {
           throw error2;
         }
         if (attempt >= CONTENT_MODIFIED_MAX_ATTEMPTS) {
+          const wasCancelled = error2.code === LSP_SERVER_CANCELLED;
           throw new LspResponseError(
-            LSP_CONTENT_MODIFIED,
-            `the server reported its content kept changing under request '${method}' (LSP ContentModified) on all ${CONTENT_MODIFIED_MAX_ATTEMPTS} attempts. This is normally transient and clears on its own; if the file is being written to continuously, retry once it settles.`
+            error2.code,
+            wasCancelled ? `the server cancelled request '${method}' (LSP ServerCancelled) on all ${CONTENT_MODIFIED_MAX_ATTEMPTS} attempts. This normally happens while a workspace is being loaded and clears once indexing settles.` : `the server reported its content kept changing under request '${method}' (LSP ContentModified) on all ${CONTENT_MODIFIED_MAX_ATTEMPTS} attempts. This is normally transient and clears on its own; if the file is being written to continuously, retry once it settles.`
           );
         }
         await sleep2(CONTENT_MODIFIED_BACKOFF_MS[attempt - 1] ?? 150);
@@ -20280,11 +20297,15 @@ ${content}`;
   async openDocumentWithText(filePath, text3) {
     const hostUri = fileUri(filePath);
     const uri = this.toServerUri(hostUri);
+    if (this.openDocuments.has(hostUri)) {
+      return this.changeDocument(filePath, text3);
+    }
     this.notify("textDocument/didOpen", {
       textDocument: { uri, languageId: this.getLanguageId(filePath), version: 1, text: text3 }
     });
     this.openDocuments.add(hostUri);
     this.documentVersions.set(hostUri, 1);
+    return -1;
   }
   /**
    * Replace the content of an already-open document (full-text didChange).
@@ -20725,6 +20746,21 @@ var LspClientManager = class {
   /** Expose client count for testing */
   get clientCount() {
     return this.clients.size;
+  }
+  /**
+   * Pids of every language server currently pooled.
+   *
+   * The daemon reports these so "did this run leak a language server" can be
+   * answered by ownership instead of by grepping ps for command names, which
+   * cannot tell our servers from an editor's.
+   */
+  getServerPids() {
+    const pids = [];
+    for (const client of this.clients.values()) {
+      const pid = client.serverPid;
+      if (pid !== void 0) pids.push(pid);
+    }
+    return pids;
   }
   /** Trigger idle eviction manually (exposed for testing) */
   triggerEviction() {

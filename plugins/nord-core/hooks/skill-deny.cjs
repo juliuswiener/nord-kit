@@ -1,7 +1,21 @@
 #!/usr/bin/env node
-// PreToolUse(Skill) — hard-block overlapping/grab-bag plugin skills so the model
-// cannot pick them over the canonical nord skill. CC has no settings-level skill
-// deny, so this hook IS the only hard lever (router table is just a soft hint).
+// PreToolUse(Skill) — block overlapping/grab-bag plugin skills so the model does
+// not pick them over the canonical nord skill.
+//
+// This is a SOFT lever, and the previous header claiming otherwise was wrong in
+// two measurable ways (audited 19.08.2026):
+//
+//   - "CC has no settings-level skill deny" — there is one level up: disabling a
+//     whole plugin removes its skills from INJECTION entirely. Measured, by
+//     turning nord-ee and nord-web off. Per-skill control is what does not exist:
+//     `skillOverrides` returns "on" early for source === "plugin".
+//   - "this hook IS the only hard lever" — it fails OPEN on any error (below),
+//     which is not what hard means.
+//
+// And it acts where the cost does not accrue: it blocks the CALL, while the
+// tokens are spent at INJECTION. All 19 claude-mem skills are injected either
+// way; the 15 denied ones cost a wasted turn on top when the model reaches for
+// one and is refused. What this buys is steering, not budget.
 //
 // Fail-OPEN: any parse/IO error -> allow. Never brick the Skill tool.
 //
@@ -26,6 +40,12 @@ const DENY = {
   "oh-my-issues":   "off-topic grab-bag skill",
   "wowerpoint":     "off-topic grab-bag skill",
   "version-bump":   "use the commit skill + manual release",
+  // Added 19.08.2026. The audit reconciled this list against what claude-mem
+  // actually ships: 19 skills, 12 denied, 4 named as deliberately kept in the
+  // header — and these three accounted for by neither. Unused, so denied.
+  "cloud-sync":     "unused; memory sync is not part of this setup",
+  "mode-creator":   "unused; modes are configured directly",
+  "what-the":       "off-topic grab-bag skill",
 };
 
 function allow() { process.exit(0); }   // no output -> tool proceeds

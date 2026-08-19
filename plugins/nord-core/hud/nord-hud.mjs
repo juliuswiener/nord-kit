@@ -121,6 +121,20 @@ if (typeof wk === 'number') parts.push(c(grad(wk), 'wk ' + Math.round(wk) + '%')
 const active = readActiveAgents(s.transcript_path);
 if (active) parts.push(c(212, '▶ ' + active));
 
+// This session is pinned to an older plugin than the one now installed.
+//
+// Claude Code gives no sign when a plugin updates under a running session: the
+// hooks, MCP servers and LSP servers keep the path they resolved at start. On
+// 2026-08-19 a session had been serving an eight-day-old plugin, including a
+// tool that could not work, with nothing anywhere saying so. `/reload-plugins`
+// fixes it in a second — the whole problem was not knowing.
+//
+// nord-router writes this session's pinned version at SessionStart (it is pinned
+// too, so it knows). Both sides are read fresh here, so the hint appears the
+// moment an install happens and disappears the moment the session reloads.
+const stale = readStalePlugin(s.session_id);
+if (stale) parts.push(c(203, '⟳ ' + stale + ' /reload-plugins'));
+
 // active NORD/nord execution mode (best-effort, fresh state files only)
 const mode = readMode(cwd, s.session_id);
 if (mode) parts.push(c(215, '⚙ ' + mode));
@@ -202,6 +216,25 @@ function readMode(cwd, sid) {
   }
   return null;
 }
+// readStalePlugin returns "<pinned>→<installed>" when this session is running an
+// older nord-core than the one installed, and null otherwise.
+//
+// Null on every uncertainty — no marker, no install record, unreadable JSON. A
+// statusline that cries wolf because it could not read a file trains its reader
+// to ignore it, which is worse than showing nothing.
+function readStalePlugin(sid) {
+  if (!sid) return null;
+  try {
+    const pinned = JSON.parse(
+      fs.readFileSync(path.join(cfgDir, 'hud', 'pinned', sid + '.json'), 'utf8'));
+    const installed = JSON.parse(
+      fs.readFileSync(path.join(cfgDir, 'plugins', 'installed_plugins.json'), 'utf8'));
+    const now = installed?.plugins?.['nord-core@nord']?.[0]?.version;
+    if (!pinned.version || !now || pinned.version === now) return null;
+    return pinned.version + '→' + now;
+  } catch { return null; }
+}
+
 function readGoal(cwd) {
   const cands = [
     path.join(cwd, '.nord', 'goal.txt'),

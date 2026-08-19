@@ -29,6 +29,44 @@ try {
   }
 } catch (e) { /* non-fatal */ }
 
+// Record which plugin version THIS session is pinned to.
+//
+// Claude Code resolves ${CLAUDE_PLUGIN_ROOT} once per session and never again:
+// "when a plugin updates mid-session, hook commands, monitors, MCP servers, and
+// LSP servers keep using the previous version's path" (plugins-reference). There
+// is no warning when that happens — a session can run a week-old plugin with no
+// sign at all, and on 2026-08-19 one had been running an eight-day-old one.
+//
+// This hook is itself pinned, so __dirname IS the session's version, and writing
+// it here is the only place that fact is available. nord-hud compares it against
+// what is installed now and says so when they differ.
+try {
+  // Only when stdin is a pipe. SessionStart delivers JSON there and closes it,
+  // but a hand-run hook on a TTY would block until the 5s timeout kills it and
+  // the routing context below would silently never be emitted.
+  if (!process.stdin.isTTY) {
+    const payload = JSON.parse(fs.readFileSync(0, 'utf8') || '{}');
+    const sid = payload.session_id;
+    if (sid && /^[\w.-]+$/.test(sid)) {
+      const cfgDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+      const dir = path.join(cfgDir, 'hud', 'pinned');
+      fs.mkdirSync(dir, { recursive: true });
+      const manifest = JSON.parse(
+        fs.readFileSync(path.join(__dirname, '..', '.claude-plugin', 'plugin.json'), 'utf8'));
+      fs.writeFileSync(path.join(dir, sid + '.json'),
+        JSON.stringify({ version: manifest.version, root: path.resolve(__dirname, '..') }));
+      // One file per session accumulates forever otherwise. A week outlives any
+      // session and matches the grace period Claude Code gives orphaned version
+      // directories, so a marker never outlives the tree it points at.
+      const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      for (const f of fs.readdirSync(dir)) {
+        const p = path.join(dir, f);
+        try { if (fs.statSync(p).mtimeMs < cutoff) fs.unlinkSync(p); } catch {}
+      }
+    }
+  }
+} catch (e) { /* non-fatal — a missing marker just means no staleness hint */ }
+
 let routing = '';
 try {
   routing = fs.readFileSync(path.join(__dirname, '..', 'ROUTING.md'), 'utf8');

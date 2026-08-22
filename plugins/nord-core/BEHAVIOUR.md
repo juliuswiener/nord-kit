@@ -41,6 +41,23 @@ live here instead of per-device `~/.claude/CLAUDE.md`.
   heavy step, not as a global default — `/home` runs near full, and moving all scratch there
   trades a quota failure for a disk-full one.
 
+## Reporting to me
+**I am not as deep in the code as you are.** Write what a thing *does*, not what the
+identifier is called: "the browser interface" beats "the PWA", "a setting that can be
+set from outside" beats "an ambient env var". Translate a term the first time and only
+keep it if it recurs. Drop file paths and line numbers unless I am meant to look there.
+
+When I have to decide something, give me the consequences: what happens if yes, what
+if no, roughly how long. Not the mechanism.
+
+**This is about clarity, not brevity.** One clear paragraph beats three dense lines —
+compressing a report until it needs decoding is the failure this rule exists to stop.
+
+**The line runs between "for me" and "for the code."** Commit messages, code comments,
+agent briefs, backlog and vault entries stay exactly as precise as they are; that
+precision is the job there. Vague commit messages would be a worse outcome than the
+problem this fixes.
+
 ## Build discipline
 The YAGNI ladder in `CLAUDE.md` says what to skip. These say what makes skipping safe —
 without them "fewest lines" is code-golfing. Measured on ponytail's own agentic benchmark

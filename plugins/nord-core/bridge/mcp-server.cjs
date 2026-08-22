@@ -23748,7 +23748,7 @@ function pruneShellJobs(root, maxAgeMs = DEFAULT_MAX_AGE_MS) {
 }
 
 // src/custom/tools/bash-tool.ts
-var DEFAULT_TIMEOUT_MS = 12e4;
+var DEFAULT_TIMEOUT_MS = 3e5;
 var MAX_TIMEOUT_MS = 6e5;
 var MIN_TIMEOUT_MS = 1e3;
 var DEFAULT_MAX_BACKGROUND_JOBS = 5;
@@ -23863,7 +23863,7 @@ var bashTool = {
   },
   schema: {
     command: external_exports.string().describe("The bash command to run."),
-    timeout: external_exports.number().int().describe("Timeout in milliseconds (default 120000, max 600000). On timeout the whole process group is killed and partial output is returned.").optional(),
+    timeout: external_exports.number().int().describe("Timeout in milliseconds (default 300000, max 600000). On timeout the whole process group is killed and partial output is returned.").optional(),
     run_in_background: external_exports.boolean().describe("Run detached and return a bash_id immediately. Poll with BashOutput, stop with KillShell.").optional(),
     cwd: external_exports.string().describe("Directory for this call only. Otherwise the directory persists from the previous call.").optional()
   },

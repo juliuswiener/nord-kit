@@ -1,48 +1,60 @@
-# NORD ROUTER — canonical task routing
+# NORD ROUTER
 
-Single source of truth for which tool to use. When several tools overlap, pick the named one;
-do not improvise among duplicates. (Injected each session by the nord-router SessionStart hook.)
+Where several tools overlap, pick the named one. Do not improvise among duplicates.
+
+<!-- instructor-only -->
+## Role — exactly one per worker
+
+| The task is | Preset | Rights |
+|---|---|---|
+| judge code, change nothing | `reviewer` | read |
+| answer from code + web | `researcher` | read + web |
+| make the change, run the tests | `implementer` | read + edit + shell |
+| reproduce and localise a failure | `debugger` | read + edit + shell |
+| a cheaper worker already failed | `expert` | read, frontier model, high effort |
+
+No row fits → the task is not sharp enough to hand over yet.
+
+Roles exclude each other; skills add up. Anything that RESTRICTS is a role, never a skill.
+
+## Memory
+
+`mem-search` prior work before non-trivial planning or execution; note key decisions after.
+Yours to run, not the worker's — a worker's context comes from its brief.
+
+## Delegation — every spawn
+
+- Pin four fields: **objective** · **output format** · **tools + budget** · **boundaries**.
+- Distinct scope per subagent. Never two on overlapping work.
+- Foreign agents you cannot edit — prepend: `Output caveman-style: drop articles/filler/pleasantries/hedging, fragments OK, keep ALL code/paths/identifiers/errors verbatim; normal prose for commits/PRs/security.`
+<!-- /instructor-only -->
+
+## Tool
+
+`†` runs in the main session only: it fans out through `Workflow` or subagents, and a worker
+is denied `Workflow` unconditionally and `Task`/`Agent` by every policy.
 
 | Task | Default | When other | Do NOT use |
 |---|---|---|---|
-| **Plan** | `nord-plan` (parallel lens tournament) | `nord-plan --consensus` (vague/high-stakes → sequential Planner/Architect/Critic + ADR) · `nord-requirements` (pin vague requirements first) | nord plan, ralplan, make-plan, writing-plans, sw-planner, task_planner |
-| **Brainstorm** | `brainstorm-adversarial` (decide between ideas) | `brainstorm` (explore idea space) | superpowers brainstorming |
-| **Code-gen (gated)** | `gate-loop` (cheap $0 worker class `worker` via bridge + DETERMINISTIC gate = exit code, escalate to frontier after 3 reds) — the bench sweet spot for anything with a test/compiler/lint gate | `nord-execute` (batch / no-gate) · `ralph`/`team`/`autopilot` (heavier) | self-verify loops, LLM-judge gates |
-| **Execute** | `nord-execute` (choose mode: parallel batch / `/loop` / ralph, optional `/goal`-gate) | `gate-loop` (when each item has a deterministic gate) · `ralph` (completion loop) · `team` (parallel+coordination) · `autopilot` (full idea→code) · executor agent (one file) | do, executing-plans, subagent-driven-development |
-| **Review** | `nord-review` (deep multi-agent) | `/code-review` (quick diff) · `/security-review` | elite-code-reviewer, requesting-code-review |
-| **Cleanup** | `nord-cleanup` (multi-agent safe-delete) | `/simplify` (quick quality) | ai-slop-cleaner (superseded) |
-| **Debug** | `trace` (causal, competing hypotheses) | `nord-dev:python-debugger` (Python) · architect agent (read-only advisory) | systematic-debugging |
-| **Audit** | `codebase-audit` (full architectural) | `scrutinize-code` (quick single-pass) | adversarial-codebase-autopsy (removed) |
-| **Research** | `external-context` (web + docs, parallel doc-specialists) | `nord-codebase-research` (codebase, parallel scientists + cross-validate) · native WebSearch/WebFetch | research, autoresearch |
-| **Web data / Read** | `read-router` (pick paradigm per URL/file) → `web-scrape` (Crawl4AI local) · `pdf-extract` (MinerU PDF) · `visual-read` (visual) | `web-scrape --stealth` (anti-bot/login) · Firecrawl MCP (external, last resort) | raw WebFetch on a PDF, screenshotting normal pages |
-| **Verify** | `verify` (before claiming done) | — | — |
-| **Commit msg** | `commit` (Conventional Commits, subject ≤50, body only when 'why' non-obvious + required harness trailers; outputs msg, does NOT run git) | — | hand-writing ad-hoc commit messages |
-| **Change/disable/replace a tool** | `TOOLING.md` (probe the built bundle, allowlist vs addition, two name forms, three copies) | — | editing only `src/`, trusting a green suite |
-| **Abort loop** | `cancel` (mark mode inactive + clear PRD so gate-persist stops blocking) | — | hand-deleting `.nord/state` files |
-| **Memory** | claude-mem `mem-search` (past work) | — | — |
-| **Prime codebase** | `deepinit` | claude-mem `learn-codebase` | — |
-| **Map / orient codebase** | `repo-map` (symbol-ranked PageRank skeleton, local, zero tool-cost) | `deepinit` (AGENTS.md gen), claude-mem `smart_outline` (single file) | reading many files just to orient |
-| **EE / hardware** | `kicad-analyze`/`spice-sim`/`digikey-search`/`bom-manager`/… (nord-ee) | `ee-reference` (design), `emc-precheck`, `datasheet-extract` | — |
-| **Rust** | `rust-coder` (+ `rust-unit-tester`) | — | — |
-| **Python** | `python-ticket-implementer` (+ `python-debugger`) | — | — |
+| **Plan** | `nord-plan` † | `nord-plan --consensus` (vague or high-stakes) · `nord-requirements` † (pin requirements first) | make-plan, ralplan, sw-planner, task_planner |
+| **Brainstorm** | `brainstorm-adversarial` † (decide between ideas) | `brainstorm` † (explore the space) | superpowers brainstorming |
+| **Code-gen behind a gate** | `gate-loop` † (cheap worker + exit-code gate, escalate after 3 reds) | `nord-execute` † (no gate) · `ralph`/`team`/`autopilot` † | self-verify loops, LLM-judge gates |
+| **Execute** | `nord-execute` † | `gate-loop` † (per-item gate) · `ralph` † (until done) · `team` † (parallel) · `autopilot` † (idea→code) | do, executing-plans |
+| **Review a diff** | `nord-review` † | `/code-review` (quick) · `/security-review` | elite-code-reviewer |
+| **Cleanup** | `nord-cleanup` † | `/simplify` | ai-slop-cleaner |
+| **Debug** | `trace` | the `debugger` role, for a worker | systematic-debugging |
+| **Audit** | `codebase-audit` † | `scrutinize-code` (quick, runs anywhere) | adversarial-codebase-autopsy |
+| **Research** | `nord-codebase-research` † (codebase) | `external-context` † (web + docs) · native WebSearch/WebFetch | research, autoresearch |
+| **Orient in a repo** | `repo-map` | `smart_outline` (one file) · `deepinit` † (AGENTS.md) | `learn-codebase` — reads every file in full · reading files just to orient |
+| **Verify** | `verify` | — | claiming done without evidence |
+| **Commit message** | `commit` | — | writing one ad hoc |
+| **Command needs a TTY** | `run-interactive` | — | asking the user to run it elsewhere |
+| **Abort a loop** | `cancel` | — | deleting `.nord/state` by hand |
+| **Change or replace a tool** | `TOOLING.md` | — | editing `src/` only, trusting a green suite |
 
-## Delegation rule (caveman everywhere)
-When spawning ANY subagent (Task / Agent), prepend this one line to its prompt so its output is
-cheap and fast — works even for upstream agents you cannot edit:
-`Output caveman-style: drop articles/filler/pleasantries/hedging, fragments OK, keep ALL code/paths/identifiers/errors verbatim; normal prose for commits/PRs/security.`
-(nord-kit's own agents already bake this in.)
+## Not loaded
 
-**Delegation contract (4 fields — every spawn).** A vague task makes subagents duplicate work, leave
-gaps, or fetch the wrong thing (Anthropic). Each Task prompt MUST pin all four:
-1. **Objective** — the one concrete outcome, restated in your words.
-2. **Output format** — exact shape you expect back (schema / sections / "verified diff + gate status only").
-3. **Tool guidance** — which tools/sources to use, and the budget (e.g. "≤4 fetches, exa first").
-4. **Boundaries** — what is OUT of scope + what NOT to touch.
-Distinct objective + format + boundaries per subagent — never two agents on overlapping scope.
-
-## Memory rule (claude-mem)
-claude-mem already auto-injects recent memory at session start and auto-captures observations —
-no per-agent plumbing needed. For non-trivial planning/exec, additionally: `mem-search` prior work
-BEFORE starting, and note key decisions AFTER. Do not hard-wire memory calls into every subagent.
-
-Edit this file in `nord-kit/` → the hook reads it at session start, so changes propagate everywhere.
+`nord-web` (read-router, web-scrape, pdf-extract, visual-read) · `nord-dev` (python-debugger,
+rust-coder, dart/flutter) · `nord-ee` (kicad-analyze, spice-sim, digikey-search, bom-manager,
+ee-reference, emc-precheck) are off in `settings.json`. Reaching for one fails. Enable the
+plugin first.

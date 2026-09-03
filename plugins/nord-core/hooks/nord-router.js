@@ -72,6 +72,21 @@ try {
   routing = fs.readFileSync(path.join(__dirname, '..', 'ROUTING.md'), 'utf8');
 } catch (e) { /* fall through to inline */ }
 
+// Sections only the instructor can act on — picking an orch preset needs
+// spawn_worker, and orch registers that tool only when ORCH_CAN_SPAWN is set,
+// which is RoleMain and never a worker (router/permissions.go: "Only the
+// instructor may spawn workers; gate the tool by capability"). A plain Claude
+// Code session has no spawn_worker at all, so it is correctly excluded too.
+//
+// This is the same failure the table's own dagger marks one layer down: text
+// naming a capability the reader does not have is worse than no text, because
+// the reader acts on it and cannot learn why it failed.
+if (!process.env.ORCH_CAN_SPAWN) {
+  routing = routing.replace(/<!-- instructor-only -->[\s\S]*?<!-- \/instructor-only -->\n?/g, '');
+}
+// The markers themselves never reach the model, in either branch.
+routing = routing.replace(/^<!-- \/?instructor-only -->\n?/gm, '');
+
 // Compact inline fallback if ROUTING.md is missing.
 if (!routing.trim()) {
   routing = [
@@ -82,21 +97,20 @@ if (!routing.trim()) {
     'EXECUTE: batch/no-gate->nord-execute | gated items->gate-loop | completion->ralph | parallel->team | full idea->code->autopilot | one file->executor.',
     'REVIEW: deep->nord-review | quick->/code-review | security->/security-review.',
     'CLEANUP: multi-agent->nord-cleanup | quick->/simplify.',
-    'DEBUG: causal->trace | python->nord-dev:python-debugger.',
+    'DEBUG: causal->trace.',
     'AUDIT: full->codebase-audit | quick->scrutinize-code.',
-    'RESEARCH: web+docs->external-context | codebase->nord-codebase-research | fallback->native WebSearch.',
-    'WEB-DATA/READ: read-router picks paradigm | normal page->web-scrape (Crawl4AI local) | anti-bot->web-scrape --stealth | PDF/doc->pdf-extract (MinerU) | visual/charts->visual-read. Sensitive=local only.',
-    'VERIFY->verify. MEMORY->claude-mem mem-search. PRIME->deepinit.',
-    'EE->kicad-analyze/spice-sim/digikey-search/bom-manager (nord-ee). RUST->rust-coder. PYTHON->python-ticket-implementer.',
+    'RESEARCH: codebase->nord-codebase-research | web+docs->external-context | fallback->native WebSearch/WebFetch.',
+    'VERIFY->verify. MEMORY->claude-mem mem-search. ORIENT->repo-map. TTY->run-interactive.',
+    'NOT loaded: nord-web, nord-dev, nord-ee are off in settings.json — do not reach for their tools.',
   ].join('\n');
 }
 
-// Global behaviour rules (synced via nord-core).
-let behaviour = '';
-try { behaviour = fs.readFileSync(path.join(__dirname, '..', 'BEHAVIOUR.md'), 'utf8'); } catch (e) {}
+// BEHAVIOUR.md used to be read here and prepended. It was retired in 8fa5a860:
+// its rules live in ~/.claude/CLAUDE.md, which Claude Code reads natively, needs
+// no hook, and is not subject to the ~10 KB truncation that applies to hook
+// output — the limit that had been silently discarding most of that file.
 
 let out = '';
-if (behaviour.trim()) out += behaviour.trim() + '\n\n';
 out += 'NORD ROUTER ACTIVE — follow this canonical tool routing (overrides ad-hoc choice among overlapping skills):\n\n' + routing;
 process.stdout.write(out);
 process.exit(0);

@@ -2,8 +2,13 @@
 
 How to touch the tool surface without silently breaking it. NOT injected per session — this is
 a rare activity and does not belong in every context window; ROUTING.md carries the pointer.
-Edit here in nord-core → copy to the nord-kit payload → the cache, or the running copy is stale
-(same three-copy rule as WORKERS.md).
+Edit here in the nord-kit payload → copy to the cache, or the running copy is stale.
+
+There used to be a third copy, a nord-core development repo that was edited first. It was
+retired on 2026-09-03: the two trees had drifted in both directions (22 agents against the
+13 that shipped; two agents shipped in 1.33.0 that nord-core never had), and three edits in
+one session were committed there and reached nobody. nord-kit is the only tree that is
+edited now.
 
 Every rule below is here because it already failed once, and each carries the measurement.
 
@@ -113,10 +118,10 @@ were unreachable. Nobody noticed for three releases. The probe finds it in under
    pre-existing failures.
 5. `node scripts/build-mcp-server.mjs`.
 6. `npm run mcp:smoke` — diff against step 1. An unexplained count change is the finding.
-7. Copy the changed shipped files into the nord-kit payload; bump `plugin.json` **and**
-   `marketplace.json` in the same commit.
-8. Commit and push **nord-kit only** — nord-core's only remote is `upstream`
-   (Yeachan-Heo/oh-my-claudecode) and is not where this ships.
+7. Bump `plugin.json` **and** `marketplace.json` in the same commit. They are separate files
+   and a release with only one of them bumped installs the old version under the new number.
+8. Commit and push. The marketplace resolves `nord-core` to `./plugins/nord-core` inside
+   this repository, so this push is what ships.
 9. Copy to a new versioned cache dir; point `installed_plugins.json` at it. Keep the previous dir
    until every running session has restarted.
 10. `npm run mcp:smoke -- --bundle <cache>/bridge/mcp-server.cjs` — the cache copy is what runs.

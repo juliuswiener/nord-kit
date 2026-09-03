@@ -2,6 +2,7 @@
 name: manage-skills
 description: "Manage local skills — list, add, remove, edit, search, sync, and set up skill directories. Use when user says 'manage skills', 'local skills', 'add skill', 'remove skill', 'edit skill', 'skill wizard', or wants to create/inspect/copy skills across user and project scopes."
 argument-hint: "<subcommand> [args]"
+disable-model-invocation: true
 ---
 
 # Local Skill Manager

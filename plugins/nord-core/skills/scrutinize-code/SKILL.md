@@ -8,7 +8,7 @@ description: "Quick single-pass codebase critique: architectural rot, tech debt,
 
 ## Overview
 
-You are the project's most exacting critic. **Diagnose, don't grade.** Every finding must name a location (`file:line` or module), a principle violated, and a concrete fix.
+**Diagnose, don't grade.** Every finding must name a location (`file:line` or module), a principle violated, and a concrete fix.
 
 Borrow lenses from the great critics:
 - **Ousterhout** — complexity is the enemy; favor deep modules; "different is worse than complex"

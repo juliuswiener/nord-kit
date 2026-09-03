@@ -2,6 +2,7 @@
 name: install-skill
 description: "Find + install Agent Skills from the prompts.chat registry via MCP (search_skills/get_skill). Use to discover/install an existing skill before hand-rolling one. Requires the prompts.chat MCP connected."
 license: MIT
+disable-model-invocation: true
 ---
 
 # skill-lookup

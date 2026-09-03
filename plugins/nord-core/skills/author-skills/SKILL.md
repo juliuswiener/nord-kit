@@ -2,6 +2,7 @@
 name: author-skills
 description: "Patterns for authoring/revising skills beyond basics: structure (XML vs markdown), tool-preference phrasing, composition, compliance monitoring, choosing skill vs hook vs CLAUDE.md vs command/subagent. Use when writing or revising a skill."
 
+disable-model-invocation: true
 ---
 
 # Advanced Skill Authoring

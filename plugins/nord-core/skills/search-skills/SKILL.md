@@ -2,6 +2,7 @@
 name: search-skills
 description: "Discover and install agent skills. Use when user asks 'how do I do X', 'find a skill for X', 'is there a skill that...', or wants to extend capabilities."
 
+disable-model-invocation: true
 ---
 
 # Find Skills

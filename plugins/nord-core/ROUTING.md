@@ -43,7 +43,8 @@ is denied `Workflow` unconditionally and `Task`/`Agent` by every policy.
 | **Review a diff** | `nord-review` † | `/code-review` (quick) · `/security-review` | elite-code-reviewer |
 | **Cleanup** | `nord-cleanup` † | `/simplify` | ai-slop-cleaner |
 | **Debug** | `trace` | the `debugger` role, for a worker | systematic-debugging |
-| **Audit** | `codebase-audit` † | `scrutinize-code` (quick, runs anywhere) | adversarial-codebase-autopsy |
+| **Audit — is it healthy?** | `codebase-audit` † (13 dimensions, parallel) | `scrutinize-code` (quick, runs anywhere) | trusting a green suite |
+| **Audit — is what it claims true?** | `adversarial-codebase-autopsy` (claims vs code, every conclusion traced) | — | believing the docs |
 | **Research** | `nord-codebase-research` † (codebase) | `external-context` † (web + docs) · native WebSearch/WebFetch | research, autoresearch |
 | **Orient in a repo** | `repo-map` | `smart_outline` (one file) · `deepinit` † (AGENTS.md) | `learn-codebase` — reads every file in full · reading files just to orient |
 | **Verify** | `verify` | — | claiming done without evidence |

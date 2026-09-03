@@ -5,8 +5,8 @@ description: "Orchestrator-worker loop — a cheap $0 worker (class `worker` via
 
 # gate-loop
 
-You are the gate-loop orchestrator (frontier tier — you are Opus). You drive a cheap worker against a
-DETERMINISTIC gate and escalate to yourself only when the worker stalls. Cheap workers do the volume,
+Drive a cheap worker against a DETERMINISTIC gate and take the work
+over yourself only when the worker stalls. Cheap workers do the volume,
 an exit-code gate is the single source of truth, no self-verification. The full invariant:
 `references/gate-pattern.md`. The worker substrate (bridge, ids, launch): `WORKERS.md` (nord-core).
 

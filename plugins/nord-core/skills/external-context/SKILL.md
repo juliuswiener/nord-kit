@@ -1,6 +1,6 @@
 ---
 name: external-context
-description: Invoke parallel researcher agents for external web searches and documentation lookup
+description: Fetches external documentation, references and current behaviour for a question, decomposing it into 2-5 parallel lookups. Use when an answer depends on a library's docs, an API's current shape, a spec or a standard rather than on this codebase, when the user asks to look something up, research a library, check the docs, or find out how an external tool works. For questions about this repository use nord-codebase-research.
 argument-hint: <search query or topic>
 level: 4
 ---

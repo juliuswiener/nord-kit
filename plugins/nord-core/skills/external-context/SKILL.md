@@ -1,6 +1,6 @@
 ---
 name: external-context
-description: Invoke parallel document-specialist agents for external web searches and documentation lookup
+description: Invoke parallel researcher agents for external web searches and documentation lookup
 argument-hint: <search query or topic>
 level: 4
 ---
@@ -61,7 +61,7 @@ Each facet agent runs a two-stage protocol. The split is load-bearing: a special
 Fire independent facets in parallel via Task:
 
 ```
-Task(subagent_type="nord-core:document-specialist", model="sonnet", prompt="FACET: <facet description>.
+Task(subagent_type="nord-core:researcher", model="sonnet", prompt="FACET: <facet description>.
 STAGE 1 FIND: run 2-4 real WebSearch / web_search_exa queries; collect >=5 candidate URLs (prefer official docs, primary sources, arXiv, 2024-2026).
 STAGE 2 FETCH: WebFetch the 3-5 highest-value URLs. For EVERY source you cite you MUST include a verbatimQuote — one sentence copied EXACTLY from the fetched page (proof the fetch happened). If a URL fails, mark it and pick another. Answering from memory without fetched quotes = FAILURE.
 Return: findings + sources[{url, verbatimQuote, supports}]. Tag each numeric/claim explicit|derived per BEHAVIOUR.md.")

@@ -14,7 +14,7 @@ INPUT: `$ARGUMENTS` — `<goal>  [gate: <command>]`
 
 ## 0. Preflight + setup
 
-**Preflight (MUST pass before any worker spawn)** — the cheap `gate-worker` (`model: worker`)
+**Preflight (MUST pass before any worker spawn)** — the cheap `implementer` (`model: worker`)
 only routes to the $0 opencode-zen coder when CC is launched through the bridge:
 ```sh
 test "${ANTHROPIC_BASE_URL%/}" = "http://127.0.0.1:8318" \
@@ -42,7 +42,7 @@ feedback itself). Skip only for greenfield/feature goals that already have a gat
 
 Repeat until the gate is green or you hit an escalation/stop condition:
 
-1. SPAWN a `gate-worker` subagent (Task tool) with: the goal, the exact gate command, the FULL output
+1. SPAWN an `implementer` subagent (Task tool) with: the goal, the exact gate command, the FULL output
    of the latest failing gate run, AND the reflection buffer (below). One increment per spawn.
 2. RUN the gate command yourself via Bash. Capture exit code + output. The gate is the ONLY verdict —
    ignore the worker's self-check claim.
@@ -138,7 +138,7 @@ tests), not a single test. Then write the state file:
 
 ### 1. Drive
 - **ralph / autopilot (sequential):** for each `passes:false` story, run the §1 single-story loop
-  (gate-worker → run its gate → escalate to frontier after 3 reds). On exit 0 set `passes:true` + reset
+  (implementer → run its gate → escalate to frontier after 3 reds). On exit 0 set `passes:true` + reset
   `redCount:0` + `stallCount:0`; on red `redCount++`, set `lastFail`, and update the progress-ledger:
   compute `failSig` from the gate output — if it equals the prior `failSig`, `stallCount++` (stuck);
   else `stallCount=0` + store the new `failSig` (progress, keep going). **Never write `iteration` — the hook does.**

@@ -74,7 +74,7 @@ Interview threshold: <resolvedThresholdPercent> (source: <resolvedThresholdSourc
 
 1. **Parse** the user's idea from `{{ARGUMENTS}}`.
 2. **Detect brownfield vs greenfield**:
-   - Spawn `Agent({ subagent_type: "nord-core:explore", model: "haiku" })` — check if cwd has existing source files, package manifests, or git history.
+   - Spawn `Agent({ subagent_type: "nord-core:researcher", model: "haiku" })` — check if cwd has existing source files, package manifests, or git history.
    - Brownfield: source files exist AND user's idea references modifying/extending something.
    - Otherwise: greenfield.
 3. **For brownfield only — explore BEFORE asking user anything about the codebase**:

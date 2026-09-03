@@ -350,6 +350,7 @@ Findings should name the module/file and the specific structural problem, not va
 `
 
 const LANE_CODE_QUALITY = (vitals) => `${BASE_CONTEXT(vitals)}
+Load the `review-lenses` skill first — it carries the checklists and the severity rules this lane is judged on.
 ## Lane: Code Quality & Smells
 
 Investigate:
@@ -366,6 +367,7 @@ Skip pure style issues a formatter handles. Focus on structural and semantic sme
 `
 
 const LANE_TEST_HEALTH = (vitals) => `${BASE_CONTEXT(vitals)}
+Load the `test-strategy` skill first — it carries the checklists and the severity rules this lane is judged on.
 ## Lane: Test Health
 
 Investigate:
@@ -401,6 +403,7 @@ If a dep tool isn't installed, attempt installation via the project's package ma
 `
 
 const LANE_SECURITY = (vitals) => `${BASE_CONTEXT(vitals)}
+Load the `security-checklist` skill first — it carries the checklists and the severity rules this lane is judged on.
 ## Lane: Security
 
 Investigate:
@@ -647,19 +650,19 @@ Investigate:
 // ─── Lane registry ─────────────────────────────────────────────────────────────
 
 const CORE_LANES = [
-  { key: 'architecture', label: 'Architecture & Module Boundaries', prompt: LANE_ARCHITECTURE, agentType: 'nord-core:architect' },
-  { key: 'code-quality', label: 'Code Quality & Smells', prompt: LANE_CODE_QUALITY, agentType: 'nord-core:code-reviewer' },
-  { key: 'tests', label: 'Test Health', prompt: LANE_TEST_HEALTH, agentType: 'nord-core:test-engineer' },
+  { key: 'architecture', label: 'Architecture & Module Boundaries', prompt: LANE_ARCHITECTURE, agentType: 'nord-core:expert' },
+  { key: 'code-quality', label: 'Code Quality & Smells', prompt: LANE_CODE_QUALITY, agentType: 'nord-core:reviewer' },
+  { key: 'tests', label: 'Test Health', prompt: LANE_TEST_HEALTH, agentType: 'nord-core:reviewer' },
   { key: 'deps', label: 'Dependencies & Supply Chain', prompt: LANE_DEPENDENCIES },
-  { key: 'security', label: 'Security', prompt: LANE_SECURITY, agentType: 'nord-core:security-reviewer' },
+  { key: 'security', label: 'Security', prompt: LANE_SECURITY, agentType: 'nord-core:reviewer' },
   { key: 'perf', label: 'Performance & Scalability', prompt: LANE_PERFORMANCE },
   { key: 'obs', label: 'Observability & Operations', prompt: LANE_OBSERVABILITY },
   { key: 'cicd', label: 'Build, CI/CD & Release', prompt: LANE_CICD },
   { key: 'api', label: 'API & Contract Design', prompt: LANE_API },
   { key: 'data', label: 'Data & Schema', prompt: LANE_DATA },
-  { key: 'docs', label: 'Documentation & Onboarding', prompt: LANE_DOCS, agentType: 'nord-core:document-specialist' },
+  { key: 'docs', label: 'Documentation & Onboarding', prompt: LANE_DOCS, agentType: 'nord-core:researcher' },
   { key: 'config', label: 'Configuration, Secrets & Resilience', prompt: LANE_CONFIG },
-  { key: 'drift', label: 'Stated vs Actual Drift', prompt: LANE_DRIFT, agentType: 'nord-core:architect' },
+  { key: 'drift', label: 'Stated vs Actual Drift', prompt: LANE_DRIFT, agentType: 'nord-core:expert' },
 ]
 
 const CONDITIONAL_LANES = {
@@ -863,7 +866,7 @@ const laneResults = await pipeline(
               label: `verify:${lane.key}:${f.id}:${i}`,
               phase: 'Verify',
               schema: VERDICT,
-              agentType: 'nord-core:verifier',
+              agentType: 'nord-core:reviewer',
             }).then(v => ({ findingId: f.id, verdict: v }))
           )
         )
@@ -881,7 +884,7 @@ const laneResults = await pipeline(
       label: `verify:${lane.key}`,
       phase: 'Verify',
       schema: VERDICT_BATCH,
-      agentType: 'nord-core:verifier',
+      agentType: 'nord-core:reviewer',
     })
     const byId = new Map((batch?.verdicts ?? []).map(v => [v.findingId, v]))
     const surviving = toVerify.filter(f => {

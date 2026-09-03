@@ -20,7 +20,7 @@ The audit surfaces *what will hurt*, not *what could be prettier*. Findings have
 | Review a single PR or diff | `/code-review` or `/review` |
 | Verify a specific fix works | `/verify` |
 | Find a bug or trace a failure | `superpowers:systematic-debugging` |
-| Security-only deep dive | `nord-core:security-reviewer` directly |
+| Security-only deep dive | `nord-core:reviewer` directly |
 | **Pre-release / pre-handover / due-diligence / quarterly health** | **this skill** |
 
 ## Running it
@@ -98,7 +98,7 @@ Phase 3: ADVERSARIAL VERIFICATION (3 agents per high-severity finding, concurren
   ├─ Each verifier prompted to REFUTE the finding
   ├─ ≥2/3 refute → finding dropped
   ├─ Reduces false positives from pattern-matching lanes
-  └─ Lane 5 (Security) HIGH/CRITICAL findings: use `nord-core:security-reviewer` subagent type for cross-validation — security-domain prompt, not a generic skeptic
+  └─ Lane 5 (Security) HIGH/CRITICAL findings: use `nord-core:reviewer` subagent type for cross-validation — security-domain prompt, not a generic skeptic
 
 Phase 4: BLAST RADIUS (1 agent, concurrent with Phase 2)
   └─ 90-day churn heatmap, hotspot overlap with low-coverage modules
@@ -115,16 +115,16 @@ Phase 5: SYNTHESIS (1 agent, blocking after 2+3+4)
 | # | Lane | Specialist agent | Primary scope |
 |---|------|------------------|---------------|
 | 1 | Architecture & Module Boundaries | `architect` | Coupling, cycles, layering violations, stated-vs-actual structure |
-| 2 | Code Quality & Smells | `code-reviewer` | Complexity hotspots, duplication, dead code, god classes, TODO age |
+| 2 | Code Quality & Smells | `reviewer` + `review-lenses` | Complexity hotspots, duplication, dead code, god classes, TODO age |
 | 3 | Test Health | `test-engineer` | Coverage by tier, flakiness, isolation, mock drift, untested critical paths |
 | 4 | Dependencies & Supply Chain | (general) | Versions, CVEs, licenses, abandoned packages, lockfile drift |
-| 5 | Security | `security-reviewer` | Secrets (current + git history), OWASP A01–A10 full coverage, crypto, authn/authz centralization, dependency audit (npm/pip/cargo/govulncheck); findings prioritized by severity × exploitability × blast-radius |
+| 5 | Security | `reviewer` + `security-checklist` | Secrets (current + git history), OWASP A01–A10 full coverage, crypto, authn/authz centralization, dependency audit (npm/pip/cargo/govulncheck); findings prioritized by severity × exploitability × blast-radius |
 | 6 | Performance & Scalability | (general) | Algorithmic hotspots, N+1, sync I/O, index coverage, bundle size |
 | 7 | Observability & Operations | (general) | Logging coverage, metrics, tracing, health checks, idempotency |
 | 8 | Build, CI/CD & Release | (general) | Pipeline correctness, reproducibility, deploy, rollback, FF hygiene |
 | 9 | API & Contract Design | (general) | Versioning, consistency, OpenAPI coverage, error response shape |
 | 10 | Data & Schema | (general) | Migration safety, constraints, PII, retention, event versioning |
-| 11 | Documentation & Onboarding | `document-specialist` | README, ADRs, runbooks, comment quality, tribal-knowledge files |
+| 11 | Documentation & Onboarding | `researcher` | README, ADRs, runbooks, comment quality, tribal-knowledge files |
 | 12 | Configuration, Secrets & Resilience | (general) | Config validation, secret mgmt, timeouts, circuit breakers, degradation |
 | 13 | **Stated vs Actual Drift** | `architect` | **Claims in docs vs reality in code** — architecture drift, quality-bar drift, API/schema drift, stalled migrations, doc rot, compliance-claim drift |
 
@@ -286,10 +286,10 @@ After major remediation, re-run the workflow. Track findings closed quarter-over
 
 ## When NOT to use this skill
 
-- **Single-PR review** — use `/code-review` or `nord-core:code-reviewer`
+- **Single-PR review** — use `/code-review` or `nord-core:reviewer`
 - **Quick critique with one output file** — use `scrutinize-code`
 - **Debugging a specific bug** — use `superpowers:systematic-debugging`
-- **You want a security scan only** — invoke `nord-core:security-reviewer` directly, skip the orchestration
+- **You want a security scan only** — invoke `nord-core:reviewer` directly, skip the orchestration
 - **Codebase under ~5k LOC** — overhead exceeds value; a single careful pass is faster
 - **No git history available** — Phase 1 (Vital Signs) and Phase 4 (Blast Radius) become near-useless; consider skipping or using a lighter critique
 - **The user wants automated cleanup** — this skill is read-only; remediation is a separate workflow with human-in-the-loop triage
@@ -300,4 +300,4 @@ After major remediation, re-run the workflow. Track findings closed quarter-over
 - `scrutinize-code` — lighter alternative
 - `superpowers:dispatching-parallel-agents` — meta-skill for parallel work
 - `nord-core:team` — alternative orchestration (process-based, not workflow-based)
-- `nord-core:security-reviewer`, `test-engineer`, `architect`, etc. — the underlying specialist agents this skill orchestrates
+- `nord-core:reviewer`, `nord-core:researcher`, `nord-core:expert` — the underlying role agents this skill orchestrates

@@ -1,8 +1,8 @@
 ---
 name: trace
-description: Evidence-driven tracing lane that orchestrates competing tracer hypotheses in Claude built-in team mode
+description: Evidence-driven tracing lane that orchestrates competing debugger hypotheses in Claude built-in team mode
 argument-hint: "<observation to trace>"
-agent: tracer
+agent: debugger
 level: 2
 ---
 
@@ -10,7 +10,7 @@ level: 2
 
 Use this skill for ambiguous, causal, evidence-heavy questions where the goal is to explain **why** an observed result happened, not to jump directly into fixing or rewriting code.
 
-This is the orchestration layer on top of the built-in `tracer` agent. The goal is to make tracing feel like a reusable NORD operating lane: restate the observation, generate competing explanations, gather evidence in parallel, rank the explanations, and propose the next probe that would collapse uncertainty fastest.
+This is the orchestration layer on top of the `debugger` agent. The goal is to make tracing feel like a reusable NORD operating lane: restate the observation, generate competing explanations, gather evidence in parallel, rank the explanations, and propose the next probe that would collapse uncertainty fastest.
 
 ## Good entry cases
 
@@ -124,7 +124,7 @@ These lenses are not filler. Use them when they can surface a missed explanation
 
 ## Worker contract
 
-Each worker should be a **`tracer`** lane owner, not a generic executor.
+Each worker should be a **`debugger`** lane owner, not a generic implementer.
 
 Each worker must:
 

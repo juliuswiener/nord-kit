@@ -85,7 +85,7 @@ This creates a navigable hierarchy:
 ### Step 1: Map Directory Structure
 
 ```
-Task(subagent_type="explore", model="haiku",
+Task(subagent_type="nord-core:researcher", model="haiku",
   prompt="List all directories recursively. Exclude: node_modules, .git, dist, build, __pycache__, .venv, coverage, .next, .nuxt")
 ```
 
@@ -151,7 +151,7 @@ grep -r "<!-- Parent:" --include="AGENTS.md" .
 
 | Task | Agent |
 |------|-------|
-| Directory mapping | `explore` |
+| Directory mapping | `researcher` |
 | File analysis | `architect` |
 | Content generation | `writer` |
 | AGENTS.md writes | `writer` |

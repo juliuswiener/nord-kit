@@ -67,8 +67,9 @@ const PLAN_SCHEMA = { type:'object', properties:{
 const SCORE_SCHEMA = { type:'object', properties:{
   onTask:{type:'boolean', description:'true ONLY if the plan addresses the requested task, not some other repo concern'},
   onTaskReason:{type:'string'},
-  score:{type:'number', description:'0-10 quality, ASSUMING on-task'} },
-  required:['onTask','onTaskReason','score'] }
+  score:{type:'number', description:'0-10 quality, ASSUMING on-task'},
+  complexityFit:{type:'number', description:'0-10: is this the right AMOUNT of machinery for this problem? 10 = as simple as the task allows. 5 = carries structure nobody asked for. 0 = over- or under-engineered enough to be the wrong plan.'} },
+  required:['onTask','onTaskReason','score','complexityFit'] }
 
 const drafts = await parallel(LENSES.map(l => () =>
   agent(`TASK: ${task}\n\nFIRST: restate the task in one sentence (taskRestatement) and list 2-3 outOfScope items. THEN draft an implementation plan.\nLens: ${l.key} — ${l.prompt}\n${GUARD}\nGround steps in the actual codebase, but stay on the task.`,
@@ -77,9 +78,9 @@ const drafts = await parallel(LENSES.map(l => () =>
 const valid = drafts.filter(Boolean).filter(d => d.plan)
 
 const scored = await parallel(valid.map(d => () =>
-  agent(`TASK (the ONLY thing that counts as on-task): ${task}\n\nStep 1 — BINARY GATE: does this plan address THE TASK above, or did it drift onto a different repo concern (a dirty-tree change, a recently-touched file, a salient artifact)? Set onTask=false if it addresses anything other than the task. An off-task plan is worthless no matter how good.\nStep 2 — only if on-task, score quality 0-10.\nPlan (${d.lens}): restatement="${d.plan.taskRestatement}" | ${JSON.stringify(d.plan)}`,
+  agent(`TASK (the ONLY thing that counts as on-task): ${task}\n\nStep 1 — BINARY GATE: does this plan address THE TASK above, or did it drift onto a different repo concern (a dirty-tree change, a recently-touched file, a salient artifact)? Set onTask=false if it addresses anything other than the task. An off-task plan is worthless no matter how good.\nStep 2 — only if on-task, score quality 0-10.\nStep 3 — score complexityFit 0-10: is this the right AMOUNT of machinery for THIS problem, or does it build for a scale, a generality or a failure mode nobody asked for? Ask what a version reaching 90% of the value at 10% of the complexity would look like, and score against THAT, not against an ideal system.\nPlan (${d.lens}): restatement="${d.plan.taskRestatement}" | ${JSON.stringify(d.plan)}`,
         { label:`judge:${d.lens}`, phase:'Judge', schema:SCORE_SCHEMA })
-    .then(s => ({ ...d, onTask:!!(s&&s.onTask), score:(s&&s.score)||0, eff:(s&&s.onTask)?((s&&s.score)||0):0, review:s }))))
+    .then(s => ({ ...d, onTask:!!(s&&s.onTask), score:(s&&s.score)||0, fit:(s&&s.complexityFit), eff:(s&&s.onTask)?((s&&s.score)||0):0, review:s }))))
 
 scored.sort((a,b) => b.eff - a.eff)
 const winner = scored[0]
@@ -87,9 +88,9 @@ if (!winner || winner.eff === 0) {
   return { error: 'all drafts off-task or zero — task likely too narrow for nord-plan; use ralplan or author directly', ranked: scored.map(s => ({ lens:s.lens, onTask:s.onTask, score:s.score, reason:s.review&&s.review.onTaskReason })) }
 }
 const onTaskPlans = scored.filter(s => s.onTask)
-const final = await agent(`Synthesize ONE final implementation plan for THIS TASK: ${task}\n\nGUARD: the final plan MUST address the task above. Before writing, confirm the winning plan matches the task heading — if it drifted, correct it to address the actual task, do NOT carry the drift forward.\nBase it on the winning "${winner.lens}" plan, grafting the best ideas from the other ON-TASK approaches. Note key tradeoffs. Mark it pending approval.\nWinner: ${JSON.stringify(winner.plan)}\nOther on-task plans: ${JSON.stringify(onTaskPlans.slice(1).map(s => ({ lens:s.lens, score:s.score, plan:s.plan })))}`,
+const final = await agent(`Synthesize ONE final implementation plan for THIS TASK: ${task}\n\nGUARD: the final plan MUST address the task above. Before writing, confirm the winning plan matches the task heading — if it drifted, correct it to address the actual task, do NOT carry the drift forward.\nBase it on the winning "${winner.lens}" plan, grafting from the other ON-TASK approaches ONLY what earns its complexity.\nGrafting only ever ADDS, so it needs a brake: for each idea you carry over, name what it buys. An idea that merely sounds thorough — a layer, a config knob, an abstraction for one caller, a failure mode nobody named — is left behind, and the final plan may be SIMPLER than the winner. The judges scored complexityFit for exactly this: the winner was chosen on quality, and a high score there does not mean the plan was the right size.\nNote key tradeoffs. Mark it pending approval.\nWinner (complexityFit ${winner.fit}): ${JSON.stringify(winner.plan)}\nOther on-task plans: ${JSON.stringify(onTaskPlans.slice(1).map(s => ({ lens:s.lens, score:s.score, complexityFit:s.fit, plan:s.plan })))}`,
       { label:'synthesize', phase:'Synthesize', schema:PLAN_SCHEMA })
-return { winningLens: winner.lens, ranked: scored.map(s => ({ lens:s.lens, onTask:s.onTask, score:s.score, eff:s.eff })), plan: final }
+return { winningLens: winner.lens, ranked: scored.map(s => ({ lens:s.lens, onTask:s.onTask, score:s.score, complexityFit:s.fit, eff:s.eff })), plan: final }
 ```
 
 ## --consensus / --deliberate → `references/consensus-mode.md`

@@ -36,7 +36,7 @@ is denied `Workflow` unconditionally and `Task`/`Agent` by every policy.
 
 | Task | Default | When other | Do NOT use |
 |---|---|---|---|
-| **Plan** | `nord-plan` † | `nord-plan --consensus` (vague or high-stakes) · `nord-requirements` † (pin requirements first) | make-plan, ralplan, sw-planner, task_planner |
+| **Plan** | `nord-plan` † | `nord-plan --consensus` (vague or high-stakes) · `nord-requirements` † (pin requirements first) | make-plan, ralplan |
 | **Brainstorm** | `brainstorm-adversarial` † (decide between ideas) | `brainstorm` † (explore the space) | superpowers brainstorming |
 | **Code-gen behind a gate** | `gate-loop` † (cheap worker + exit-code gate, escalate after 3 reds) | `nord-execute` † (no gate) · `ralph`/`team`/`autopilot` † | self-verify loops, LLM-judge gates |
 | **Execute** | `nord-execute` † | `gate-loop` † (per-item gate) · `ralph` † (until done) · `team` † (parallel) · `autopilot` † (idea→code) | do, executing-plans |

@@ -28,7 +28,7 @@ If the user names both a URL and source, do both: tool-gate + tiles from the URL
 ## Pre-pipeline: deterministic tool gate (mandatory when a page can be rendered)
 
 Machine-checkable a11y failures are FACTS, not opinions — run the tool and let its output decide, exactly
-like codebase-audit's tool gate. Two tiers, both in `references/tooling.md`:
+like codebase-audit's tool gate. Two tiers, both in `lens-a11y/tooling.md`:
 
 - **Tier 1 — static rule scan** (axe-core default, else pa11y / Lighthouse a11y / measured contrast).
   Catches ~30–40%: contrast, missing alt/label, invalid ARIA, no `lang`, target size.
@@ -44,7 +44,7 @@ like codebase-audit's tool gate. Two tiers, both in `references/tooling.md`:
   lens findings stay `toolVerified:false`. Absence of a run is NOT a pass.
 
 The exhaustive WCAG 2.2 A/AA success-criteria checklist + BITV 2.0 / EN 301 549 mapping + Leichte-Sprache
-criteria live in `references/wcag-bitv-checklist.md` — the lens agents read it; you don't restate it here.
+criteria live in `lens-a11y/wcag-bitv-checklist.md` — the lens agents read it; you don't restate it here.
 
 ```javascript
 export const meta = {
@@ -58,7 +58,7 @@ export const meta = {
 const target = (args && args.target) || 'the page/source described in the conversation'
 const toolFindings = (args && args.toolFindings) || 'none supplied (tool gate not run or page not renderable)'
 const tiles = (args && args.tiles) || 'no rendered tiles supplied'
-const CHECKLIST = 'Score against the exact success criteria in references/wcag-bitv-checklist.md. Tag every finding with its WCAG SC number + level (e.g. "1.4.3 Contrast (Minimum)" AA) and, where it maps, the BITV 2.0 / EN 301 549 clause.'
+const CHECKLIST = 'Score against the exact success criteria in lens-a11y/wcag-bitv-checklist.md. Tag every finding with its WCAG SC number + level (e.g. "1.4.3 Contrast (Minimum)" AA) and, where it maps, the BITV 2.0 / EN 301 549 clause.'
 const DIMENSIONS = [
   { key:'perceivable',    prompt:`WCAG Principle 1 — Perceivable. Text alternatives (1.1), time-based media captions/audio-desc (1.2), adaptable: semantic structure + meaningful sequence + identify-input-purpose (1.3), distinguishable: colour-not-sole-cue + contrast (text ≥4.5:1, large/UI ≥3:1) + resize 200% + reflow at 320px CSS px + text-spacing + content-on-hover (1.4). ${CHECKLIST}` },
   { key:'operable',       prompt:`WCAG Principle 2 — Operable. Keyboard, no trap (2.1), enough time (2.2), no >3 flashes/sec (2.3), navigable: skip link + page title + focus order + link purpose + headings/labels + visible focus + focus-not-obscured 2.4.11 (2.4), input modalities: target size ≥24px 2.5.8 + pointer gestures + label-in-name (2.5). ${CHECKLIST}` },

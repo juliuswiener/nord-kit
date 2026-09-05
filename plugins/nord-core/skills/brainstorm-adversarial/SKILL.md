@@ -36,7 +36,7 @@ SYNTHESIZE (1 agent, blocking)
 | Pin down vague requirements into a spec via Q&A | `deep-interview` |
 | Turn a chosen direction into an implementation plan | `planner` / `ralplan` |
 | Compare a few already-known options on trade-offs | `architect` |
-| Audit an existing codebase | `codebase-audit` |
+| Audit an existing codebase | `review --scope repo --deep` |
 
 Brainstorm explores *what to build*; deep-interview clarifies *what you already decided*; planner sequences *how*. Chain them: **adversarial-brainstorm → pick a direction → deep-interview → planner**.
 
@@ -88,7 +88,7 @@ If `survivors` is empty, the red team killed everything: report it honestly and 
 
 ## Design rationale
 
-- **Adversarial-by-construction.** Critics are prompted to *kill*, default-to-kill when unconvinced, and vote independently on distinct lenses — same majority-refute pattern as the codebase-audit skill's verification phase. This filters plausible-but-weak ideas that a single generator would happily keep.
+- **Adversarial-by-construction.** Critics are prompted to *kill*, default-to-kill when unconvinced, and vote independently on distinct lenses — same majority-refute pattern as the verification phase of `review --deep`. This filters plausible-but-weak ideas that a single generator would happily keep.
 - **Defense after attack.** Survivors get a champion so the red team's skepticism doesn't leave good ideas under-argued. Attack then defend = dialectic, not just critique.
 - **Synthesis is opinionated.** The closer ranks and recommends rather than cataloguing — a brainstorm that ends in a list has failed; one that ends in a path has not.
 - **Pipeline, not barrier.** Each idea flows attack→defend independently (no global sync), so wall-clock ≈ slowest single idea, not sum of stages.

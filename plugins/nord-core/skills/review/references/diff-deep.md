@@ -80,7 +80,7 @@ export const meta = {
 const target = (args && args.target) || 'the current git diff (run: git diff HEAD)'
 // EXPERIMENTAL (default OFF): args.cheapGather pins the GATHER lane (per-dimension review) to a $0
 // bridge worker; adversarial Verify stays on the frontier. No-runtime-gate skill → confident-wrong
-// floor applies (see ../implement/references/gate-pattern.md). Keep OFF until a no-regression A/B.
+// floor applies (see ../../implement/references/gate-pattern.md). Keep OFF until a no-regression A/B.
 const cheapGather = !!(args && args.cheapGather)
 const DIMENSIONS = [
   { key: 'correctness', prompt: 'Logic bugs, off-by-one, null/undefined, error handling, race conditions, broken edge cases. Also: lsp_diagnostics MUST have been run on every modified file before this review — any type error is CRITICAL.' },
@@ -184,13 +184,13 @@ Apply after the pipeline to surface issues dimension reviewers may miss:
 - **New Hire**: Could someone unfamiliar follow this? What context is assumed but not stated?
 - **Ops Engineer**: What happens at scale, under load, when dependencies fail? Blast radius?
 
-(Plan review substitutes Executor / Stakeholder / Skeptic lenses — see `references/modes.md`.)
+(Plan review substitutes Executor / Stakeholder / Skeptic lenses — see `diff-deep/modes.md`.)
 
 ---
 
-## Flag-gated modes → `references/modes.md`
+## Flag-gated modes → `diff-deep/modes.md`
 
-When a mode flag is active, read `references/modes.md` for its protocol (default code-review needs none of it):
+When a mode flag is active, read `diff-deep/modes.md` for its protocol (default code-review needs none of it):
 - **`--plan`** — skip the JS pipeline; run the 6-step plan-review protocol (assumptions, pre-mortem, dependency audit, ambiguity, feasibility, rollback + Devil's Advocate + plan role-lenses). Verdict: REJECT / REVISE / ACCEPT-WITH-RESERVATIONS / ACCEPT.
 - **`--quality-strategy` / `--release-readiness`** — after the pipeline, append coverage-vs-risk assessment + risk-tier (SAFE / MONITOR / HOLD).
 - **`--api-contract`** (or auto on API-surface diffs) — after the pipeline, append breaking-change / versioning / compat review; breaking change = CRITICAL absent a migration path.

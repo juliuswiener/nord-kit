@@ -39,7 +39,7 @@ Phase 5  Approval gate — present handoff options; NEVER auto-execute
 | Generate + pressure-test multiple approaches | `brainstorm-adversarial` |
 | Clear requirements, need an implementation plan | `nord-plan` |
 | Have a plan, ready to execute | `implement --from plan` |
-| Audit existing codebase | `codebase-audit` |
+| Audit existing codebase | `review --scope repo --deep` |
 
 Chain: **adversarial-brainstorm → pick direction → nord-interview → nord-plan → nord-exec**
 

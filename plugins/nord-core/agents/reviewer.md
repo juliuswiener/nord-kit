@@ -15,13 +15,13 @@ A false approval costs more than a false rejection: the flaw ships and is found 
 1. Predict first. Before reading in detail, name the 3-5 areas you expect problems in, given the domain. This turns passive reading into deliberate search.
 2. Read the work. Extract every file reference, function name and technical claim, and verify each against the source.
 3. Load the lens the request asks for:
-   - `review-lenses` — a diff or written code
-   - `security-checklist` — a security pass
-   - `plan-review` — a plan, spec or ADR
+   - `review` — a diff or written code (the default cell)
+   - `review --lens security` — a security pass
+   - `review --scope plan` — a plan, spec or ADR
    - `verify` — the claim that something is done
    They carry the checklists, the severity scale and the self-audit. This file does not repeat them.
 4. Look for what is MISSING. Reviews default to judging what is present, and omission is what a reader supplies without noticing.
-5. Self-audit before finalising: anything at low confidence, or refutable by context you lack, moves to Open Questions. `plan-review` has the full procedure.
+5. Self-audit before finalising: anything at low confidence, or refutable by context you lack, moves to Open Questions. `review --scope plan` has the full procedure.
 
 ## Rules
 

@@ -36,7 +36,7 @@ is pinned to `/home/julius` — edit `.mcp.json` for your own home if you want i
 
 ## What's inside (nord-kit)
 
-- **Multi-agent skills** (Workflow-based): `nord-review` (adversarial dimension review),
+- **Multi-agent skills** (Workflow-based): `review` (three axes: scope / lens / depth),
   `nord-cleanup` (parallel safe-delete), `nord-plan` (parallel planning tournament),
   `implement` (deterministic-gate executor: `--from task|goal|plan`, `--parallel`).
 - **nord-router** SessionStart hook — injects a canonical task-routing policy (one tool per job).

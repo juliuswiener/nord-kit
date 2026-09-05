@@ -8,7 +8,7 @@ argument-hint: "[AUTO:] <research goal> | status | resume [<session-id>] | list 
 
 Decomposes a codebase research goal into independent hypotheses, routes each to the right model tier, fires them concurrently, then cross-validates findings before synthesizing a structured report.
 
-**Scope: CODEBASE ONLY.** This skill investigates local source code via file reads, grep, bash, and git. It does NOT search the web. For web/ideation research use `brainstorm`. For architectural audit with security/perf/CI lanes use `codebase-audit`.
+**Scope: CODEBASE ONLY.** This skill investigates local source code via file reads, grep, bash, and git. It does NOT search the web. For web/ideation research use `brainstorm`. For architectural audit with security/perf/CI lanes use `review --scope repo --deep`.
 
 ---
 
@@ -20,8 +20,8 @@ Decomposes a codebase research goal into independent hypotheses, routes each to 
 | "Find all usages/patterns of Y" | **nord-research** |
 | "Trace data flow / auth flow / error path" | **nord-research** |
 | "What does this module do?" (single file) | Read + Claude inline |
-| Full pre-release health audit (12+ lanes) | `codebase-audit` |
-| Quick single-pass critique | `scrutinize-code` |
+| Full pre-release health audit (12+ lanes) | `review --scope repo --deep` |
+| Quick single-pass critique | `review --scope repo` |
 | Web / industry / concept research | `brainstorm` |
 
 ---

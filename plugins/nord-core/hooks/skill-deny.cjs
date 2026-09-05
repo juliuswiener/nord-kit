@@ -35,7 +35,7 @@ const DENY = {
   "weekly-digests": "unused memory-narrative skill",
   "babysit":        "use the Monitor tool for PR/CI watching",
   "standup":        "off-topic grab-bag skill",
-  "pathfinder":     "use codebase-audit / nord-plan",
+  "pathfinder":     "use review --scope repo --deep / nord-plan",
   "design-is":      "off-topic grab-bag skill",
   "oh-my-issues":   "off-topic grab-bag skill",
   "wowerpoint":     "off-topic grab-bag skill",

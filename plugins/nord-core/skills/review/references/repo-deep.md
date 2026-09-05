@@ -29,7 +29,7 @@ You MUST invoke the bundled Workflow script with **absolute paths** and **args a
 
 ```
 Workflow({
-  scriptPath: '/home/<user>/.claude/skills/multi-agent-codebase-audit/audit.workflow.js',
+  scriptPath: '<plugin-root>/skills/review/references/repo-deep/audit.workflow.js',
   args: { path: '/absolute/path/to/repo', archetype: 'auto' }
 })
 ```
@@ -54,9 +54,9 @@ Workflow({
 - `cheapGather` (EXPERIMENTAL, default OFF) — route the **lane specialists** (Phase 2 gather) to a $0
   bridge worker (class `worker`, needs CC launched through the bridge — see `../../WORKERS.md`) while
   **Phase 3 adversarial verification + Phase 5 synthesis stay on the frontier**. This is a no-runtime-gate
-  judgment skill, so the confident-wrong floor applies (`../implement/references/gate-pattern.md`); keep
+  judgment skill, so the confident-wrong floor applies (`../../implement/references/gate-pattern.md`); keep
   OFF until a side-by-side run shows no quality regression vs the baseline. NOTE: wiring point is the
-  lane-agent `model:` in `audit.workflow.js` (the external workflow) — not yet enabled there; the inline
+  lane-agent `model:` in `repo-deep/audit.workflow.js` — not yet enabled there; the inline
   `nord-review`/`nord-codebase-research` skills already expose `cheapGather`.
 
 If the user only says "audit this repo," first determine the absolute repo root via `git rev-parse --show-toplevel` (fall back to `pwd` if not a git repo), then pass it as `args.path`.
@@ -132,7 +132,7 @@ Plus meta-lanes M1 (Vital Signs + Intent Extraction), M2 (Blast Radius), M3 (Syn
 
 ### Lane 5 Security — Extended Scope
 
-Beyond the basic OWASP pattern scan, the security lane runs a full mandate: read-only guard, git-history + current-code secrets scan, `ast_grep_search` structural injection patterns, dependency audit, OWASP A01–A10 checklist, granular sub-checks, `severity × exploitability × blast-radius` prioritization, remediation timelines, and a per-lane final checklist. **Full spec: read `references/security-lane.md`** before running or tuning Lane 5.
+Beyond the basic OWASP pattern scan, the security lane runs a full mandate: read-only guard, git-history + current-code secrets scan, `ast_grep_search` structural injection patterns, dependency audit, OWASP A01–A10 checklist, granular sub-checks, `severity × exploitability × blast-radius` prioritization, remediation timelines, and a per-lane final checklist. **Full spec: read `repo-deep/security-lane.md`** before running or tuning Lane 5.
 
 **Intent flows everywhere.** Phase 1 produces a structured `intent` object (purpose, non-goals, stated architecture, stated quality bar, known debt, constraints, in-flight migrations) extracted from README/ARCHITECTURE/ADRs/CONTRIBUTING/design docs. Every lane evaluates findings against this — a "best practice violation" the docs accept is not a finding; a "violation of what the docs claim" is. Lane 13 explicitly hunts for the latter.
 
@@ -251,7 +251,7 @@ These are NOT mutually exclusive. The default recommended sequence is: **apply n
 
 ## Adapting lane prompts
 
-Lane prompts live inside `audit.workflow.js` as top-level constants (`LANE_ARCHITECTURE`, `LANE_SECURITY`, etc.). To customize for your project:
+Lane prompts live inside `repo-deep/audit.workflow.js` as top-level constants (`LANE_ARCHITECTURE`, `LANE_SECURITY`, etc.). To customize for your project:
 
 1. Edit the constants directly — they're plain template strings
 2. Re-invoke Workflow with the modified `scriptPath`
@@ -259,7 +259,7 @@ Lane prompts live inside `audit.workflow.js` as top-level constants (`LANE_ARCHI
 
 ## Finding confidence + provenance (anchored — A/B/C, see BEHAVIOUR.md)
 
-The finding/verdict schema lives in `audit.workflow.js` (not this SKILL.md) — these are the semantics it
+The finding/verdict schema lives in `repo-deep/audit.workflow.js` (not this file) — these are the semantics it
 already wires, anchored:
 - **Confidence (B)** ties to the evidence tier a finding survived: **high** = `toolVerified` (a real tool's
   exit-code/output — CVE, compiler/lint error: a fact, not a vote) OR survived the 3-skeptic majority

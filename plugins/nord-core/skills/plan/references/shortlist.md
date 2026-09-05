@@ -46,7 +46,7 @@ This skill is opt-in multi-agent orchestration. Invoke the bundled Workflow scri
 
 ```
 Workflow({
-  scriptPath: '/home/julius/.claude/skills/adversarial-brainstorm/brainstorm.workflow.js',
+  scriptPath: '<plugin-root>/skills/plan/references/shortlist/brainstorm.workflow.js',
   args: { topic: 'How should an LLM-supported email client present decisions instead of an inbox?' }
 })
 ```
@@ -102,4 +102,4 @@ If `survivors` is empty, the red team killed everything: report it honestly and 
 
 ## Customizing lenses
 
-`PERSONAS` (ideation) and `CRITICS` (red team) are plain arrays at the top of `brainstorm.workflow.js`. Edit the briefs or add lenses, then re-invoke `Workflow({ scriptPath })`. Resume an interrupted run with `resumeFromRunId` — unchanged agents return from cache.
+`PERSONAS` (ideation) and `CRITICS` (red team) are plain arrays at the top of `shortlist/brainstorm.workflow.js`. Edit the briefs or add lenses, then re-invoke `Workflow({ scriptPath })`. Resume an interrupted run with `resumeFromRunId` — unchanged agents return from cache.

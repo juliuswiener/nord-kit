@@ -91,8 +91,7 @@ routing = routing.replace(/^<!-- \/?instructor-only -->\n?/gm, '');
 if (!routing.trim()) {
   routing = [
     'NORD ROUTER — canonical task routing. Pick the named tool; do not improvise among duplicates.',
-    'PLAN: default->nord-plan (parallel tournament) | vague/high-stakes->nord-plan --consensus | pin requirements first->nord-requirements.',
-    'BRAINSTORM: decide->brainstorm-adversarial | explore->brainstorm.',
+    'PLAN: plan. One axis, the artifact you want: --stage ideas (idea board, generative) | --stage shortlist (ranked, weak ones killed) | --stage spec (one question per round until requirements are pinned) | no stage = a plan from the tournament. Add --deep when being wrong is expensive.',
     'IMPLEMENT (anything behind a test/compiler/lint gate): implement. One axis, the input: --from task (one story, the only cell a worker may drive) | --from goal (decompose, run until all green) | --from plan (take the split from a finished plan). Add --parallel for disjoint stories.',
     'REVIEW: review. Axes: --scope diff|repo|plan (a change / a whole codebase / a plan before anyone builds it) | --lens security|a11y|claims | --deep (parallel specialists, every finding adversarially verified). Default: one pass over the diff.',
     'CLEANUP: multi-agent->nord-cleanup | quick->/simplify.',

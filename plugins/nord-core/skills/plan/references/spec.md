@@ -352,7 +352,7 @@ Trigger: `ambiguity ≤ <resolvedThreshold>` OR hard cap (round 20) OR early exi
 2. Write to `.nord/specs/nord-interview-<slug>.md` (exact path required; do not use repo root or ad hoc paths).
 3. Use `.nord/state/` for any ephemeral scoring artifacts during rounds; never write temp files to repo root.
 
-**Spec structure**: read `references/spec-template.md` and follow its exact section layout — Metadata, Clarity Breakdown, Topology, Goal, Constraints, Non-Goals, Acceptance Criteria, Assumptions, Technical Context, Ontology, Ontology Convergence, Transcript. Every confirmed topology component appears (active or user-confirmed deferral) — no silent drops.
+**Spec structure**: read `spec/spec-template.md` and follow its exact section layout — Metadata, Clarity Breakdown, Topology, Goal, Constraints, Non-Goals, Acceptance Criteria, Assumptions, Technical Context, Ontology, Ontology Convergence, Transcript. Every confirmed topology component appears (active or user-confirmed deferral) — no silent drops.
 
 ---
 

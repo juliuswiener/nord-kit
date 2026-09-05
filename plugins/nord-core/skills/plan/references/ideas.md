@@ -46,7 +46,7 @@ Opt-in multi-agent orchestration. Invoke the bundled Workflow with an **absolute
 
 ```
 Workflow({
-  scriptPath: '/home/julius/.claude/skills/ideation-lab/lab.workflow.js',
+  scriptPath: '<plugin-root>/skills/plan/references/ideas/lab.workflow.js',
   args: { topic: 'How should an LLM-supported email client present decisions instead of an inbox?' }
 })
 ```
@@ -112,7 +112,7 @@ Do not rank-and-cull in the presentation — that is `brainstorm-adversarial`'s 
 
 ## Customizing lenses
 
-`THINKERS` is a plain array at the top of `lab.workflow.js`. Edit briefs or add lenses, then re-invoke `Workflow({ scriptPath })`. Resume an interrupted run with `resumeFromRunId` — unchanged agents return from cache.
+`THINKERS` is a plain array at the top of `ideas/lab.workflow.js`. Edit briefs or add lenses, then re-invoke `Workflow({ scriptPath })`. Resume an interrupted run with `resumeFromRunId` — unchanged agents return from cache.
 
 ## Techniques (adopted)
 Grafted from superpowers:brainstorming:

@@ -28,14 +28,14 @@
 // skill basename -> why blocked + what to use instead (shown to the model)
 const DENY = {
   // claude-mem overlaps the nord router explicitly bans / we don't use
-  "make-plan":      "use nord-plan (router canonical Plan)",
+  "make-plan":      "use plan (router canonical Plan)",
   "do":             "use implement (router canonical Execute)",
   "knowledge-agent":"unused; use claude-mem search / external-context",
   "timeline-report":"unused memory-narrative skill",
   "weekly-digests": "unused memory-narrative skill",
   "babysit":        "use the Monitor tool for PR/CI watching",
   "standup":        "off-topic grab-bag skill",
-  "pathfinder":     "use review --scope repo --deep / nord-plan",
+  "pathfinder":     "use review --scope repo --deep / plan",
   "design-is":      "off-topic grab-bag skill",
   "oh-my-issues":   "off-topic grab-bag skill",
   "wowerpoint":     "off-topic grab-bag skill",

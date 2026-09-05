@@ -93,13 +93,13 @@ const final = await agent(`Synthesize ONE final implementation plan for THIS TAS
 return { winningLens: winner.lens, ranked: scored.map(s => ({ lens:s.lens, onTask:s.onTask, score:s.score, complexityFit:s.fit, eff:s.eff })), plan: final }
 ```
 
-## --consensus / --deliberate → `references/consensus-mode.md`
+## `--deep` (was --consensus / --deliberate) → `deep.md`
 
-Default (no flag) = tournament only, above. When `--consensus` is set, run the post-tournament sequential Planner→Architect→Critic validation loop (with `--deliberate` adding pre-mortem + expanded test plan, auto-enabled for auth/security/migration/destructive/PII/API-break signals). Full protocol — steps, quality floors, output format per mode, state persistence, `--architect/--critic codex` provider overrides — is in `references/consensus-mode.md`. Read it only when the flag is present.
+Default (no flag) = tournament only, above. When `--deep` is set, run the post-tournament sequential Planner→Architect→Critic validation loop (with `--deliberate` adding pre-mortem + expanded test plan, auto-enabled for auth/security/migration/destructive/PII/API-break signals). Full protocol — steps, quality floors, output format per mode, state persistence, `--architect/--critic codex` provider overrides — is in `deep.md`. Read it only when the flag is present.
 
-## Pre-Execution Gate → `references/pre-execution-gate.md`
+## Pre-Execution Gate → `pre-execution-gate.md`
 
-When an execution keyword (`implement`/`ultrawork`/`ultrapilot`) appears with a ≤15-word prompt and NO concrete anchor (file path, symbol, issue #, code block, error, numbered steps), the request is underspecified → redirect through `nord-plan --consensus` to scope it first. Bypass with a `force:`/`!` prefix. Full gate logic + anchor table + examples: `references/pre-execution-gate.md`.
+When an execution keyword (`implement`/`ultrawork`/`ultrapilot`) appears with a ≤15-word prompt and NO concrete anchor (file path, symbol, issue #, code block, error, numbered steps), the request is underspecified → redirect through `plan --deep` to scope it first. Bypass with a `force:`/`!` prefix. Full gate logic + anchor table + examples: `pre-execution-gate.md`.
 
 ## Quality techniques (adopted)
 Apply to every plan (grafted from make-plan / writing-plans / task_planner):

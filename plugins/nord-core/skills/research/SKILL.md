@@ -40,11 +40,16 @@ protocol's wording, whether an API still has the shape your code assumes.
 ## `--web --deep` is parked, not available
 
 `references/web-deep.md` holds a gpt-researcher-shaped pipeline — plan, delegate the bulk
-searching, close gaps, dedupe, synthesise one cited report — which came from the
-`/deep-research` command. It is **not offered as a mode**, because it dispatches to
-`nord-core:research-worker` and `nord-core:scrape-worker`, and neither agent exists:
-nord-core defines `debugger`, `expert`, `implementer`, `researcher` and `reviewer`.
-Measured 2026-09-05. The command therefore never ran past its first dispatch.
+searching, close gaps, dedupe, synthesise one cited report. It is **not offered as a mode**,
+because it dispatches to `nord-core:research-worker` and `nord-core:scrape-worker`, and
+neither agent exists: nord-core defines `debugger`, `expert`, `implementer`, `researcher`
+and `reviewer`. Measured 2026-09-05.
+
+It came from a `/deep-research` command in `~/.claude/commands/`, **deleted the same day**.
+The command had never run past its first dispatch, and nobody noticed for the whole time it
+existed — which is the strongest evidence available that the need was not pressing. The
+file is kept here, not the command, so the catalogue stops advertising it while the design
+survives.
 
 The logic is worth keeping and the gap is two agent definitions, so the file stays with a
 header saying so. A mode the router advertises and the runtime cannot execute is the exact

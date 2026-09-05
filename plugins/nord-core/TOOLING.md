@@ -4,11 +4,8 @@ How to touch the tool surface without silently breaking it. NOT injected per ses
 a rare activity and does not belong in every context window; ROUTING.md carries the pointer.
 Edit here in the nord-kit payload → copy to the cache, or the running copy is stale.
 
-There used to be a third copy, a nord-core development repo that was edited first. It was
-retired on 2026-09-03: the two trees had drifted in both directions (22 agents against the
-13 that shipped; two agents shipped in 1.33.0 that nord-core never had), and three edits in
-one session were committed there and reached nobody. nord-kit is the only tree that is
-edited now.
+nord-kit is the only tree that is edited. Anything elsewhere on this machine that looks like
+a nord-core source tree is not one — do not edit it, and do not create a second.
 
 Every rule below is here because it already failed once, and each carries the measurement.
 

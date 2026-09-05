@@ -1,6 +1,6 @@
 ---
-name: review-lenses
-description: Checklists and verdict rules for reviewing written code — a general pass plus four narrower lenses for API contracts, code style, performance, and release readiness. Use when reviewing a diff, a pull request, or a file that has already been implemented, when asked whether a change is safe to merge or ship, when checking an API for breaking changes, when a review should stay on style or on performance alone, or when a reviewer needs the severity and approval rules. For a plan or spec use plan-review; for orchestrating several reviewers at once use nord-review.
+name: review --scope diff
+description: Checklists and verdict rules for reviewing written code — a general pass plus four narrower lenses for API contracts, code style, performance, and release readiness. Use when reviewing a diff, a pull request, or a file that has already been implemented, when asked whether a change is safe to merge or ship, when checking an API for breaking changes, when a review should stay on style or on performance alone, or when a reviewer needs the severity and approval rules. For a plan or spec use review --scope plan; for orchestrating several reviewers at once use review --scope diff --deep.
 ---
 
 # Review lenses
@@ -9,7 +9,7 @@ Pick the lens the request asks for. The general pass below always applies; the f
 narrow lenses add to it and are worth naming explicitly, because a review asked for
 "performance" that returns naming nits answered a different question.
 
-Severity discipline — self-audit, realist check, escalation — is in `plan-review` and
+Severity discipline — self-audit, realist check, escalation — is in `review --scope plan` and
 applies here unchanged. This file is the checklists.
 
 ## General pass

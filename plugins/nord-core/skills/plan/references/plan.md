@@ -1,32 +1,32 @@
 ---
-name: nord-plan
-description: "Parallel planning tournament: N lens-planners draft, judges score with on/off-task gate, synth winner + best-of-rest. Add --consensus for sequential Planner→Architect→Critic validation after tournament. Use for 'plan this with options', 'multi-agent plan', 'parallel plan'. Complements ralplan (sequential consensus)."
-argument-hint: "[--consensus [--deliberate] [--interactive]] <task>"
+name: plan
+description: "Parallel planning tournament: N lens-planners draft, judges score with an on/off-task gate, synth merges the winner with the best of the rest. Add --deep for the sequential Planner→Architect→Critic pass afterwards."
+argument-hint: "[--stage ideas|shortlist|spec] [--deep] <task>"
 
 ---
 
-# nord-plan — parallel planning tournament
+# plan — parallel planning tournament
 
 Invoking this skill IS opt-in to multi-agent orchestration. Run the Workflow tool with the
 script below. Pass the task as `args.task` (fall back to the conversation).
 
 **When NOT to use:** for a tightly-scoped refactor in a rich/active repo (dirty working tree,
 many recently-touched files), the free multi-lens exploration tends to drift onto the most
-salient local artifact instead of your task — prefer `ralplan` (sequential, focused) or direct
-authoring. nord-plan shines on an OPEN solution space ("how should we approach X"), not on
+salient local artifact instead of your task — prefer `plan --deep` (sequential, focused) or direct
+authoring. plan shines on an OPEN solution space ("how should we approach X"), not on
 "plan this precise change".
 
-**When NOT to use — multi-item batch:** nord-plan is SINGLE-OBJECTIVE. For a batch of ≥3
+**When NOT to use — multi-item batch:** plan is SINGLE-OBJECTIVE. For a batch of ≥3
 independent items ("fix all N points", a checklist, a list of distinct fixes) it SILENTLY DROPS
 items: `taskRestatement` collapses N points into one sentence (planner keeps the salient subset),
 the judge scores only `onTask`+quality with NO coverage axis (a plan covering 2 of 5 items still
 reads on-task → passes), and single-winner + best-of-rest synthesis carries the winner's coverage
 holes forward. A batch is a DECOMPOSITION job, not a tournament — route it to
-`implement --from goal` (decompose to N stories, each its own deterministic gate). Use nord-plan only when the N
+`implement --from goal` (decompose to N stories, each its own deterministic gate). Use plan only when the N
 points genuinely reduce to ONE objective with an open solution space.
 
-Why over ralplan: ralplan runs ONE plan through sequential Planner→Architect→Critic debate.
-nord-plan explores the solution space in parallel, then synthesizes — better when the right
+Why over plan --deep: plan --deep runs ONE plan through sequential Planner→Architect→Critic debate.
+plan explores the solution space in parallel, then synthesizes — better when the right
 approach is not obvious.
 
 The result is **pending approval** — hand off to `implement --from plan` for execution.
@@ -38,7 +38,7 @@ The result is **pending approval** — hand off to `implement --from plan` for e
 
 ```javascript
 export const meta = {
-  name: 'nord-plan',
+  name: 'plan',
   description: 'Parallel multi-approach planning tournament (on/off-task gated)',
   phases: [
     { title: 'Draft', detail: 'parallel planners, different lenses' },
@@ -58,11 +58,11 @@ const PLAN_SCHEMA = { type:'object', properties:{
   outOfScope:{type:'array', items:{type:'string'}, description:'2-3 things explicitly NOT part of this task'},
   summary:{type:'string'}, steps:{type:'array', items:{type:'string'}},
   risks:{type:'array', items:{type:'string'}}, tradeoffs:{type:'string'},
-  principles:{type:'array', items:{type:'string'}, description:'3-5 guiding principles (--consensus mode)'},
-  decisionDrivers:{type:'array', items:{type:'string'}, description:'top 3 decision drivers (--consensus mode)'},
-  viableOptions:{type:'array', items:{type:'object', properties:{name:{type:'string'},pros:{type:'array',items:{type:'string'}},cons:{type:'array',items:{type:'string'}}}}, description:'>=2 viable options with pros/cons (--consensus mode)'},
-  preMortem:{type:'array', items:{type:'string'}, description:'3 failure scenarios (--deliberate mode)'},
-  testPlan:{type:'object', properties:{unit:{type:'string'},integration:{type:'string'},e2e:{type:'string'},observability:{type:'string'}}, description:'unit/integration/e2e/observability (--deliberate mode)'} },
+  principles:{type:'array', items:{type:'string'}, description:'3-5 guiding principles (--deep mode)'},
+  decisionDrivers:{type:'array', items:{type:'string'}, description:'top 3 decision drivers (--deep mode)'},
+  viableOptions:{type:'array', items:{type:'object', properties:{name:{type:'string'},pros:{type:'array',items:{type:'string'}},cons:{type:'array',items:{type:'string'}}}}, description:'>=2 viable options with pros/cons (--deep mode)'},
+  preMortem:{type:'array', items:{type:'string'}, description:'3 failure scenarios (--deep, widened pass)'},
+  testPlan:{type:'object', properties:{unit:{type:'string'},integration:{type:'string'},e2e:{type:'string'},observability:{type:'string'}}, description:'unit/integration/e2e/observability (--deep, widened pass)'} },
   required:['taskRestatement','outOfScope','summary','steps'] }
 const SCORE_SCHEMA = { type:'object', properties:{
   onTask:{type:'boolean', description:'true ONLY if the plan addresses the requested task, not some other repo concern'},
@@ -85,7 +85,7 @@ const scored = await parallel(valid.map(d => () =>
 scored.sort((a,b) => b.eff - a.eff)
 const winner = scored[0]
 if (!winner || winner.eff === 0) {
-  return { error: 'all drafts off-task or zero — task likely too narrow for nord-plan; use ralplan or author directly', ranked: scored.map(s => ({ lens:s.lens, onTask:s.onTask, score:s.score, reason:s.review&&s.review.onTaskReason })) }
+  return { error: 'all drafts off-task or zero — task likely too narrow for plan; use plan --deep or author directly', ranked: scored.map(s => ({ lens:s.lens, onTask:s.onTask, score:s.score, reason:s.review&&s.review.onTaskReason })) }
 }
 const onTaskPlans = scored.filter(s => s.onTask)
 const final = await agent(`Synthesize ONE final implementation plan for THIS TASK: ${task}\n\nGUARD: the final plan MUST address the task above. Before writing, confirm the winning plan matches the task heading — if it drifted, correct it to address the actual task, do NOT carry the drift forward.\nBase it on the winning "${winner.lens}" plan, grafting from the other ON-TASK approaches ONLY what earns its complexity.\nGrafting only ever ADDS, so it needs a brake: for each idea you carry over, name what it buys. An idea that merely sounds thorough — a layer, a config knob, an abstraction for one caller, a failure mode nobody named — is left behind, and the final plan may be SIMPLER than the winner. The judges scored complexityFit for exactly this: the winner was chosen on quality, and a high score there does not mean the plan was the right size.\nNote key tradeoffs. Mark it pending approval.\nWinner (complexityFit ${winner.fit}): ${JSON.stringify(winner.plan)}\nOther on-task plans: ${JSON.stringify(onTaskPlans.slice(1).map(s => ({ lens:s.lens, score:s.score, complexityFit:s.fit, plan:s.plan })))}`,
@@ -93,13 +93,13 @@ const final = await agent(`Synthesize ONE final implementation plan for THIS TAS
 return { winningLens: winner.lens, ranked: scored.map(s => ({ lens:s.lens, onTask:s.onTask, score:s.score, complexityFit:s.fit, eff:s.eff })), plan: final }
 ```
 
-## `--deep` (was --consensus / --deliberate) → `deep.md`
+## `--deep` → `deep.md`
 
-Default (no flag) = tournament only, above. When `--deep` is set, run the post-tournament sequential Planner→Architect→Critic validation loop (with `--deliberate` adding pre-mortem + expanded test plan, auto-enabled for auth/security/migration/destructive/PII/API-break signals). Full protocol — steps, quality floors, output format per mode, state persistence, `--architect/--critic codex` provider overrides — is in `deep.md`. Read it only when the flag is present.
+Default (no flag) = tournament only, above. When `--deep` is set, run the post-tournament sequential Planner→Architect→Critic validation loop; it widens itself to a pre-mortem plus an expanded test plan on auth, security, migration, destructive, PII or API-break signals. Full protocol — steps, quality floors, output format, state persistence, `--architect/--critic codex` provider overrides — is in `deep.md`. Read it only when the flag is present.
 
 ## Pre-Execution Gate → `pre-execution-gate.md`
 
-When an execution keyword (`implement`/`ultrawork`/`ultrapilot`) appears with a ≤15-word prompt and NO concrete anchor (file path, symbol, issue #, code block, error, numbered steps), the request is underspecified → redirect through `plan --deep` to scope it first. Bypass with a `force:`/`!` prefix. Full gate logic + anchor table + examples: `pre-execution-gate.md`.
+When an execution keyword (`implement`/`implement --from goal`/`implement --from goal`) appears with a ≤15-word prompt and NO concrete anchor (file path, symbol, issue #, code block, error, numbered steps), the request is underspecified → redirect through `plan --deep` to scope it first. Bypass with a `force:`/`!` prefix. Full gate logic + anchor table + examples: `pre-execution-gate.md`.
 
 ## Quality techniques (adopted)
 Apply to every plan (grafted from make-plan / writing-plans / task_planner):
@@ -117,4 +117,5 @@ Apply to every plan (grafted from make-plan / writing-plans / task_planner):
 - **Master-ticket fields**: Definition of Done, Interface Contracts, NFRs (security/perf/logging),
   PR-reviewer checklist, "blueprint not production code".
 - **Post-plan self-review**: spec-coverage gap scan, placeholder scan, cross-task type/name consistency.
-- **`--interactive`**: ask targeted questions for critical gaps, STOP before generating.
+- **Critical gaps**: where the task leaves a question that would change the plan, stop and ask
+  instead of guessing — or route the user to `plan --stage spec`, which is that loop done properly.

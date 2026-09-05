@@ -1,6 +1,6 @@
 ---
 name: plan
-description: "Decide what to build and how, and stop at whatever maturity you actually need. `--stage ideas` for an idea board, `--stage shortlist` for a ranked set with the weak ones killed, `--stage spec` for pinned requirements via one question per round; with no stage it runs the planning tournament and returns a plan. Add `--deep` for post-tournament Planner→Architect→Critic validation on vague or expensive work. Use for planning a change, exploring options, deciding between ideas, or pinning down what is actually being asked."
+description: "Decide what to build and how, and stop at whatever maturity you actually need. `--stage ideas` for an idea board, `--stage shortlist` for a ranked set with the weak ones killed, `--stage spec` for pinned requirements via one question per round; with no stage it runs the planning tournament and returns a plan. Add `--deep` for post-tournament Planner→Architect→Critic validation on vague or expensive work. Use for planning a change, exploring options, deciding between ideas, pinning down what is actually being asked, or on 'plan das', 'wie gehen wir das an', 'welche Optionen haben wir', 'was genau soll das können'."
 ---
 
 # plan
@@ -18,9 +18,7 @@ already have its output is the most common waste here.
 | a plan you can bet on | `+ --deep` | `references/deep.md` | the same tournament, then a sequential Planner→Architect→Critic pass. Auto-widens to a pre-mortem and expanded test plan on auth, migration, destructive, PII or API-break signals |
 
 `--deep` is the depth axis, spelled the same as in `review --deep`: same task, more
-instances, an adversarial or sequential check on top. It was `--consensus` until
-nord-core 1.47.0 — a name that described the mechanism and described it wrongly, because
-Planner→Architect→Critic is a chain, not a vote.
+instances, an adversarial or sequential check on top.
 
 ## Which rung
 
@@ -58,12 +56,3 @@ findings and a verdict rather than a plan. The distinction is load-bearing rathe
 tidy: the judges inside the tournament score the drafts **against each other**, so a
 winner has only beaten the other four. Whether it survives contact with reality is a
 different question, asked by a different verb.
-
-## Where the old names went
-
-Until nord-core 1.47.0 these were four skills: `nord-plan`, `brainstorm`,
-`brainstorm-adversarial` and `nord-requirements`. Their names described techniques — a
-roundtable, a dialectic, a socratic interview — so choosing among them meant knowing how
-each was built. The modes name the artifact instead, which is the thing you actually
-want. Reasoning and the naming rules: vault
-`decisions/skills-nach-fragen-statt-nach-mechanismen.md`.

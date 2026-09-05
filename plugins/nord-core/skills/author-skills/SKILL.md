@@ -11,9 +11,14 @@ Self-contained — nord's single home for skill authoring (foundation + advanced
 
 ## 0. Foundation (adopted from writing-skills)
 The basics this skill builds on (grafted so it stands alone):
-- **A skill = a focused capability**: `SKILL.md` with YAML frontmatter (`name`, `description`, optional
-  `triggers`) + concise body. Name = gerund-first (`writing-plans`). Description = when it fires (symptoms),
-  NOT a workflow summary (else the body is skipped).
+- **A skill = a focused capability**: `SKILL.md` with YAML frontmatter + a concise body. Selection is
+  decided by `name` and `description` alone, optionally extended by `when_to_use`. **`triggers:` is not
+  a Claude Code field** — the harness ignores it, and several older skills in this tree carry one that
+  has never done anything. Description = when it fires (symptoms), NOT a workflow summary (else the
+  body is skipped).
+- **Name it after the question the user arrives with**, not the technique inside — `plan`, not
+  `roundtable`. The wider convention is gerund-first (`writing-plans`); nord-core's own catalogue uses
+  the bare verb, for the reasons in vault `decisions/skills-nach-fragen-statt-nach-mechanismen.md`.
 - **Concise output (CSO).** Body is reference the model reads under load — terse, scannable, no filler.
   Tables/lists over prose. Every line earns its tokens.
 - **TDD for skills (the Iron Law).** Before trusting a skill, pressure-test it: write 3+ representative
@@ -184,7 +189,7 @@ Before writing a skill, verify a skill is the right primitive.
 
 ## 6. Extracting Skills from Sessions
 
-Use this when a session produced a repeatable, hard-won workflow worth capturing. The canonical implementation is `nord-core:author-skills` (deprecated alias: `learner`). The patterns below apply whenever you draft a skill file directly.
+Use this when a session produced a repeatable, hard-won workflow worth capturing. The patterns below apply whenever you draft a skill file directly.
 
 ### Quality Gate — ALL three MUST be true
 
@@ -235,10 +240,7 @@ If the workflow still has unresolved branching decisions, name them explicitly *
 ```markdown
 ---
 name: <skill-name>
-description: <one-line description>
-triggers:
-  - <trigger-1>
-  - <trigger-2>
+description: <What it does. Then: use when <situation>, or when the user says "<phrase>", "<phrase>".>
 ---
 
 # [Skill Name]
@@ -269,19 +271,18 @@ The decision-making heuristic, not just code. How should Claude THINK about this
 
 ### YAML Frontmatter — Required
 
-Every learned skill file **must** start with YAML frontmatter so directory-based discovery can load it. Never emit plain markdown without frontmatter.
+Every learned skill file **must** start with YAML frontmatter so directory-based discovery can load it. Never emit plain markdown without frontmatter. A malformed block does not fail loudly — the skill is simply never offered, which looks exactly like a description that does not match.
 
 Minimum required:
 
 ```yaml
 ---
 name: <skill-name>
-description: <one-line description>
-triggers:
-  - <trigger-1>
-  - <trigger-2>
+description: <What it does, then when to use it, with the literal phrases a user types.>
 ---
 ```
+
+Add `when_to_use:` for extra trigger phrases (appended to the description, ~1,536 chars combined), and `disable-model-invocation: true` for anything with side effects. Do **not** add `triggers:` — it is not a field.
 
 ### Self-Improving Skill Architecture (Learner Pattern)
 
@@ -310,5 +311,6 @@ For skills that encode accumulating domain knowledge, split the body into two se
 ## When NOT to Use This Skill
 
 - You just need to drop a quick note — document in prose (comments/README/ADR), not a skill (see §6 quality gate).
-- You want to extract a skill from a session automatically — use `nord-core:author-skills`.
-- You want to find/install an existing skill instead of authoring — use `search-skills` / `install-skill`.
+- You want to find or install an existing skill instead of authoring one — `search-skills` (skills.sh) or `install-skill` (prompts.chat).
+- You want to list, remove, edit or copy skills already on this machine — `manage-skills`.
+- You are writing a prompt for a model rather than a Claude Code artifact — `prompt-engineering`. The artifact rules here do not apply there: a SKILL.md body is Markdown and must not be wrapped in XML tags.

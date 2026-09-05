@@ -1,6 +1,6 @@
 ---
-name: external-context
-description: Fetches external documentation, references and current behaviour for a question, decomposing it into 2-5 parallel lookups. Use when an answer depends on a library's docs, an API's current shape, a spec or a standard rather than on this codebase, when the user asks to look something up, research a library, check the docs, or find out how an external tool works. For questions about this repository use nord-codebase-research.
+name: research --web
+description: Fetches external documentation, references and current behaviour for a question, decomposing it into 2-5 parallel lookups. Use when an answer depends on a library's docs, an API's current shape, a spec or a standard rather than on this codebase, when the user asks to look something up, research a library, check the docs, or find out how an external tool works. For questions about this repository use research.
 argument-hint: <search query or topic>
 level: 4
 ---
@@ -12,15 +12,15 @@ Fetch external documentation, references, and context for a query. Decomposes in
 ## Usage
 
 ```
-/nord-core:external-context <topic or question>
+/nord-core:research --web <topic or question>
 ```
 
 ### Examples
 
 ```
-/nord-core:external-context What are the best practices for JWT token rotation in Node.js?
-/nord-core:external-context Compare Prisma vs Drizzle ORM for PostgreSQL
-/nord-core:external-context Latest React Server Components patterns and conventions
+/nord-core:research --web What are the best practices for JWT token rotation in Node.js?
+/nord-core:research --web Compare Prisma vs Drizzle ORM for PostgreSQL
+/nord-core:research --web Latest React Server Components patterns and conventions
 ```
 
 ## Protocol

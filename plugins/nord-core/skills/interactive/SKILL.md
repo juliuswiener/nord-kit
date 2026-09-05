@@ -1,6 +1,6 @@
 ---
 name: interactive
-description: "Run a command that needs a real TTY or human input — sudo password, ssh passphrase, installer questions, TUI — somewhere the user can actually type. Agent subprocesses have no TTY, so such commands fail ('sudo: a terminal is required to read the password'). For a plain sudo command it uses `sudo -A` with a GUI password dialog and needs no terminal at all; for anything else it opens a real pane, preferring the tmux the user is already in and falling back to spawning a terminal window. Triggers: sudo needs password, interactive prompt, terminal required error, ssh passphrase, installer asks y/n."
+description: "Run a command that needs a real TTY or human input — sudo password, ssh passphrase, installer questions, TUI — somewhere the user can actually type. Agent subprocesses have no TTY, so such commands fail ('sudo: a terminal is required to read the password'). For a plain sudo command it uses `sudo -A` with a GUI password dialog and needs no terminal at all; for anything else it opens a real pane, preferring the tmux the user is already in and falling back to spawning a terminal window. Triggers: sudo needs password, interactive prompt, terminal required error, ssh passphrase, installer asks y/n, 'braucht ein Terminal', 'sudo geht nicht', 'da muss ich mein Passwort eingeben'."
 argument-hint: "<command>"
 ---
 
@@ -57,11 +57,6 @@ but prompts on the console, not in a window — check it is visible before relyi
 
 **Rung 0 covers sudo and nothing else.** An ssh passphrase, an installer asking `y/n`, or
 a TUI needs a real terminal — go to rung 1.
-
-> This reverses the old advice at the bottom of this file ("prefer a pane over askpass
-> infrastructure"). That was written when askpass meant *installing* something and editing
-> sudoers. It does not here: the helper is three lines in a temp file, deleted immediately,
-> and nothing persistent changes.
 
 ## Rungs 1–5 — get a pane
 

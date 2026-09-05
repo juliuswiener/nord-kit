@@ -1,7 +1,7 @@
 # cheapGather A/B harness
 
 `cheapGather` routes the GATHER lane (fact collection, file reading, finding-drafting — NOT the final
-verdict) to a cheap `qwen3.6-plus` worker via the bridge. It ships **default-OFF** in `nord-review`,
+verdict) to a cheap `qwen3.6-plus` worker via the bridge. It ships **default-OFF** in `review --scope diff --deep`,
 `research`, and `review --scope repo --deep` because it was never measured against the frontier-only
 baseline. Run this before flipping any default to ON.
 

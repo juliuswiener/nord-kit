@@ -1,6 +1,6 @@
 ---
 name: review
-description: "Judge finished work and return severity-rated findings, each anchored to a file:line that was actually read. Three axes: `--scope diff|repo|plan` (what is under review — a change, a whole codebase, or a plan before anyone builds it), `--lens security|a11y|claims` (narrow to one question), `--deep` (parallel specialists with every finding adversarially verified, instead of one pass). Defaults to a single pass over the current diff. Use for reviewing a diff or PR, auditing a codebase, checking whether a plan is sound, or asking whether the documentation is true."
+description: "Judge finished work and return severity-rated findings, each anchored to a file:line that was actually read. Three axes: `--scope diff|repo|plan` (what is under review — a change, a whole codebase, or a plan before anyone builds it), `--lens security|a11y|claims` (narrow to one question), `--deep` (parallel specialists with every finding adversarially verified, instead of one pass). Defaults to a single pass over the current diff. Use for reviewing a diff or PR, auditing a codebase, checking whether a plan is sound, asking whether the documentation is true, or on 'schau dir das mal an', 'review das', 'ist der Code gut', 'stimmt das so'."
 ---
 
 # review
@@ -28,7 +28,7 @@ below the selection table lives in `references/` and is not loaded until you cho
 
 ## What every cell shares
 
-These three hold whatever you picked, and they are the reason this is one skill:
+These three hold for whatever cell you picked:
 
 1. **A finding you cannot anchor is not a finding.** Every finding names a `file:line`
    you actually read. Drop it, or say in the summary that you could not anchor it and
@@ -56,16 +56,5 @@ These three hold whatever you picked, and they are the reason this is one skill:
 `--deep` and `--scope` are orthogonal on purpose: breadth and depth are separate
 questions, and `--scope repo --deep` says so where two booleans would not.
 
-## Where the old names went
-
-Until nord-core 1.46.0 these were seven skills: `review-lenses`, `nord-review`,
-`scrutinize-code`, `codebase-audit`, `security-checklist`, `web-ux-review` and
-`plan-review`. The choice among them was made from seven one-line descriptions in the
-cached prefix — with partial information, which is what the routing table existed to
-patch. It is made here now, with the body loaded, and the descriptions cost nothing
-until then. Reasoning and the naming rules: vault
-`decisions/skills-nach-fragen-statt-nach-mechanismen.md`.
-
-`references/lens-claims.md` is MIT-licensed work by Joseph Cumines, vendored from the
-`adversarial-codebase-autopsy` skill; the notice travels with it in
-`references/lens-claims/LICENSE`.
+`references/lens-claims.md` is MIT-licensed work by Joseph Cumines; the notice travels
+with it in `references/lens-claims/LICENSE`.

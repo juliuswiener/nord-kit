@@ -1,7 +1,7 @@
 export const meta = {
   name: 'ideation-lab',
-  description: 'Generative ideation roundtable that alternates collaborative discussion with online research over several rounds, growing a shared idea board instead of filtering it, then synthesizes an idea landscape and a ralplan-ready brief',
-  whenToUse: 'Open "let us explore / generate ideas for X" work where the goal is a rich, research-informed idea space discovered together — not a ranked decision or a plan. Hand the output to ralplan afterwards.',
+  description: 'Generative ideation roundtable that alternates collaborative discussion with online research over several rounds, growing a shared idea board instead of filtering it, then synthesizes an idea landscape and a plan --deep-ready brief',
+  whenToUse: 'Open "let us explore / generate ideas for X" work where the goal is a rich, research-informed idea space discovered together — not a ranked decision or a plan. Hand the output to plan --deep afterwards.',
   phases: [
     { title: 'Frame' },
     { title: 'Discuss' },
@@ -126,7 +126,7 @@ const RESEARCH_SCHEMA = {
 }
 const SYNTH_SCHEMA = {
   type: 'object',
-  required: ['themes', 'most_promising', 'ralplan_brief'],
+  required: ['themes', 'most_promising', 'plan_brief'],
   properties: {
     themes: {
       type: 'array',
@@ -158,7 +158,7 @@ const SYNTH_SCHEMA = {
     },
     tensions: { type: 'array', items: { type: 'string' }, description: 'Real trade-offs / forks the ideas surface' },
     decisions_needed: { type: 'array', items: { type: 'string' }, description: 'What the user must decide before planning' },
-    ralplan_brief: { type: 'string', description: 'A self-contained brief the user can hand to ralplan: the chosen direction space, the key ideas, the constraints, and the open decisions. Markdown.' },
+    plan_brief: { type: 'string', description: 'A self-contained brief the user can hand to plan --deep: the chosen direction space, the key ideas, the constraints, and the open decisions. Markdown.' },
   },
 }
 
@@ -260,7 +260,7 @@ const synthesis = await agent(
     `All research findings (JSON): ${j(researchDigest, 8000)}\n` +
     `Round notes: ${j(roundNotes, 1500)}\n\n` +
     `Produce: themes (clusters of ideas + the insight each reveals); the most promising ideas with why + what research backed them; the most novel/surprising ideas; the real tensions/forks the space surfaces; the decisions the user must make before planning; ` +
-    `and finally a self-contained markdown ralplan_brief the user can hand straight to ralplan (chosen direction space, key ideas, constraints, open decisions). Keep the spirit generative — this is a map of a rich idea space, not a verdict.`,
+    `and finally a self-contained markdown plan_brief the user can hand straight to plan --deep (chosen direction space, key ideas, constraints, open decisions). Keep the spirit generative — this is a map of a rich idea space, not a verdict.`,
   { label: 'synthesize', phase: 'Synthesize', schema: SYNTH_SCHEMA },
 )
 
@@ -276,5 +276,5 @@ return {
   most_novel: synthesis.most_novel || [],
   tensions: synthesis.tensions || [],
   decisions_needed: synthesis.decisions_needed || [],
-  ralplan_brief: synthesis.ralplan_brief || '',
+  plan_brief: synthesis.plan_brief || '',
 }

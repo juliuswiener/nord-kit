@@ -1,5 +1,5 @@
 export const meta = {
-  name: 'adversarial-brainstorm',
+  name: 'plan-shortlist',
   description: 'Dialectic idea engine: persona ideators diverge, red-team critics try to kill each idea, champions steelman survivors, synthesis ranks a decision-ready shortlist',
   whenToUse: 'Open-ended "how could we build/design/approach X" questions where you want diverse ideas pressure-tested before committing, not a single first-draft answer',
   phases: [
@@ -36,7 +36,7 @@ const topic =
   typeof args === 'string'
     ? args
     : (args && (args.topic || args.question || args.prompt)) || null
-if (!topic) throw new Error('adversarial-brainstorm: args.topic (or a string arg) is required')
+if (!topic) throw new Error('plan-shortlist: args.topic (or a string arg) is required')
 
 function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, Math.floor(n)))

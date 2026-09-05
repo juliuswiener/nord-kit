@@ -1,144 +1,48 @@
 ---
 name: search-skills
-description: "Discover and install agent skills. Use when user asks 'how do I do X', 'find a skill for X', 'is there a skill that...', or wants to extend capabilities."
+description: "Search the open agent-skills ecosystem (skills.sh / `npx skills`) for a skill that already exists, check whether it is trustworthy, and install it on request. Use on 'find a skill for X', 'is there a skill that…', 'gibt es dafür einen Skill', or when a capability is missing and someone has probably already built it. To write one instead, use `author-skills`; for the prompts.chat registry, `install-skill`."
 
 disable-model-invocation: true
 ---
 
-# Find Skills
+# search-skills — find one before writing one
 
-This skill helps you discover and install skills from the open agent skills ecosystem.
+`npx skills` is the package manager for the open agent-skills ecosystem; the catalogue is
+at <https://skills.sh/>.
 
-## When to Use This Skill
+| command | what it does |
+|---|---|
+| `npx skills find [query]` | search by keyword, or interactively |
+| `npx skills add <owner/repo@skill> -g -y` | install — `-g` user level, `-y` no prompts |
+| `npx skills check` · `npx skills update` | updates for what is already installed |
 
-Use this skill when the user:
+## Run
 
-- Asks "how do I do X" where X might be a common task with an existing skill
-- Says "find a skill for X" or "is there a skill for X"
-- Asks "can you do X" where X is a specialized capability
-- Expresses interest in extending agent capabilities
-- Wants to search for tools, templates, or workflows
-- Mentions they wish they had help with a specific domain (design, testing, deployment, etc.)
+1. **Name the need as domain plus task** — "react performance", "pr review", "changelog".
+   A one-word query returns noise.
+2. **Check the leaderboard first.** <https://skills.sh/> ranks by installs, which surfaces
+   the battle-tested options without a search at all. `vercel-labs/agent-skills` (React,
+   Next.js, web design) and `anthropics/skills` (frontend design, document processing) are
+   both above 100k.
+3. **Search** only if the leaderboard does not cover it: `npx skills find <query>`. Nothing
+   found → broaden once, then report that nothing was found. **Never name a skill that was
+   not in the results.**
+4. **Verify before recommending.** Search rank is not endorsement:
+   - installs — prefer 1k+, treat anything under 100 with suspicion
+   - source — `vercel-labs`, `anthropics`, `microsoft` are known quantities; an unknown
+     author is not disqualifying, but say so out loud
+   - the repo — under 100 stars means read the SKILL.md before installing anything
+5. **Present** name, what it does, install count, source, the exact install command and
+   the skills.sh link. The user chooses.
+6. **Install only on an explicit yes.** Then say it activates at the next session start,
+   not in this one.
 
-## What is the Skills CLI?
+## When nothing fits
 
-The Skills CLI (`npx skills`) is the package manager for the open agent skills ecosystem. Skills are modular packages that extend agent capabilities with specialized knowledge, workflows, and tools.
+Say so plainly, offer to do the task directly, and mention `npx skills init <name>` if it
+is something the user does often.
 
-**Key commands:**
-
-- `npx skills find [query]` - Search for skills interactively or by keyword
-- `npx skills add <package>` - Install a skill from GitHub or other sources
-- `npx skills check` - Check for skill updates
-- `npx skills update` - Update all installed skills
-
-**Browse skills at:** https://skills.sh/
-
-## How to Help Users Find Skills
-
-### Step 1: Understand What They Need
-
-When a user asks for help with something, identify:
-
-1. The domain (e.g., React, testing, design, deployment)
-2. The specific task (e.g., writing tests, creating animations, reviewing PRs)
-3. Whether this is a common enough task that a skill likely exists
-
-### Step 2: Check the Leaderboard First
-
-Before running a CLI search, check the [skills.sh leaderboard](https://skills.sh/) to see if a well-known skill already exists for the domain. The leaderboard ranks skills by total installs, surfacing the most popular and battle-tested options.
-
-For example, top skills for web development include:
-- `vercel-labs/agent-skills` — React, Next.js, web design (100K+ installs each)
-- `anthropics/skills` — Frontend design, document processing (100K+ installs)
-
-### Step 3: Search for Skills
-
-If the leaderboard doesn't cover the user's need, run the find command:
-
-```bash
-npx skills find [query]
-```
-
-For example:
-
-- User asks "how do I make my React app faster?" → `npx skills find react performance`
-- User asks "can you help me with PR reviews?" → `npx skills find pr review`
-- User asks "I need to create a changelog" → `npx skills find changelog`
-
-### Step 4: Verify Quality Before Recommending
-
-**Do not recommend a skill based solely on search results.** Always verify:
-
-1. **Install count** — Prefer skills with 1K+ installs. Be cautious with anything under 100.
-2. **Source reputation** — Official sources (`vercel-labs`, `anthropics`, `microsoft`) are more trustworthy than unknown authors.
-3. **GitHub stars** — Check the source repository. A skill from a repo with <100 stars should be treated with skepticism.
-
-### Step 5: Present Options to the User
-
-When you find relevant skills, present them to the user with:
-
-1. The skill name and what it does
-2. The install count and source
-3. The install command they can run
-4. A link to learn more at skills.sh
-
-Example response:
-
-```
-I found a skill that might help! The "react-best-practices" skill provides
-React and Next.js performance optimization guidelines from Vercel Engineering.
-(185K installs)
-
-To install it:
-npx skills add vercel-labs/agent-skills@react-best-practices
-
-Learn more: https://skills.sh/vercel-labs/agent-skills/react-best-practices
-```
-
-### Step 6: Offer to Install
-
-If the user wants to proceed, you can install the skill for them:
-
-```bash
-npx skills add <owner/repo@skill> -g -y
-```
-
-The `-g` flag installs globally (user-level) and `-y` skips confirmation prompts.
-
-## Common Skill Categories
-
-When searching, consider these common categories:
-
-| Category        | Example Queries                          |
-| --------------- | ---------------------------------------- |
-| Web Development | react, nextjs, typescript, css, tailwind |
-| Testing         | testing, jest, playwright, e2e           |
-| DevOps          | deploy, docker, kubernetes, ci-cd        |
-| Documentation   | docs, readme, changelog, api-docs        |
-| Code Quality    | review, lint, refactor, best-practices   |
-| Design          | ui, ux, design-system, accessibility     |
-| Productivity    | workflow, automation, git                |
-
-## Tips for Effective Searches
-
-1. **Use specific keywords**: "react testing" is better than just "testing"
-2. **Try alternative terms**: If "deploy" doesn't work, try "deployment" or "ci-cd"
-3. **Check popular sources**: Many skills come from `vercel-labs/agent-skills` or `ComposioHQ/awesome-claude-skills`
-
-## When No Skills Are Found
-
-If no relevant skills exist:
-
-1. Acknowledge that no existing skill was found
-2. Offer to help with the task directly using your general capabilities
-3. Suggest the user could create their own skill with `npx skills init`
-
-Example:
-
-```
-I searched for skills related to "xyz" but didn't find any matches.
-I can still help you with this task directly! Would you like me to proceed?
-
-If this is something you do often, you could create your own skill:
-npx skills init my-xyz-skill
-```
+Do not stretch a near-match into a recommendation. An installed skill costs its
+description in the cached prefix of **every session from then on**, whether it is ever
+invoked or not — a skill that half fits is a permanent charge for an occasional
+convenience.

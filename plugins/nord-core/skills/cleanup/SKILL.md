@@ -1,6 +1,6 @@
 ---
 name: cleanup
-description: "Make a repository tidier, in one of two ways that are never mixed. `--remove` runs parallel detectors for dead code, duplication, AI slop, over-abstraction and unused dependencies, verifies each candidate is safe to delete, and returns a deletion-first plan. `--move files|modules` relocates instead: docs, scripts and tests out of the root into conventional folders, or modules regrouped vertically by feature. There is no default — you have to say which."
+description: "Make a repository tidier, in one of two ways that are never mixed. `--remove` runs parallel detectors for dead code, duplication, AI slop, over-abstraction and unused dependencies, verifies each candidate is safe to delete, and returns a deletion-first plan. `--move files|modules` relocates instead: docs, scripts and tests out of the root into conventional folders, or modules regrouped vertically by feature. There is no default — you have to say which. Use on 'clean this up', 'remove dead code', 'reorganise the repo', 'räum das auf', 'aufräumen', 'toten Code raus', 'sortier das Repo'."
 ---
 
 # cleanup
@@ -16,14 +16,11 @@ say `--remove` or `--move`.
 
 ## Why there is no default
 
-One half of this skill deletes and the other half moves. A move is reversible by moving
-back; a deletion is reversible only through git, and only if the work was committed.
-Making the destructive half the flagless default would put the irreversible operation
-behind the shortest command — which is backwards, and is the rule this plugin applies to
-every hook and skill that can destroy something: **a destructive mode names its verb.**
-
-So the friction is deliberate. It costs one word and it removes the case where somebody
-types `cleanup` meaning "tidy up the folders" and gets a deletion plan.
+A move is reversible by moving back; a deletion is reversible only through git, and only
+if the work was committed. A flagless default would put the irreversible half behind the
+shortest command. **A destructive mode names its verb** — one word of friction, in
+exchange for nobody typing `cleanup` meaning "tidy the folders" and getting a deletion
+plan.
 
 ## `--remove`
 
@@ -42,10 +39,3 @@ how the tree is read rather than to where files sit.
 
 Both produce a plan and a completion report; the templates are in
 `references/move-templates.md`.
-
-## Where the old names went
-
-Until nord-core 1.48.0 this was `nord-cleanup` (delete) and `organize-project` (move),
-plus `organize-modules` in the nord-dev plugin. Two names for one verb meant the reader
-had to know which was which before choosing; the mode list answers it in place. Reasoning
-and the naming rules: vault `decisions/skills-nach-fragen-statt-nach-mechanismen.md`.

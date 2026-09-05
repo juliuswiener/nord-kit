@@ -1,6 +1,6 @@
 # Pre-Execution Gate
 
-Intercepts underspecified execution requests (implement) and redirects them through `nord-plan --consensus` to scope the work first. Read when an execution keyword is present.
+Intercepts underspecified execution requests (implement) and redirects them through `plan --deep` to scope the work first. Read when an execution keyword is present.
 
 ## Why the Gate Exists
 
@@ -10,7 +10,7 @@ Execution modes (`implement --from goal|plan`) spin up heavy multi-agent orchest
 
 Gate fires when **all three** conditions hold:
 
-1. An execution keyword is present: `implement`, `ultrawork`, `ultrapilot`
+1. An execution keyword is present: `implement`
 2. Prompt is ≤ 15 effective words (stop-words excluded)
 3. NO concrete anchor is detected
 
@@ -32,17 +32,17 @@ Gate fires when **all three** conditions hold:
 
 ## On Gate Fire
 
-Redirect to `nord-plan --consensus` with a brief explanation:
+Redirect to `plan --deep` with a brief explanation:
 
-> "Prompt is underspecified for direct execution — routing through nord-plan consensus to scope the work first."
+> "Prompt is underspecified for direct execution — routing through `plan --deep` to scope the work first."
 
 Bypass: prefix the original message with `force:` or `!` (e.g., `force: implement fix it`).
 
 ## Gate Does NOT Fire
 
 - Any concrete anchor present (one is enough)
-- `--consensus` already requested (already in planning mode)
-- Explicitly called as `nord-plan` (planning, not execution)
+- `--deep` already requested (already in planning mode)
+- Explicitly called as `plan` (planning, not execution)
 
 ## Good vs Bad Prompts
 
@@ -52,7 +52,7 @@ Bypass: prefix the original message with `force:` or `!` (e.g., `force: implemen
 - `team add validation to processKeywordDetector` — camelCase symbol
 - `implement do:\n1. Add input validation\n2. Write tests` — numbered steps
 
-**Gated** (redirected to nord-plan --consensus):
+**Gated** (redirected to plan --deep):
 - `implement fix this`
 - `implement build the app`
 - `team improve performance`

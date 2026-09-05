@@ -1,5 +1,5 @@
 ---
-name: codebase-audit
+name: review --scope repo --deep
 description: "Full architectural audit: 12+ parallel specialists (architecture/quality/tests/deps/security/perf/observability/CI/APIs/data/docs/resilience) + adversarial verify, severity-ranked. Use for pre-release, handover, due-diligence, 'is this safe to build on'. Heavier than scrutinizing-projects."
 
 ---
@@ -16,10 +16,10 @@ The audit surfaces *what will hurt*, not *what could be prettier*. Findings have
 
 | Need | Use |
 |---|---|
-| Quick single-pass critique, one critique file | `scrutinize-code` |
-| Review a single PR or diff | `/code-review` or `/review` |
-| Verify a specific fix works | `/verify` |
-| Find a bug or trace a failure | `superpowers:systematic-debugging` |
+| Quick single-pass critique, one critique file | `review --scope repo` |
+| Review a single PR or diff | `review --scope diff` |
+| Verify a specific fix works | `verify` |
+| Find a bug or trace a failure | `diagnose` |
 | Security-only deep dive | `nord-core:reviewer` directly |
 | **Pre-release / pre-handover / due-diligence / quarterly health** | **this skill** |
 
@@ -74,7 +74,7 @@ The full default fan-out is calibrated for **due-diligence / acquisition / multi
 | Acquisition / compliance / high-stakes | `verifyIntensity: 'thorough'` |
 | Targeted question ("is the security/deps story ok?") | `lanes: ['security','deps','config']`, `verifyIntensity: 'lite'` |
 
-If the repo is small, single-author, and low-stakes, prefer `scrutinize-code` (single-pass) outright — see *When NOT to use this skill*.
+If the repo is small, single-author, and low-stakes, prefer `review --scope repo` (single-pass) outright — see *When NOT to use this skill*.
 
 ### Operational note — don't fire-and-forget on an interruptible session
 
@@ -114,11 +114,11 @@ Phase 5: SYNTHESIS (1 agent, blocking after 2+3+4)
 
 | # | Lane | Specialist agent | Primary scope |
 |---|------|------------------|---------------|
-| 1 | Architecture & Module Boundaries | `architect` | Coupling, cycles, layering violations, stated-vs-actual structure |
-| 2 | Code Quality & Smells | `reviewer` + `review-lenses` | Complexity hotspots, duplication, dead code, god classes, TODO age |
+| 1 | Architecture & Module Boundaries | `reviewer` | Coupling, cycles, layering violations, stated-vs-actual structure |
+| 2 | Code Quality & Smells | `reviewer` + `review --scope diff` | Complexity hotspots, duplication, dead code, god classes, TODO age |
 | 3 | Test Health | `test-engineer` | Coverage by tier, flakiness, isolation, mock drift, untested critical paths |
 | 4 | Dependencies & Supply Chain | (general) | Versions, CVEs, licenses, abandoned packages, lockfile drift |
-| 5 | Security | `reviewer` + `security-checklist` | Secrets (current + git history), OWASP A01–A10 full coverage, crypto, authn/authz centralization, dependency audit (npm/pip/cargo/govulncheck); findings prioritized by severity × exploitability × blast-radius |
+| 5 | Security | `reviewer` + `review --lens security` | Secrets (current + git history), OWASP A01–A10 full coverage, crypto, authn/authz centralization, dependency audit (npm/pip/cargo/govulncheck); findings prioritized by severity × exploitability × blast-radius |
 | 6 | Performance & Scalability | (general) | Algorithmic hotspots, N+1, sync I/O, index coverage, bundle size |
 | 7 | Observability & Operations | (general) | Logging coverage, metrics, tracing, health checks, idempotency |
 | 8 | Build, CI/CD & Release | (general) | Pipeline correctness, reproducibility, deploy, rollback, FF hygiene |
@@ -126,7 +126,7 @@ Phase 5: SYNTHESIS (1 agent, blocking after 2+3+4)
 | 10 | Data & Schema | (general) | Migration safety, constraints, PII, retention, event versioning |
 | 11 | Documentation & Onboarding | `researcher` | README, ADRs, runbooks, comment quality, tribal-knowledge files |
 | 12 | Configuration, Secrets & Resilience | (general) | Config validation, secret mgmt, timeouts, circuit breakers, degradation |
-| 13 | **Stated vs Actual Drift** | `architect` | **Claims in docs vs reality in code** — architecture drift, quality-bar drift, API/schema drift, stalled migrations, doc rot, compliance-claim drift |
+| 13 | **Stated vs Actual Drift** | `reviewer` | **Claims in docs vs reality in code** — architecture drift, quality-bar drift, API/schema drift, stalled migrations, doc rot, compliance-claim drift |
 
 Plus meta-lanes M1 (Vital Signs + Intent Extraction), M2 (Blast Radius), M3 (Synthesis), M4 (Adversarial Verification — runs per finding, not as a separate phase).
 
@@ -206,7 +206,7 @@ The synthesis groups Quick Wins and Major Changes into work-clusters and labels:
 - **Critical path** — longest blocking chain, determines minimum wall-clock for the cleanup
 - **Coordination caveats** — shared-file conflicts, migration windows, deploy ordering
 
-This lets the user compress remediation by dispatching parallel agents (`superpowers:dispatching-parallel-agents` or `implement --from goal --parallel`) against independent groups.
+This lets the user compress remediation by dispatching parallel agents (`implement --from goal --parallel` or `implement --from goal --parallel`) against independent groups.
 
 ## After the workflow returns: required steps
 
@@ -235,8 +235,8 @@ Use `AskUserQuestion` with these options (multi-select where applicable):
 |---|---|
 | **Apply NO BRAINER fixes** (recommended) | Create branch `audit/<date>-no-brainers`. Apply each no-brainer fix one at a time using the right tool (Edit for code, Bash for tooling like lockfile pin or `npm pkg fix`). After each, run any cheap local check. **Show the diff and stop for user review before committing.** Never push without explicit approval. |
 | **Walk through NEEDS DECISION items** (recommended) | Interactive loop: for each item, present options via `AskUserQuestion`, capture choice, append it to `findings.json` as `triage.needs_decision[i].user_decision`. Resolved items then route into a QUICK WIN sprint or a MAJOR CHANGE plan based on the chosen option's effort. |
-| **Plan a QUICK WIN sprint** | Invoke `superpowers:writing-plans` with `report.parallelization.groups` as input — produces a fan-out-ready plan honoring blocking dependencies and the critical path. |
-| **Plan a MAJOR CHANGE** | Pick one or more items from `report.triage.major_change`; invoke `superpowers:writing-plans` per change, seeding the plan with `suggested_approach` and `estimated_effort`. |
+| **Plan a QUICK WIN sprint** | Invoke `plan` with `report.parallelization.groups` as input — produces a fan-out-ready plan honoring blocking dependencies and the critical path. |
+| **Plan a MAJOR CHANGE** | Pick one or more items from `report.triage.major_change`; invoke `plan` per change, seeding the plan with `suggested_approach` and `estimated_effort`. |
 | **Save and exit** | No further action — user will triage manually from the report. |
 
 These are NOT mutually exclusive. The default recommended sequence is: **apply no-brainers → walk through decisions → plan quick-win sprint** in one pass.
@@ -278,7 +278,7 @@ already wires, anchored:
 - **Adversarial verification is necessary but not sufficient.** Skeptics can miss subtle real findings just as the original lane can produce false positives.
 - **Untested for codebases >500k LOC.** Token budget and synthesis quality degrade.
 - **Polyglot monorepos are harder.** Lane prompts default to language-agnostic prose; specific tool invocations (linters, audit tools) are best-effort per language.
-- **The skill itself has not been adversarially baseline-tested per `superpowers:writing-skills` discipline.** Pattern-matching from prior architectural reviews; expect tuning iterations.
+- **The skill itself has not been adversarially baseline-tested per `author-skills` discipline.** Pattern-matching from prior architectural reviews; expect tuning iterations.
 
 ## Re-auditing
 
@@ -286,18 +286,17 @@ After major remediation, re-run the workflow. Track findings closed quarter-over
 
 ## When NOT to use this skill
 
-- **Single-PR review** — use `/code-review` or `nord-core:reviewer`
-- **Quick critique with one output file** — use `scrutinize-code`
-- **Debugging a specific bug** — use `superpowers:systematic-debugging`
+- **Single-PR review** — use `review --scope diff`, or the `reviewer` agent directly
+- **Quick critique with one output file** — use `review --scope repo`
+- **Debugging a specific bug** — use `diagnose`
 - **You want a security scan only** — invoke `nord-core:reviewer` directly, skip the orchestration
 - **Codebase under ~5k LOC** — overhead exceeds value; a single careful pass is faster
 - **No git history available** — Phase 1 (Vital Signs) and Phase 4 (Blast Radius) become near-useless; consider skipping or using a lighter critique
 - **The user wants automated cleanup** — this skill is read-only; remediation is a separate workflow with human-in-the-loop triage
 
-## Related skills
+## Instead of this
 
-- `superpowers:writing-skills` & `author-skills` — how this skill was authored
-- `scrutinize-code` — lighter alternative
-- `superpowers:dispatching-parallel-agents` — meta-skill for parallel work
-- `nord-core:implement --from goal --parallel` — alternative orchestration (process-based, not workflow-based)
+- `review --scope repo` — the same question, one pass instead of twelve lanes
+- `review --scope diff` — a single change rather than a whole tree
+- `implement --from goal --parallel` — once you have findings and want them fixed
 - `nord-core:reviewer`, `nord-core:researcher`, `nord-core:expert` — the underlying role agents this skill orchestrates

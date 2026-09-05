@@ -1,6 +1,6 @@
 ---
-name: organize-project
-description: Reorganizes a cluttered repository — moves docs, scripts and tests out of the root into conventional folders, consolidates redundant documentation, and updates every reference so nothing breaks. Use when the user says the root is a mess, asks to organize, restructure or tidy project files, consolidate docs, or clean up a tree before handover. For deleting dead code use nord-cleanup.
+name: cleanup --move files
+description: Reorganizes a cluttered repository — moves docs, scripts and tests out of the root into conventional folders, consolidates redundant documentation, and updates every reference so nothing breaks. Use when the user says the root is a mess, asks to organize, restructure or tidy project files, consolidate docs, or clean up a tree before handover. For deleting dead code use cleanup --remove.
 disable-model-invocation: true
 ---
 

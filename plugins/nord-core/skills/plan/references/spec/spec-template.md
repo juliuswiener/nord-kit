@@ -1,6 +1,6 @@
-# nord-interview spec template
+# plan --stage spec spec template
 
-Phase 4 writes the crystallized spec to `.nord/specs/nord-interview-<slug>.md` using this exact structure.
+Phase 4 writes the crystallized spec to `.nord/specs/spec-<slug>.md` using this exact structure.
 
 ```markdown
 # Nord Interview Spec: <title>

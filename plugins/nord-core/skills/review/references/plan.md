@@ -1,5 +1,5 @@
 ---
-name: plan-review
+name: review --scope plan
 description: Reviews a plan, proposal, spec or ADR before anyone executes it — extracts and rates its assumptions, runs a pre-mortem, audits dependencies, scans for steps two developers would read differently, and returns a verdict with severity-rated findings. Use when asked to review or critique a plan, check a proposal before implementation, find holes in a spec, decide whether a design is ready to build, or when a plan came back from `plan` and needs a gate before work starts. For a diff or written code use the default cell of `review`; for "did it actually work" use verify.
 ---
 
@@ -73,7 +73,7 @@ Each one surfaces a class of problem the others do not.
 - **Skeptic** — what is the strongest case that this fails? Was the rejected alternative
   rejected on reasoning, or waved away?
 
-For a plan that contains code, add the code perspectives from `review-lenses`.
+For a plan that contains code, add the code perspectives from `review --scope diff`.
 
 ## Phase 4 — What is missing
 

@@ -1,5 +1,5 @@
 ---
-name: scrutinize-code
+name: review --scope repo
 description: "Quick single-pass codebase critique: architectural rot, tech debt, code smells, naming, fitness as a base. Use for 'review my project', 'audit this codebase', 'find tech debt', 'should we rewrite'."
 
 ---

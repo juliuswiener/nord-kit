@@ -1,10 +1,10 @@
 ---
-name: nord-cleanup
+name: cleanup --remove
 description: "Multi-agent cleanup: parallel detectors (dead code, duplication, AI-slop, over-abstraction, unused deps) + verify-safe-to-remove, deletion-first plan. Use for 'cleanup', 'deslop', 'remove dead code', 'tidy this codebase'."
 
 ---
 
-# nord-cleanup — multi-agent deletion-first cleanup
+# cleanup --remove — multi-agent deletion-first cleanup
 
 Invoking this skill IS opt-in to multi-agent orchestration. Run the Workflow tool with the
 script below. Default scope: recently changed files / the path the user named — pass as
@@ -16,7 +16,7 @@ candidate that wasn't marked `safeToRemove`.
 
 ```javascript
 export const meta = {
-  name: 'nord-cleanup',
+  name: 'cleanup --remove',
   description: 'Parallel detect + verify-safe code cleanup',
   phases: [
     { title: 'Detect', detail: 'parallel detectors' },
@@ -70,7 +70,7 @@ Use this skill when:
 
 ## When Not to Use
 
-Do not invoke nord-cleanup when:
+Do not invoke cleanup --remove when:
 - the task is primarily a new feature build or product change
 - the user wants a broad redesign instead of an incremental cleanup pass
 - the request is a generic refactor with no simplification or slop intent
@@ -167,11 +167,14 @@ Always report:
 - **Behavior lock / verification run** — which tests ran or what was explicitly recorded before editing
 - **Remaining risks**
 
-## Ralph Integration
+## As a post-pass after `implement`
 
-When Ralph invokes nord-cleanup as a post-pass cleanup step:
-- Run in standard mode (not `--review`) on the Ralph session's changed files only
-- Caller (Ralph) re-runs regression verification after nord-cleanup completes
-- `--review` remains a reviewer-only follow-up mode, not the default Ralph integration path
+When a finished `implement --from goal` run calls this as a tidy-up step:
 
-Invoke: `Skill("nord-cleanup")` scoped to session changed files only.
+- scope it to that run's changed files only, never the whole tree
+- run standard mode, not `--review`
+- the caller re-runs its own gate afterwards — a deletion is a change, and the gate is
+  still the only verdict
+
+Invoke it as `Skill("nord-core:cleanup")` with `--remove` in the arguments. The skill name
+carries no flags; passing `cleanup --remove` as the name fails to resolve.

@@ -5,9 +5,10 @@ license: MIT
 disable-model-invocation: true
 ---
 
-# skill-lookup
+# install-skill — the prompts.chat registry
 
 Search the prompts.chat registry and install a skill instead of writing one from scratch.
+For the skills.sh ecosystem use `search-skills`; to write one, `author-skills`.
 
 **Prereq:** the prompts.chat MCP must be connected (provides `search_skills`, `get_skill`). If those
 tools are absent, say so and stop — do not fabricate results.

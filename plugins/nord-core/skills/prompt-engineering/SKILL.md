@@ -1,6 +1,6 @@
 ---
 name: prompt-engineering
-description: Writes and repairs prompts for language models — the section order a prompt needs, which technique fits which signal, per-model formatting, and how to diagnose one that gives inconsistent results. Use when writing a prompt for a model, optimizing or rewriting one, designing an agent or skill instruction, or when a prompt produces varying output and the cause is unclear. For a Claude Code skill, subagent or CLAUDE.md, the artifact rules differ — see the artifact section below.
+description: Writes and repairs prompts for language models — the section order a prompt needs, which technique fits which signal, per-model formatting, and how to diagnose one that gives inconsistent results. Use when writing a prompt for a model, optimizing or rewriting one, designing an agent or skill instruction, when a prompt produces varying output and the cause is unclear, or on 'schreib einen Prompt', 'Prompt verbessern', 'warum antwortet das Modell so unterschiedlich'. For a Claude Code skill, subagent or CLAUDE.md the artifact rules differ — see the artifact section below, and `author-skills` for the full set.
 ---
 
 # Prompt engineering

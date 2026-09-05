@@ -1,233 +1,256 @@
 ---
 name: implement
-description: "Write code behind a deterministic gate: a cheap $0 worker (class `worker` via claude_bridge) implements, a test/lint/compiler exit code is the ONLY verdict, and the frontier (this thread) takes over after 3 consecutive reds. `--from task` for one story, `--from goal` to decompose and run until everything is green, `--from plan` to take the story list from a finished plan, `--parallel` to run disjoint stories concurrently. Requires CC launched through the bridge."
+description: "Build something behind a deterministic gate — a test, a linter or a compiler exit code is the only verdict, never a self-assessment and never a judge model. `--from task` for one story (the only mode a worker may drive), `--from goal` to decompose a goal and drive it until everything is green, `--from plan` to take the split from a finished plan, `+ --parallel` for disjoint stories at once. Use when the user says implement, build, fix, 'make the tests pass', 'bau das', 'mach das fertig', 'implementier das', 'setz den Plan um', or hands over a plan to execute. Cheap $0 workers do the volume and this thread takes over after three consecutive reds; needs Claude Code launched through claude_bridge."
 ---
 
 # implement
 
-Drive a cheap worker against a DETERMINISTIC gate and take the work
-over yourself only when the worker stalls. Cheap workers do the volume,
-an exit-code gate is the single source of truth, no self-verification. The full invariant:
-`references/gate-pattern.md`. The worker substrate (bridge, ids, launch): `WORKERS.md` (nord-core).
+A deterministic gate decides done — a test, a linter or a compiler exit code, never a
+self-assessment and never a judge model. Cheap `worker`-class subagents do the volume;
+this thread takes over when they stall. The full invariant is
+`references/gate-pattern.md`; the worker substrate (bridge, ids, launch) is `WORKERS.md`.
 
-## Pick the mode by WHAT YOU WERE HANDED
+## Pick the mode by what you were handed
 
-One axis — the input — because it decides everything else. A single story has one gate;
-a goal must be split before anything can be gated; a plan already carries the split.
-"Keep going until it is green" is not a mode, it is what the machine does as soon as
-there is more than one story.
+One axis — the input — because it decides everything else. One story has one gate; a goal
+must be split before anything can be gated; a plan already carries the split. "Keep going
+until it is green" is not a mode, it is what the machine does as soon as there is more
+than one story.
 
 | you have | invoke | what runs |
 |---|---|---|
-| one acceptance criterion + a gate command | `--from task` *(default)* | §0–§2, once |
-| a goal too big for one gate | `--from goal` | decompose (§PRD 0), then drive (§PRD 1) sequentially |
-| a plan produced by `plan` | `--from plan` | take its steps as the split (§PRD 0b), then as `--from goal` |
-| either multi-story form | `+ --parallel` | disjoint stories concurrently (§PRD 1, parallel branch) |
+| one acceptance criterion + a gate command | `--from task` *(default)* | **Part A**, once |
+| a goal too big for one gate | `--from goal` | **Part B**: decompose, then Part A per story |
+| a plan produced by `plan` | `--from plan` | Part B, with the split taken from the plan |
+| either multi-story form | `+ --parallel` | disjoint stories concurrently |
 
-`--parallel` is a modifier, not a value on the axis: it means nothing until there is
-more than one story, and it never changes what a gate is or when the frontier steps in.
+`--parallel` is a modifier, not a value on the axis: it means nothing until there is more
+than one story, and it never changes what a gate is or when the frontier steps in.
 
-**Who may run which.** `--from task` is the only cell a worker may drive — it needs
-nothing beyond Task and Bash. Every multi-story form fans out through `Workflow` or
-several concurrent spawns, which a worker is denied unconditionally, so
-`--from goal|plan` and `--parallel` are main-session only. That is the whole rule.
+> **Who may run which.** `--from task` is the only cell a worker may drive — Part A needs
+> nothing beyond one subagent spawn and a shell. Every multi-story form fans out through
+> `Workflow` or several concurrent spawns, and a worker is denied both unconditionally, so
+> `--from goal`, `--from plan` and `--parallel` are main-session only. **If you are a
+> worker, Part B is not yours — report back rather than starting it.**
 
 INPUT: `$ARGUMENTS` — `<goal>  [gate: <command>]  [--from task|goal|plan] [--parallel]`
 
-## 0. Preflight + setup
+The subagent spawn tool is `Agent` in current Claude Code and `Task` in older builds;
+"spawn" below means whichever this session has.
 
-**Preflight (MUST pass before any worker spawn)** — the cheap `implementer` (`model: worker`)
-only routes to the $0 opencode-zen coder when CC is launched through the bridge:
+---
+
+# Part A — one story, one gate
+
+This is the whole of `--from task`, and the only part a worker drives.
+
+## A0. Preflight and setup
+
+**Preflight, and it must pass before any worker spawn.** The cheap `implementer`
+(`model: worker`) only routes to the $0 coder when Claude Code was launched through the
+bridge:
+
 ```sh
 test "${ANTHROPIC_BASE_URL%/}" = "http://127.0.0.1:8318" \
   && curl -sf --max-time 5 http://127.0.0.1:8318/healthz >/dev/null
 ```
-On failure: STOP and tell the user `ANTHROPIC_BASE_URL=http://127.0.0.1:8318 claude`, or proceed with a
-normal-tier worker — never let a worker id 404 mid-loop. (See `WORKERS.md` for the id→provider table
-+ fallback `glm-5.1`.)
 
-Parse the GOAL and GATE command from the input. The gate MUST be a single deterministic command whose
-exit code is the verdict (0 = green) — `pytest -q`, `ruff check .`, `cargo build`, `npm test`. If no
-gate was given, STOP and ask for one — never invent a success criterion or self-judge. Prefer a
-**middle gate** (target test + the touched module's sibling tests), not a single test (inflates
-false-pass) nor the whole suite (collapses offload) — see `references/gate-pattern.md`.
+On failure, STOP and tell the user to relaunch with
+`ANTHROPIC_BASE_URL=http://127.0.0.1:8318 claude`, or continue with a normal-tier worker.
+Never let a worker id 404 mid-loop — `WORKERS.md` has the id→provider table.
 
-Run the gate ONCE up front for the baseline (it may already be green → report and stop).
+Parse the goal and the gate from the input. **The gate is a single deterministic command
+whose exit code is the verdict**, 0 = green: `pytest -q`, `ruff check .`, `cargo build`,
+`npm test`. Given no gate, STOP and ask for one. Never invent a success criterion and
+never self-judge — that is the entire point of this skill.
 
-## 1. Loop
+Prefer a **middle gate**: the target test plus the touched module's siblings. A single
+test inflates false passes; the whole suite collapses the offload.
+See `references/gate-pattern.md`.
 
-**Bug-fix goals — reproduction test FIRST** (Agentless localize→repair→validate). Before any fix,
-write a test that REPRODUCES the failure (must fail now) and fold it into the gate command. That repro
-test is the deterministic proof the bug is dead and re-ranks candidate fixes — it is the +4-5% lever
-the loop lives on, and the reason a standalone `debugger` role is unneeded (this loop closes the debug
-feedback itself). Skip only for greenfield/feature goals that already have a gate.
+Run the gate **once** up front for the baseline. It may already be green — then report
+that and stop.
 
-Repeat until the gate is green or you hit an escalation/stop condition:
+## A1. The loop
 
-1. SPAWN an `implementer` subagent (Task tool) with: the goal, the exact gate command, the FULL output
-   of the latest failing gate run, AND the reflection buffer (below). One increment per spawn.
-2. RUN the gate command yourself via Bash. Capture exit code + output. The gate is the ONLY verdict —
-   ignore the worker's self-check claim.
-3. GREEN (exit 0) → go to §2.
-4. RED → record it. Append ONE reflection line — a concrete hypothesis (WHY it failed + what to change
-   next, never "try again") — to the reflection buffer, then feed the gate output + buffer into the
-   next spawn. If the worker returned "Blocked", resolve the blocker yourself then continue.
+**A bug fix starts with a reproduction test.** Before any fix, write a test that fails
+*now* and fold it into the gate command. That test is the deterministic proof the bug is
+dead and it re-ranks candidate fixes; it is also why no separate debugger role is needed
+here, because the loop closes that feedback itself. Skip it only for greenfield work that
+already has a gate.
 
-**Reflection buffer (Reflexion).** Persist to `.nord/reflect-<story>.md`, one line per red. Pass the
-last 3 into every spawn so the worker learns from prior failures instead of blind-retrying — a cheap
-accuracy lift before the 3-red frontier escalation. Delete the file on green.
+Repeat until the gate is green or a stop condition fires:
 
-## Escalation (frontier)
+1. **Spawn** an `implementer` subagent with the goal, the exact gate command, the FULL
+   output of the latest failing run, and the reflection buffer. One increment per spawn.
+2. **Run the gate yourself**, capturing exit code and output. The gate is the only
+   verdict — ignore what the worker claims about its own work.
+3. **Green (exit 0)** → A2.
+4. **Red** → append one reflection line: a concrete hypothesis naming *why* it failed and
+   what to change next, never "try again". Feed gate output plus buffer into the next
+   spawn. If the worker returned "Blocked", clear the blocker yourself, then continue.
 
-Count CONSECUTIVE red gates. After **3** consecutive reds, stop delegating and make the next fix
-YOURSELF in this thread (you are the frontier tier) — read the failing code, fix directly, re-run the
-gate. Drop back to the cheap worker once green is restored or the hard part is past. Do not escalate
-before 3 reds. (A lateral tier is a wash; you/Opus are the genuinely stronger tier.)
+**Reflection buffer.** `.nord/reflect-<story>.md`, one line per red. Pass the last 3 into
+every spawn so the worker learns from earlier failures instead of blind-retrying — a cheap
+accuracy lift before the frontier has to step in. Delete the file on green.
 
-## Loop discipline
+## A1b. Stop conditions
 
-- After every 8 worker rounds, run `/compact` before continuing.
-- Pass into each worker spawn ONLY: goal + gate command + latest gate output. Never the full transcript.
-- Hard stop after 12 total rounds without green → report the last gate output + what remains.
+- **Three consecutive reds** → stop delegating and make the next fix yourself in this
+  thread. Read the failing code, fix it directly, re-run the gate. Drop back to the cheap
+  worker once green is restored or the hard part is behind you. Do not escalate earlier:
+  a lateral tier is a wash, and this thread is the genuinely stronger one.
+- **Every 8 worker rounds** → run `/compact` before continuing.
+- **12 rounds without green** → hard stop; report the last gate output and what remains.
+- Pass into each spawn only the goal, the gate command and the latest gate output. Never
+  the transcript.
 
-## 2. Report
+## A2. Report
 
 ```
 ## implement result
 - Goal: <goal>
 - Gate: <command> → <PASS exit 0 | STOPPED after N rounds>
-- Rounds: <n worker rounds, m escalated to frontier>
+- Rounds: <n worker rounds, m escalated to this thread>
 
 ### Final gate output
-<tail of the green run, or the last red run if stopped>
+<tail of the green run, or of the last red run if stopped>
 
 ### Change summary
-<what changed, as file:line refs. The cumulative diff, deduped.>
+<what changed, as file:line refs — the cumulative diff, deduped>
 
 ### Remaining (if stopped)
-<what is still failing and the likely next step.>
+<what is still failing, and the likely next step>
 ```
 
-Rule: the gate exit code is the truth. Never report green unless you ran the gate and saw exit 0 in
-this session.
+**The gate exit code is the truth. Never report green unless you ran the gate and saw
+exit 0 in this session.**
 
 ---
 
-## PRD mode — `--from goal` and `--from plan`
+# Part B — many stories · main session only
 
-For a goal too big for one gate, decompose into a **PRD** = a list of stories, each with its OWN
-deterministic gate, then run the single-story loop above per story until ALL are green. The
-`gate-persist` Stop-hook (registered) enforces persistence: it refuses to let the session quit while
-stories are red, bumps the iteration counter, and forces escalation — replacing nord's persistent-mode +
-LLM-reviewer with a deterministic-gate loop, no judge (per `references/gate-pattern.md`).
+A goal too big for one gate becomes a **PRD**: a list of stories, each with its own
+deterministic gate. Then Part A runs per story until all are green. The registered
+`gate-persist` Stop hook enforces the persistence — it refuses to let the session quit
+while stories are red, bumps the iteration counter, and forces escalation. No judge model
+anywhere in the loop. Its block/allow contract and how to test it live in
+`references/gate-persist-contract.md`.
 
-### State contract (single-writer — do not violate)
-- **`.nord/prd.json` — SKILL-owned (you).** The story SSOT. Stories live ONLY here (NOT mirrored into
-  state.json). Fields per story: `id`, `desc`, `gate` (deterministic cmd, exit 0 = done), `passes` (bool —
-  true ONLY after you re-ran THAT gate to exit 0 this session), `redCount` (int — ++ on red, reset 0 on
-  green), `escalated` (bool — true on the green that follows a frontier fix after ≥3 reds; reset false on a
-  normal green), `files?` (string[], `--parallel` disjointness), `lastFail?` (one-line carry-over, overwrite each red).
-  **Progress-ledger (stall detection):** `failSig?` (deterministic signature of the last failing gate
-  output — e.g. its first error line / a hash; the progress signal), `stallCount` (int — ++ when a new red
-  has the SAME `failSig` as the prior red = stuck; reset 0 when `failSig` changes = progress, or on green),
-  `replans` (int — how many times this story was re-planned).
-- **`.nord/state/<mode>-state.json` — MIXED, single-writer-per-field.** SKILL writes `mode`, `active`
-  (true@start / false@complete+cancel), `max`, `startedAt`, optional `session_id`. **The gate-persist HOOK
-  owns `iteration` + `updatedAt` — you init `iteration:0` at start and NEVER bump it** (double-count
-  otherwise). NO embedded stories.
-- nord-hud reads both (read-only). Keep the flat `.nord/state/<mode>-state.json` path.
+## The state contract — single writer per field
 
-### 0. Decompose (frontier = you)
+Violating this is the one way to corrupt a run that no gate can catch.
+
+**`.nord/prd.json` — owned by this skill.** The story SSOT. Stories live only here, never
+mirrored into the state file. Per story:
+
+| field | meaning |
+|---|---|
+| `id`, `desc` | one acceptance criterion |
+| `gate` | deterministic command, exit 0 = done |
+| `passes` | true **only** after you re-ran *that* gate to exit 0 this session |
+| `redCount` | ++ on red, reset to 0 on green |
+| `escalated` | true on the green that follows a frontier fix after ≥3 reds; false on a normal green |
+| `files?` | `--parallel` disjointness |
+| `lastFail?` | one-line carry-over, overwritten each red |
+| `failSig?` | deterministic signature of the last failing output (its first error line, or a hash) — the progress signal |
+| `stallCount` | ++ when a new red has the SAME `failSig` as the prior red; reset to 0 when it changes, or on green |
+| `replans` | how often this story was re-planned |
+
+**`.nord/state/<mode>-state.json` — mixed ownership.** This skill writes `mode`, `active`
+(true at start, false on complete or cancel), `max`, `startedAt`, optional `session_id`.
+**The hook owns `iteration` and `updatedAt`: initialise `iteration: 0` and never bump it**,
+or every round counts twice. No stories embedded here. nord-hud reads both, read-only;
+keep the flat `.nord/state/<mode>-state.json` path.
+
+## B0. Decompose
+
 Split the goal into stories and write `<repo>/.nord/prd.json`:
+
 ```json
 { "goal": "<goal>", "stories": [
-  { "id": "s1", "desc": "<one acceptance criterion>", "gate": "pytest -q tests/test_x.py", "passes": false, "redCount": 0, "escalated": false, "stallCount": 0, "replans": 0 },
-  { "id": "s2", "desc": "...", "gate": "ruff check . && pytest -q tests/test_y.py", "passes": false, "redCount": 0, "escalated": false, "stallCount": 0, "replans": 0 }
+  { "id": "s1", "desc": "<one acceptance criterion>", "gate": "pytest -q tests/test_x.py",
+    "passes": false, "redCount": 0, "escalated": false, "stallCount": 0, "replans": 0 }
 ] }
 ```
-**Coverage gate (decompose-completeness).** First enumerate the goal's acceptance criteria, then confirm
-EACH maps to ≥1 story. A requirement that never becomes a story is silently never built — the loop reports
-"all stories green" while missing it, and no per-story gate can catch a requirement that has no gate. This
-is the one coverage bug the deterministic gates cannot see, so it is checked HERE, at decompose, by you.
 
-Every story's `gate` MUST be a deterministic, **runnable** command — at decompose time verify each gate
-parses / its test path exists (a non-existent or flaky gate never goes green → the hook blocks until the
-cap). A story with no runnable gate is NOT a story; fold it in or make it a real gate
-(e.g. placeholder check `! grep -rnE "TODO|\.skip\(" src`). Prefer a **middle gate** (target + sibling
-tests), not a single test. Then write the state file:
-`.nord/state/implement-state.json` = `{ "mode":"implement", "active":true, "iteration":0, "max":<max(12, 6*stories)>, "startedAt":"<iso>" }`
-(write prd.json BEFORE flipping `active:true`).
+**Coverage gate.** First enumerate the goal's acceptance criteria, then confirm each maps
+to at least one story. A requirement that never becomes a story is silently never built:
+the loop reports "all stories green" while missing it, and no per-story gate can catch a
+requirement that has no gate. This is the one coverage bug the deterministic gates cannot
+see, so it is checked here, by you, at decompose time.
 
-The filename and the `mode` field were `ralph`/`team`/`autopilot` until 2026-09-05. Nothing
-in the hook had to change: `gate-persist.cjs` discovers state files with
-`readdirSync(stateDir).filter(f => f.endsWith("-state.json"))` and reads
-`st.mode || f.replace("-state.json","")`, so it is name-agnostic by construction. A stale
-`ralph-state.json` left over from before the rename is still picked up and still works —
-`nord-core:abort` clears it.
+**Every gate must be runnable, and you verify that now** — the command parses and its test
+path exists. A non-existent or flaky gate never goes green, so the hook blocks until the
+cap and the run looks like a model failure instead of a typo. A story with no runnable
+gate is not a story: fold it into another, or give it a real one (a placeholder check like
+`! grep -rnE "TODO|\.skip\(" src` counts). Prefer a middle gate here too.
 
-### 0b. Decompose FROM A PLAN (`--from plan`)
-An idea or a plan document is too vague to gate directly, so the split is delegated rather
-than invented here: invoke `plan` (or read the plan file you were handed), then convert each
-of its steps into a story with a **deterministic gate** — and verify each gate is runnable
-before writing it, exactly as in §0. From there this is `--from goal`: same prd.json, same
-drive loop, same completion rule. The only difference is who produced the split.
+Then write the state file — prd.json **before** flipping `active`:
 
-### 1. Drive
-- **sequential (`--from goal` / `--from plan`, no `--parallel`):** for each `passes:false` story, run the §1 single-story loop
-  (implementer → run its gate → escalate to frontier after 3 reds). On exit 0 set `passes:true` + reset
-  `redCount:0` + `stallCount:0`; on red `redCount++`, set `lastFail`, and update the progress-ledger:
-  compute `failSig` from the gate output — if it equals the prior `failSig`, `stallCount++` (stuck);
-  else `stallCount=0` + store the new `failSig` (progress, keep going). **Never write `iteration` — the hook does.**
-- **`--parallel`:** dispatch INDEPENDENT stories (disjoint `files`) concurrently — one gate-worker each
-  via `parallel()` / multiple Task spawns — gate each independently. Shared-file stories run sequentially,
-  so `--parallel` degrades to the sequential branch rather than failing when nothing is disjoint. This is
-  the mode that needs the `files` field per story; without it disjointness cannot be decided and the run
-  must serialize.
-- Re-read prd.json each round (resume-safe: a `passes:true` story is skipped — survives `/compact` + restart).
+```json
+{ "mode": "implement", "active": true, "iteration": 0, "max": <max(12, 6*stories)>, "startedAt": "<iso>" }
+```
 
-### 1b. Stall → replan (recovery)
-Escalating harder is useless when the failure never *changes* — that means the APPROACH or the GATE is
-wrong, not the effort. Use the progress-ledger to tell grinding (making progress) from stuck:
-- **Grinding** — `failSig` changes each red (different error each round). Progress. Keep looping.
-- **Stuck** — `failSig` unchanged: `stallCount` climbs. When **`stallCount` ≥ 2** (the same failure
-  survived a cheap round AND a frontier escalation), STOP re-fixing and **replan** (this is the recovery
-  action): frontier (you) re-reads `desc` + the reflection buffer + `failSig`, then changes a *different*
-  lever — re-scope/split the story, fix a wrong or flaky `gate`, or pick a new implementation strategy.
-  Then `replans++`, reset `redCount:0` + `stallCount:0`, and resume with the new approach.
-- **Replan cap (recovery-of-recovery):** if `replans` ≥ 2 and it stalls again, mark the story `blocked`
-  (terminal red) and move to the next story — one hard story must not sink the whole run. Report blocked
-  stories at Complete with their `failSig` + likely next step.
+The hook is name-agnostic by construction: it finds state files by suffix
+(`readdirSync(stateDir).filter(f => f.endsWith("-state.json"))`) and reads
+`st.mode || f.replace("-state.json","")`. So **any** leftover `*-state.json` in
+`.nord/state/` is picked up and keeps blocking, whatever it is called. `abort` clears it.
 
-This is a deterministic task-ledger (prd.json stories) + progress-ledger (`failSig`/`stallCount`) — no
-LLM judge decides stall; a byte-comparison of gate output does.
+## B0b. Decompose from a plan — `--from plan`
 
-### 2. Complete
-Done only when ALL stories `passes:true` AND you re-ran each gate to exit 0 THIS session. Set
-`active:false`. Report per story (gate → PASS / round-count) + cumulative diff. If the hook's iteration
-cap is hit first, it allows the stop — report the still-red stories + next step. `nord-core:abort` aborts.
+A plan document is too vague to gate directly, so the split is delegated rather than
+invented: invoke `plan`, or read the plan you were handed, then turn each of its steps
+into a story with a deterministic gate — verifying each gate is runnable exactly as in B0.
+From there it is `--from goal`: same prd.json, same drive loop, same completion rule. The
+only difference is who produced the split.
 
-**Why over a PRD + LLM-reviewer:** the story gate is a deterministic command, not a reviewer agent —
-objectively done, no judge in the $0 loop; cheap workers do the volume, frontier escalates on stall; the
-hook guarantees it can't quit early AND can't loop forever (iteration cap + 2h staleness + safety bypasses).
+## B1. Drive
 
-## Stop-hook block contract (gate-persist.cjs)
+**Sequential** (no `--parallel`): for each `passes:false` story, run Part A. On exit 0 set
+`passes:true` and reset `redCount` and `stallCount` to 0. On red, `redCount++`, set
+`lastFail`, and update the progress ledger: compute `failSig` from the gate output — equal
+to the prior one means `stallCount++` (stuck), different means `stallCount=0` and store
+the new signature (progress). **Never write `iteration`; the hook does.**
 
-The continuation guarantee is a CC **Stop hook** (`hooks/gate-persist.cjs`). Contract:
-- **Block** (keep going): print `{"decision":"block","reason":"<directive>"}` to stdout, exit 0. CC does
-  NOT stop; it re-injects `reason` as the next instruction and re-invokes with `stop_hook_active:true`.
-  gate-persist deliberately ignores that flag — it relies on deterministic story state + iteration cap +
-  2h staleness, so the flag alone can't trick it into an infinite loop.
-- **Allow** (let stop): print nothing, exit 0. Emitted when all stories `passes:true`, no active state,
-  cap hit, stale, or a safety bypass fires (context-limit / ≥95% / user-abort / auth-error).
-- **Repo-root resolution:** the hook walks up from `input.cwd` to the dir holding `.nord` (preferred) or
-  `.git` before reading `.nord/state` + `.nord/prd.json` — so a nested cwd / git-worktree still finds the
-  loop's root (bounded 40-iter walk, fallback = cwd).
-- **Mirror:** the served copy is `cache/nord/nord-core/<ver>/hooks/gate-persist.cjs` — any edit must land
-  in BOTH the marketplace source and the cache mirror or the running hook is stale.
+**`--parallel`:** dispatch stories with disjoint `files` concurrently, one gate-worker
+each, gated independently. Stories sharing a file run sequentially, so `--parallel`
+degrades to the sequential branch rather than failing when nothing is disjoint. This is
+the mode that needs `files` per story; without it disjointness cannot be decided and the
+run must serialise.
 
-Verify the schema deterministically (no live session needed): pipe a fake stop event —
-`printf '{"cwd":"<repo>","session_id":"t"}' | node hooks/gate-persist.cjs` — a red story prints the
-`block` JSON, all-green prints nothing. Live-confirm by launching CC in a scratch dir with one
-`passes:false` story + `active:true` state, ending the turn (CC must re-inject, not stop), flipping to
-`passes:true` (CC stops), then `nord-core:abort`. **Only one Stop hook may be active** for a clean
-verdict — a second continuation hook (e.g. double-shot-latte's LLM judge) masks this one.
+Re-read prd.json each round. That is what makes the run resume-safe: a `passes:true` story
+is skipped, so the loop survives `/compact` and a restart.
+
+## B1b. Stall → replan
+
+Escalating harder is useless when the failure never *changes* — that means the approach or
+the gate is wrong, not the effort. The progress ledger separates grinding from stuck:
+
+- **Grinding** — `failSig` changes each red. That is progress; keep looping.
+- **Stuck** — `failSig` unchanged, `stallCount` climbing. At **`stallCount` ≥ 2** the same
+  failure has survived a cheap round *and* a frontier escalation. Stop re-fixing and
+  **replan**: re-read `desc`, the reflection buffer and `failSig`, then change a
+  *different* lever — re-scope or split the story, fix a wrong or flaky gate, or pick
+  another implementation strategy. Then `replans++`, reset `redCount` and `stallCount`,
+  and resume.
+- **Replan cap.** At `replans` ≥ 2 and stalling again, mark the story `blocked` and move
+  on. One hard story must not sink the whole run; report blocked stories at completion
+  with their `failSig` and the likely next step.
+
+No model decides that a run has stalled — a byte comparison of gate output does.
+
+## B2. Complete
+
+Done only when every story is `passes:true` **and** you re-ran each gate to exit 0 in this
+session. Set `active:false`. Report per story (gate → PASS, round count) plus the
+cumulative diff. If the hook's iteration cap is hit first it allows the stop — then report
+the still-red stories and the next step. `abort` cancels a run.
+
+## References
+
+- `references/gate-pattern.md` — the full gate invariant, and why the middle gate.
+- `references/test-strategy.md` — choosing what the gate should actually test.
+- `references/gate-persist-contract.md` — the Stop hook's block/allow contract, repo-root
+  resolution, the cache-mirror rule, and how to verify the hook without a live session.
+  Read when the loop will not stop, will not continue, or after editing the hook.

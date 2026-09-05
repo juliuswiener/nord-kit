@@ -1,6 +1,6 @@
 ---
-name: security-checklist
-description: Checklists and severity rules for a security pass over code — authentication, input validation, output encoding, secrets, and dependency CVEs — with CRITICAL/HIGH/MEDIUM/LOW definitions and a remediation clock per level. Use when reviewing code for vulnerabilities, checking a change for OWASP issues, hunting hardcoded credentials or injection paths, auditing an authentication or session flow, or when a security finding needs a defensible severity and deadline. For the general code pass use review-lenses.
+name: review --lens security
+description: Checklists and severity rules for a security pass over code — authentication, input validation, output encoding, secrets, and dependency CVEs — with CRITICAL/HIGH/MEDIUM/LOW definitions and a remediation clock per level. Use when reviewing code for vulnerabilities, checking a change for OWASP issues, hunting hardcoded credentials or injection paths, auditing an authentication or session flow, or when a security finding needs a defensible severity and deadline. For the general code pass use review --scope diff.
 ---
 
 # Security checklist

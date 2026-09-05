@@ -130,7 +130,8 @@ Use this when a customer asks "should I buy now or wait" or a dealer needs to ad
 ## Output
 Present: search criteria summary, ranked deals table (dealer, price, miles, DOM, distance, vs-market %), market context (total supply, median price, price range, trend), and one actionable recommendation with negotiation notes where applicable.
 
-**Provenance (A — canonical vocab, see BEHAVIOUR.md).** A dealer must never read a model estimate as a
+**Provenance** (the vocabulary is the "Provenance & confidence" section of CLAUDE.md, which
+is loaded in every session and every subagent). A dealer must never read a model estimate as a
 quoted fact. Tag every number:
 - straight from a marketcheck listing (price, miles, DOM, stock#) → `explicit`.
 - computed/model output (composite score, %-vs-market, predicted/fair price, months-of-supply, suggested

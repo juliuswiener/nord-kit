@@ -1,5 +1,5 @@
 ---
-name: brainstorm-adversarial
+name: plan --stage shortlist
 description: "Dialectic idea engine: persona ideators diverge, red-team kills weak ideas (majority-kill), champions steelman survivors, ranked shortlist + hybrids. Use for open 'how could we build/design/approach X' when one draft isn't enough."
 triggers:
   - adversarial brainstorm
@@ -34,11 +34,11 @@ SYNTHESIZE (1 agent, blocking)
 |---|---|
 | Generate + pressure-test ideas for a wide-open design question | **this skill** |
 | Pin down vague requirements into a spec via Q&A | `deep-interview` |
-| Turn a chosen direction into an implementation plan | `planner` / `ralplan` |
-| Compare a few already-known options on trade-offs | `architect` |
+| Turn a chosen direction into an implementation plan | `planner` / `plan --deep` |
+| Compare a few already-known options on trade-offs | `reviewer` |
 | Audit an existing codebase | `review --scope repo --deep` |
 
-Brainstorm explores *what to build*; deep-interview clarifies *what you already decided*; planner sequences *how*. Chain them: **adversarial-brainstorm → pick a direction → deep-interview → planner**.
+Brainstorm explores *what to build*; deep-interview clarifies *what you already decided*; planner sequences *how*. Chain them: **plan --stage shortlist → pick a direction → deep-interview → planner**.
 
 ## Running it
 

@@ -1,10 +1,10 @@
 ---
-name: web-ux-review
+name: review --lens a11y
 description: "Accessibility-first UX review of a web page or frontend for citizen-facing / public-sector sites — WCAG 2.2 AA, BITV 2.0 / EN 301 549, plain language (Leichte/Einfache Sprache), usability heuristics, visual design, and DE legal-trust duties. Runs real a11y tooling (axe-core/pa11y/Lighthouse) as a deterministic gate, then parallel POUR + citizen-UX lenses, adversarially verified and severity-ranked with exact WCAG success-criterion tags. Triggers on review accessibility, is this barrierefrei, WCAG/BITV check, UX review of this page, bürgernah, government form review."
 argument-hint: "<url | source-path | screenshot> [--source-only] [--live]"
 ---
 
-# web-ux-review — accessible, citizen-centric web UX review
+# review --lens a11y — accessible, citizen-centric web UX review
 
 Invoking this skill IS opt-in to multi-agent orchestration. Reviews a web UI for **barrierefreie,
 bürgernahe UX**: WCAG 2.2 AA + BITV 2.0 / EN 301 549 conformance, plain-language comprehensibility,
@@ -28,7 +28,7 @@ If the user names both a URL and source, do both: tool-gate + tiles from the URL
 ## Pre-pipeline: deterministic tool gate (mandatory when a page can be rendered)
 
 Machine-checkable a11y failures are FACTS, not opinions — run the tool and let its output decide, exactly
-like codebase-audit's tool gate. Two tiers, both in `lens-a11y/tooling.md`:
+like review --scope repo --deep's tool gate. Two tiers, both in `lens-a11y/tooling.md`:
 
 - **Tier 1 — static rule scan** (axe-core default, else pa11y / Lighthouse a11y / measured contrast).
   Catches ~30–40%: contrast, missing alt/label, invalid ARIA, no `lang`, target size.
@@ -48,7 +48,7 @@ criteria live in `lens-a11y/wcag-bitv-checklist.md` — the lens agents read it;
 
 ```javascript
 export const meta = {
-  name: 'web-ux-review',
+  name: 'review --lens a11y',
   description: 'Accessibility-first, citizen-centric web UX review (WCAG 2.2 AA / BITV 2.0)',
   phases: [
     { title: 'Review', detail: 'parallel POUR + citizen-UX lenses' },
@@ -158,5 +158,5 @@ return { count: confirmed.length, findings: confirmed }
 
 ## Related
 - `nord-web:visual-read` — renders the page to tiles for the visual/plain-language lenses (and its visual-verdict rubric).
-- `codebase-audit` (`extraLanes:['a11y']`) — repo-wide static a11y as one lane of a full architectural audit; this skill is the focused, tool-gated, citizen-UX-aware page/flow review.
-- `nord-review` — line-level code review of a diff (this skill reviews the rendered/authored UI, not the diff).
+- `review --scope repo --deep` (`extraLanes:['a11y']`) — repo-wide static a11y as one lane of a full architectural audit; this skill is the focused, tool-gated, citizen-UX-aware page/flow review.
+- `review --scope diff --deep` — line-level code review of a diff (this skill reviews the rendered/authored UI, not the diff).

@@ -50,27 +50,19 @@ a `qwen3.6-plus`/`glm-5.1` worker id 404 mid-loop.
 
 ## `t` MCP bundle — tool count vs the ≤3-5 active-budget rule
 `bridge/mcp-server.cjs` (the `t` server) ships **24** tools (`lsp_*`, `ast_grep_*`, `python_repl`,
-`memory_save`, `docs_chat`, `Bash`/`BashOutput`/`KillShell`). It was 58 until 2026-08-10,
-when the five memory families
-(`wiki_*`, `notepad_*`, `project_memory_*`, `shared_memory_*`, `session_search`) were removed —
-0 calls across 11,243 sessions, with claude-mem covering the same ground and being used 55 times
-over the same history. It went 40 → 27 with the runtime-internal cut: `state_*` (5), `trace_*` (2),
-`merge_readiness_*` (5) and `deepinit_manifest` (1). The state FILES are untouched — the skills and
-the `gate-persist` hook write and read `.nord/state/*.json` directly, which is how they always
-worked; only the MCP entrance closed. It went 27 → 24 on 2026-08-11 with the skills cut:
-`list_nord_skills` and `load_nord_skills_local`/`_global` all read `.nord/skills/`,
-`~/.nord/skills/` and `~/.claude/skills/nord-learned/`, and no such directory exists anywhere —
-`scripts/skill-injector.mjs` still reads the same paths from the prompt hook, so only the second,
-manual entrance closed. That does NOT violate the ≤3-5 active-tools rule: those tools surface
-to the model as **ToolSearch-DEFERRED** (e.g. `mcp__plugin_nord-core_t__lsp_*`), so they cost ~0
-active-budget tokens until explicitly searched/loaded. The ≤3-5 rule is about *active* tools per task.
+`memory_save`, `docs_chat`, `Bash`/`BashOutput`/`KillShell`). That does NOT violate the ≤3-5
+active-tools rule: they surface to the model as **ToolSearch-DEFERRED** (e.g.
+`mcp__plugin_nord-core_t__lsp_*`), so they cost ~0 active-budget tokens until explicitly searched
+and loaded. The rule is about *active* tools per task.
 
-Two claims that used to stand here were wrong, and both mattered:
-- Env-slim IS available. `NORD_DISABLE_TOOLS` is wired (`disable-tools.ts`); measured,
+There is no MCP entrance to `.nord/state` or to skill loading, and none is needed: the skills and
+the `gate-persist` hook read and write `.nord/state/*.json` directly, and
+`scripts/skill-injector.mjs` loads skills from the prompt hook.
+
+- **Env-slim is available.** `NORD_DISABLE_TOOLS` is wired (`disable-tools.ts`); measured,
   `=custom` removes exactly `{Bash, BashOutput, KillShell}` and `=python` exactly `{python_repl}`.
-- The bundle DOES have source. `node scripts/build-mcp-server.mjs` builds it from
-  `src/mcp/standalone-server.ts` (esbuild). The old "no source to rebuild" note is why a dead
-  `tools/list` survived three releases unexamined — see TOOLING.md.
+- **The bundle has source.** `node scripts/build-mcp-server.mjs` builds it from
+  `src/mcp/standalone-server.ts` (esbuild). Rebuild it; never hand-edit the bundle.
 
 Verify the surface with `npm run mcp:smoke` before and after any change to it.
 

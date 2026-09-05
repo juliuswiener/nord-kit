@@ -1,57 +1,53 @@
 ---
 name: verify
-description: "Completion verification — use before claiming done/fixed/passing. Triggers on: 'does this work', 'is it done', 'verify my fix', 'confirm it passes', 'check if tests pass', or any claim of completion without concrete evidence. Runs in-session (no subagent). Reports only what was actually checked."
-
+description: "Prove a change works before anyone claims it does — run the narrowest decisive command and report only what it actually showed. Use before saying done, fixed or passing, and when the user asks 'does this work', 'is it done', 'verify my fix', 'confirm it passes', 'check if tests pass', 'läuft das', 'ist das fertig', 'hast du das geprüft'. Runs in this session and spawns nothing."
 ---
 
-# verify — in-session completion check
+# verify — evidence before the claim
 
-Lightweight in-session verification. No subagent spawn. Run checks, report evidence.
+**No completion claim without a command run fresh in THIS message.** Output from an
+earlier turn does not count, and neither does an agent's own success report — a dead
+worker reports green on an unchanged tree.
 
-## Verification order
+## Order
 
-1. **Existing tests** — run the project test suite (or the narrowest relevant subset)
-2. **Typecheck / build** — `tsc --noEmit`, `mypy`, `cargo check`, `go build`, or equivalent
-3. **Narrow direct commands** — targeted CLI invocations that exercise the changed behavior
-4. **Manual / interactive** — only if automation is impossible; document exact steps and observations
+Stop at the first tier that settles the question. Do not run all four.
 
-Stop at the first tier that either proves or disproves the claim. Do not run all four if tier 1 is conclusive.
+1. **Existing tests** — the project suite, or the narrowest relevant subset.
+2. **Typecheck / build** — `tsc --noEmit`, `mypy`, `cargo check`, `go build`.
+   A passing linter is not a passing build; never substitute one for the other.
+3. **A narrow direct command** that exercises the changed behaviour.
+4. **Manual**, only when automation is impossible — write down the exact steps taken and
+   what was observed.
 
 ## Rules
 
-- Never say a change is complete without running at least one command and showing its output.
-- If a check fails, report the failure verbatim — do not smooth it over.
-- If no realistic verification path exists, say so explicitly.
-- Prefer the narrowest command that is still decisive.
-- Do not spawn subagents; do not delegate verification to a separate lane mid-skill.
+- **Delegated work is verified by `git diff --stat`**, not by what the agent reported.
+- A failing check is quoted verbatim. Do not smooth it over or summarise it away.
+- **To prove a test catches the bug**: write it, run it green, revert the fix, run it and
+  require RED, restore the fix, run it green. A test that never went red proves nothing.
+- **Against a plan or spec**: re-read it, build a line-by-line checklist, check each item,
+  and name the ones you could not check.
+- When no realistic verification path exists, say so. That is a valid result; inventing
+  one is not.
+- Spawn nothing. A separate lane would need its own verification, which is the problem
+  this skill exists to end.
 
 ## Output
-
-Report only what was actually verified — no speculation about what "should" pass.
 
 ```
 ## Verification
 
 **Commands run**
-- `<command>` → <exit code / summary>
+- `<command>` → <exit code / one-line result>
 
 **Passed**
 - <what passed>
 
 **Failed / unverified**
-- <what failed or could not be checked>
+- <what failed, verbatim, or what could not be checked>
 
 **Verdict**: PASS | FAIL | INCOMPLETE
 ```
 
-If verdict is FAIL or INCOMPLETE, state the concrete next step to close the gap.
-
-## Rigor rules (adopted)
-Grafted from nord-core:verify / verification-before-completion:
-- **Iron Law**: no completion claim without a verification command run **fresh in THIS message**. Stale or
-  previous-run output does not count.
-- **Verify delegated/agent work via VCS diff** (`git diff`), not the agent's own success report.
-- **Regression red-green**: to prove a test catches the bug — write test, run pass, revert the fix, run
-  MUST-FAIL, restore fix, run pass.
-- **Requirements check**: re-read the plan/spec, build a line-by-line checklist, verify each item, report gaps.
-- **Linter ≠ build.** A passing linter is not a passing compiler/build — never substitute one for the other.
+On FAIL or INCOMPLETE, name the concrete next step that would close the gap.

@@ -1,5 +1,5 @@
 ---
-name: nord-codebase-research
+name: research
 description: "Parallel codebase investigation: decomposes a research goal into 3-7 staged hypotheses, tier-routes each stage to haiku/sonnet/opus based on complexity, fires up to 16 agents concurrently, cross-validates findings for contradictions and gaps, and emits a structured report. Use for 'deep investigate', 'parallel research codebase', 'how does X work across the repo', 'find all patterns of Y', 'analyze authentication system', 'trace data flow', 'comprehensive codebase analysis'. CODEBASE-ONLY — no web search; local file reads, grep, and code analysis only."
 argument-hint: "[AUTO:] <research goal> | status | resume [<session-id>] | list | report <session-id> | cancel"
 ---
@@ -30,13 +30,13 @@ Decomposes a codebase research goal into independent hypotheses, routes each to 
 
 | Invocation | Action |
 |---|---|
-| `/nord-core:nord-codebase-research <goal>` | Standard run with user checkpoints after decompose |
-| `/nord-core:nord-codebase-research AUTO: <goal>` | Fully autonomous until `[PROMISE:RESEARCH_COMPLETE]` |
-| `/nord-core:nord-codebase-research status` | Show current session progress from state.json |
-| `/nord-core:nord-codebase-research resume [<session-id>]` | Resume most-recent (or named) interrupted session |
-| `/nord-core:nord-codebase-research list` | List all sessions in `.nord/research/` |
-| `/nord-core:nord-codebase-research report <session-id>` | Regenerate report from existing session state |
-| `/nord-core:nord-codebase-research cancel` | Cancel current session (preserves state for resume) |
+| `/nord-core:research <goal>` | Standard run with user checkpoints after decompose |
+| `/nord-core:research AUTO: <goal>` | Fully autonomous until `[PROMISE:RESEARCH_COMPLETE]` |
+| `/nord-core:research status` | Show current session progress from state.json |
+| `/nord-core:research resume [<session-id>]` | Resume most-recent (or named) interrupted session |
+| `/nord-core:research list` | List all sessions in `.nord/research/` |
+| `/nord-core:research report <session-id>` | Regenerate report from existing session state |
+| `/nord-core:research cancel` | Cancel current session (preserves state for resume) |
 
 ---
 

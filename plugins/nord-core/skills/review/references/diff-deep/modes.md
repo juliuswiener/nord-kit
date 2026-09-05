@@ -1,4 +1,4 @@
-# nord-review flag-gated modes
+# review --scope diff --deep flag-gated modes
 
 Read the relevant section only when its flag is active. Default code-review (no flag) needs none of this.
 

@@ -1,10 +1,10 @@
 ---
-name: nord-review
+name: review --scope diff --deep
 description: "Multi-dimension adversarial code review: parallel reviewers (correctness/security/performance/reuse), each finding adversarially verified, deduped + severity-ranked. Use for 'deep review', 'multi-agent review', 'review my diff thoroughly', pre-merge."
 
 ---
 
-# nord-review — multi-agent adversarial review
+# review --scope diff --deep — multi-agent adversarial review
 
 Invoking this skill IS opt-in to multi-agent orchestration. Run the Workflow tool with the
 script below. First, inline, establish the review target (default: `git diff HEAD`; or the
@@ -70,7 +70,7 @@ After the workflow returns, present `findings` grouped by severity (critical→l
 
 ```javascript
 export const meta = {
-  name: 'nord-review',
+  name: 'review --scope diff --deep',
   description: 'Multi-dimension adversarial code review',
   phases: [
     { title: 'Review', detail: 'parallel per-dimension reviewers' },
@@ -191,7 +191,7 @@ Apply after the pipeline to surface issues dimension reviewers may miss:
 ## Flag-gated modes → `diff-deep/modes.md`
 
 When a mode flag is active, read `diff-deep/modes.md` for its protocol (default code-review needs none of it):
-- **`--plan`** — skip the JS pipeline; run the 6-step plan-review protocol (assumptions, pre-mortem, dependency audit, ambiguity, feasibility, rollback + Devil's Advocate + plan role-lenses). Verdict: REJECT / REVISE / ACCEPT-WITH-RESERVATIONS / ACCEPT.
+- **`--plan`** — skip the JS pipeline; run the 6-step review --scope plan protocol (assumptions, pre-mortem, dependency audit, ambiguity, feasibility, rollback + Devil's Advocate + plan role-lenses). Verdict: REJECT / REVISE / ACCEPT-WITH-RESERVATIONS / ACCEPT.
 - **`--quality-strategy` / `--release-readiness`** — after the pipeline, append coverage-vs-risk assessment + risk-tier (SAFE / MONITOR / HOLD).
 - **`--api-contract`** (or auto on API-surface diffs) — after the pipeline, append breaking-change / versioning / compat review; breaking change = CRITICAL absent a migration path.
 
@@ -249,7 +249,7 @@ The last message MUST contain the full structured deliverable below. Do not put 
 ---
 
 ## When to request review + feedback triage (adopted)
-Grafted from superpowers:requesting-code-review:
+Grafted from `review --scope diff`:
 - **Cadence**: request a review after EACH task in subagent-driven dev, after a major feature, before merge
   to main, when stuck, and before a large refactor.
 - **Feedback triage** (for the author receiving these findings): fix **Critical** immediately, **Important**

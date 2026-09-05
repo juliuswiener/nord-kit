@@ -6,7 +6,7 @@
 // See SKILL.md in the same directory for full documentation.
 
 export const meta = {
-  name: 'multi-agent-codebase-audit',
+  name: 'review-repo-deep',
   description: 'Fan-out 12+ specialist lanes (architecture, tests, security, deps, perf, obs, CI, APIs, data, docs, config) with adversarial verification and severity-ranked synthesis.',
   phases: [
     { title: 'Vital Signs', detail: 'Repo demographics, archetype inference, churn baseline' },
@@ -33,7 +33,7 @@ if (!path) {
     `audit.workflow.js: args.path is required (absolute path to repo root).\n\n` +
     `CORRECT INVOCATION:\n` +
     `  Workflow({\n` +
-    `    scriptPath: '/home/julius/.claude/skills/multi-agent-codebase-audit/audit.workflow.js',\n` +
+    `    scriptPath: '<nord-core>/skills/review/references/repo-deep/audit.workflow.js',\n` +
     `    args: { path: '/absolute/path/to/repo', archetype: 'auto' }\n` +
     `  })\n\n` +
     `Required: args.path (absolute path).\n` +
@@ -350,7 +350,7 @@ Findings should name the module/file and the specific structural problem, not va
 `
 
 const LANE_CODE_QUALITY = (vitals) => `${BASE_CONTEXT(vitals)}
-Load the `review-lenses` skill first — it carries the checklists and the severity rules this lane is judged on.
+Load the `review --scope diff` skill first — it carries the checklists and the severity rules this lane is judged on.
 ## Lane: Code Quality & Smells
 
 Investigate:
@@ -403,7 +403,7 @@ If a dep tool isn't installed, attempt installation via the project's package ma
 `
 
 const LANE_SECURITY = (vitals) => `${BASE_CONTEXT(vitals)}
-Load the `security-checklist` skill first — it carries the checklists and the severity rules this lane is judged on.
+Load the `review --lens security` skill first — it carries the checklists and the severity rules this lane is judged on.
 ## Lane: Security
 
 Investigate:

@@ -206,7 +206,7 @@ The synthesis groups Quick Wins and Major Changes into work-clusters and labels:
 - **Critical path** — longest blocking chain, determines minimum wall-clock for the cleanup
 - **Coordination caveats** — shared-file conflicts, migration windows, deploy ordering
 
-This lets the user compress remediation by dispatching parallel agents (`superpowers:dispatching-parallel-agents` or `nord-execute`) against independent groups.
+This lets the user compress remediation by dispatching parallel agents (`superpowers:dispatching-parallel-agents` or `implement --from goal --parallel`) against independent groups.
 
 ## After the workflow returns: required steps
 

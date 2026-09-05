@@ -36,7 +36,7 @@ Redirect to `nord-plan --consensus` with a brief explanation:
 
 > "Prompt is underspecified for direct execution — routing through nord-plan consensus to scope the work first."
 
-Bypass: prefix the original message with `force:` or `!` (e.g., `force: ralph fix it`).
+Bypass: prefix the original message with `force:` or `!` (e.g., `force: implement fix it`).
 
 ## Gate Does NOT Fire
 
@@ -47,17 +47,17 @@ Bypass: prefix the original message with `force:` or `!` (e.g., `force: ralph fi
 ## Good vs Bad Prompts
 
 **Passes** (concrete anchor present):
-- `ralph fix src/hooks/bridge.ts:326` — file path
-- `autopilot implement #42` — issue number
+- `implement fix src/hooks/bridge.ts:326` — file path
+- `implement implement #42` — issue number
 - `team add validation to processKeywordDetector` — camelCase symbol
-- `ralph do:\n1. Add input validation\n2. Write tests` — numbered steps
+- `implement do:\n1. Add input validation\n2. Write tests` — numbered steps
 
 **Gated** (redirected to nord-plan --consensus):
-- `ralph fix this`
-- `autopilot build the app`
+- `implement fix this`
+- `implement build the app`
 - `team improve performance`
-- `ralph add authentication`
+- `implement add authentication`
 
 **Bypass**:
-- `force: ralph refactor the auth module`
-- `! autopilot optimize everything`
+- `force: implement refactor the auth module`
+- `! implement optimize everything`

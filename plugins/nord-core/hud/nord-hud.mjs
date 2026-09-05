@@ -201,7 +201,11 @@ function fresh(p, maxMs) {
   try { return (Date.now() - fs.statSync(p).mtimeMs) < maxMs; } catch { return false; }
 }
 function readMode(cwd, sid) {
-  const states = ['ralph', 'ultrawork', 'autopilot', 'ultragoal', 'team'];
+  // 'implement' first: it is what the skills write since nord-core 1.45.0, when
+  // ralph/team/autopilot became `implement --from goal|plan`. The old names stay in
+  // the list because a state file outlives the run that wrote it — a loop started
+  // before the rename, or cancelled without clearing, still has to show up here.
+  const states = ['implement', 'ralph', 'ultrawork', 'autopilot', 'ultragoal', 'team'];
   // .nord is the new state dir (renamed from .omc); read both so the indicator
   // works before and after the migration regardless of which the skills write.
   const dirs = ['.nord', '.omc'];

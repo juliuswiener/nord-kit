@@ -189,7 +189,7 @@ no tier-1 evidence. So before final synthesis, **RUN the discriminating probe wh
    data / a destructive action) → skip with an explicit note "probe not executed: <reason>" and fall back
    to the argued rebuttal verdict. Do NOT fabricate a reproduction.
 4. Record the exact command + observed output under **Probe Execution**. A run probe beats the best
-   argument — same gate principle as gate-loop, applied to causal tracing.
+   argument — same gate principle as `implement`, applied to causal tracing.
 
 ## Confidence scale (anchor — what the number means)
 

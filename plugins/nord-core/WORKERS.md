@@ -1,7 +1,7 @@
 # NORD WORKERS — cheap-worker substrate (claude_bridge)
 
-The shared substrate that nord's cheap-worker seams (gate-loop, optionally nord-execute and the
-gather lanes of review/audit/research) assume. Bench-verified — see
+The shared substrate that nord's cheap-worker seams (`implement`, and the gather lanes of
+review/audit/research) assume. Bench-verified — see
 `/home/julius/00_projects/local-llm-harness-research/BENCH-FINDINGS.md`.
 
 ## How it works
@@ -77,6 +77,9 @@ Verify the surface with `npm run mcp:smoke` before and after any change to it.
 ## Cache mirror + version label
 The live copy CC loads is whatever `installed_plugins.json` names in nord-core's `installPath` —
 read it, never assume it. Any hook/skill/doc/bundle edit must be mirrored into that dir or the running
-copy is stale. `npm run plugin:copies` compares source, marketplace payload and live cache over the
-shipped paths and reports what differs; run it before and after a rollout, since only the diff between
-the two runs distinguishes new drift from old.
+copy is stale. `node scripts/plugin-copies-diff.mjs`, run from THIS directory, compares source
+(this repo), marketplace payload and live cache over the shipped paths and reports what differs;
+run it before and after a rollout, since only the diff between the two runs distinguishes new drift
+from old. It derives its source from its own location, so where it runs from decides what it
+compares — the `npm run plugin:copies` wrapper this line used to name lived in the nord-core
+development repo, retired 2026-09-03.

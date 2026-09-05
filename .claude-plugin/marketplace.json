@@ -60,7 +60,7 @@
     },
     {
       "name": "oh-my-claudecode",
-      "description": "nord fork of oh-my-claudecode: multi-agent runtime (ralph/team/autopilot/trace/sciomc/CLI). Planning/cleanup/skill-authoring skills pruned — superseded by nord-core's merged versions.",
+      "description": "nord fork of oh-my-claudecode: multi-agent runtime (trace/sciomc/CLI). Planning, cleanup, skill-authoring and the ralph/team/autopilot execution modes pruned — superseded by nord-core (the three execution modes are nord-core's `implement --from goal|plan` since 1.45.0).",
       "source": {
         "source": "url",
         "url": "https://github.com/juliuswiener/oh-my-claudecode.git"

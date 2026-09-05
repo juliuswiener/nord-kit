@@ -116,7 +116,7 @@ return { count: confirmed.length, findings: confirmed }
    contrast token — <1h, no design decision) · **QUICK WIN** (form-error UX, focus order, a plain-language
    rewrite pass) · **NEEDS DECISION** (IA restructure, component-library swap — surface 2-4 options) ·
    **MAJOR** (a Leichte-Sprache edition, a full design-system a11y retrofit).
-3. **Never auto-fix.** Read-only review; hand fixes to the user / `nord-execute` / `ralph` after they pick.
+3. **Never auto-fix.** Read-only review; hand fixes to the user or to `implement` after they pick.
 
 ## Confidence + provenance (anchored — A/B/C, see BEHAVIOUR.md)
 - **high** = `toolVerified` (axe/pa11y/Lighthouse/measured contrast — a fact) OR `checked:confirmed`

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // nord gate-persist — Stop-hook continuation+escalation enforcer for PRD-mode skills
-// (ralph/team/autopilot driving gate-loop). The persistence GUARANTEE half of nord's
+// (`implement --from goal|plan`). The persistence GUARANTEE half of nord's
 // persistent-mode, on nord's deterministic-gate engine — no gh-poll, no notifications,
 // no LLM judge, no 8-mode zoo. (Fusion plan: minimal-glue, consensus 9/9/9.)
 //
@@ -114,7 +114,7 @@ for (const f of files) {
   const stuck = red.filter((s) => Number(s.redCount || 0) >= 3 && !s.escalated);
   let reason =
     `[${mode}] not done — ${red.length}/${stories.length || "?"} stories still RED (${redIds}), ` +
-    `iteration ${iter + 1}/${max}. Continue the gate-loop: re-run each red story's deterministic gate ` +
+    `iteration ${iter + 1}/${max}. Continue the implement loop: re-run each red story's deterministic gate ` +
     `via a gate-worker; set passes:true in .nord/prd.json only on exit 0. Do NOT stop until all stories ` +
     `pass or the cap is hit.`;
   if (stuck.length) {

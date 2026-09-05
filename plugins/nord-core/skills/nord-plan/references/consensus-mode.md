@@ -30,11 +30,11 @@ Read this only when `--consensus` (or `--deliberate`) is set. The default tourna
    - **Consequences** — positive and negative outcomes
    - **Follow-ups** — open questions or future work
 
-6. **Persist** final plan to `.nord/plans/ralplan-<timestamp>.md` (exact naming required — `autopilot`'s glob `.nord/plans/ralplan-*.md` depends on it).
+6. **Persist** final plan to `.nord/plans/ralplan-<timestamp>.md` (exact naming required — the `implement --from plan` glob `.nord/plans/ralplan-*.md` depends on it; the ralplan- prefix is kept because existing plans carry it).
 
 7. **Approval routing** — use `AskUserQuestion` (never plain text) with options:
    - **Approve execution via implement** (Recommended) — invokes `Skill("nord-core:implement")` with the plan path and `--from plan --parallel`
-   - **Approve execution via ralph** — invokes `Skill("nord-core:implement")` with the plan path
+   - **Approve execution (sequential)** — invokes `Skill("nord-core:implement")` with the plan path
    - **Compact then return for execution approval** — invokes compact to shrink accumulated planning context, then re-presents the pending-approval plan without auto-executing (recommended when context is 50%+ full after planning)
    - **Request changes** — return to step 1 with user feedback
    - **Reject** — discard plan entirely
@@ -76,14 +76,14 @@ Required sections per mode:
 | Consensus (`--consensus`) | All tournament sections + **RALPLAN-DR summary** (Principles, Decision Drivers, Viable Options) + **ADR** (Decision, Drivers, Alternatives considered, Why chosen, Consequences, Follow-ups) |
 | Deliberate (`--deliberate`) | All consensus sections + **pre-mortem** (3 failure scenarios) + **expanded test plan** (unit / integration / e2e / observability) |
 
-Plans are saved to `.nord/plans/ralplan-<timestamp>.md` (naming required — autopilot glob `.nord/plans/ralplan-*.md` depends on it). Drafts go to `.nord/drafts/`.
+Plans are saved to `.nord/plans/ralplan-<timestamp>.md` (naming required — the `implement --from plan` glob `.nord/plans/ralplan-*.md` depends on it). Drafts go to `.nord/drafts/`.
 
 ## State Persistence (nord-native, no nord dep)
 
 In `--consensus` mode, manage lifecycle state via a plain JSON file:
 
 - **On entry**: create `.nord/state/nord-plan-<slug>.json` with `{ "active": true, "phase": "planning", "slug": "<slug>", "startedAt": "<iso-timestamp>" }`
-- **On approval handoff** (→ ralph/team): set `active: false` (do NOT delete — execution mode may reference it)
+- **On approval handoff** (→ `implement --from plan`): set `active: false` (do NOT delete — execution mode may reference it)
 - **On reject or error/abort**: delete the file entirely
 
 `<slug>` = first 3 meaningful words of the task, lowercased, hyphenated (e.g., `add-user-auth`).

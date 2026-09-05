@@ -21,15 +21,15 @@ independent items ("fix all N points", a checklist, a list of distinct fixes) it
 items: `taskRestatement` collapses N points into one sentence (planner keeps the salient subset),
 the judge scores only `onTask`+quality with NO coverage axis (a plan covering 2 of 5 items still
 reads on-task → passes), and single-winner + best-of-rest synthesis carries the winner's coverage
-holes forward. A batch is a DECOMPOSITION job, not a tournament — route it to gate-loop PRD-mode /
-`ralph` (decompose to N stories, each its own deterministic gate). Use nord-plan only when the N
+holes forward. A batch is a DECOMPOSITION job, not a tournament — route it to
+`implement --from goal` (decompose to N stories, each its own deterministic gate). Use nord-plan only when the N
 points genuinely reduce to ONE objective with an open solution space.
 
 Why over ralplan: ralplan runs ONE plan through sequential Planner→Architect→Critic debate.
 nord-plan explores the solution space in parallel, then synthesizes — better when the right
 approach is not obvious.
 
-The result is **pending approval** — hand off to `ralph`/`team` for execution.
+The result is **pending approval** — hand off to `implement --from plan` for execution.
 
 > Anti-drift design (planners anchor on salient repo state, not the task): every draft must
 > restate the task + name out-of-scope items first; the judge hard-gates off-task drafts to 0

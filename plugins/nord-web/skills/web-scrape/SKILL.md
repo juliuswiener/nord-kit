@@ -51,4 +51,4 @@ use `--no-escalate` to forbid the stealth retry. Never start at Firecrawl prophy
 
 - PDF / Office / scanned document → **doc-extract** (MinerU).
 - Chart / infographic / form where layout is the meaning → **pixel-read**.
-- You don't have the URL yet → **external-context** / exa search first.
+- You don't have the URL yet → **`research --web`** / exa search first.

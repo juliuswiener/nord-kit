@@ -86,7 +86,7 @@ Pass `sessionId` to Workflow via `args`.
 The full Workflow script: stage construction, tier routing, the agent prompts and the
 cross-validation pass. Read when changing how the pipeline is built, not to run it.
 
-See `references/workflow-invocation.md`.
+See `codebase/workflow-invocation.md`.
 
 ## Post-Pipeline Steps (mandatory)
 
@@ -292,7 +292,7 @@ Directory layout:
 
 ## Report Template
 
-Written to `.nord/research/<session-id>/report.md` — structure in `references/report-template.md` (read at write-time).
+Written to `.nord/research/<session-id>/report.md` — structure in `codebase/report-template.md` (read at write-time).
 
 ---
 
@@ -306,4 +306,4 @@ Tier/model assignment table is in the Phase-1 decompose prompt above (LOW/haiku,
 
 ## Troubleshooting
 
-Common failure modes (verification loop, low-quality findings, AUTO-mode exhaustion, missing absolute paths) and fixes: `references/troubleshooting.md`.
+Common failure modes (verification loop, low-quality findings, AUTO-mode exhaustion, missing absolute paths) and fixes: `codebase/troubleshooting.md`.

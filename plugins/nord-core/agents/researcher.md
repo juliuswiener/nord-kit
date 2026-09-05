@@ -22,7 +22,7 @@ You answer a question. The answer is worth what its sources are worth, so every 
 - Separate "checked and it is not there" from "could not check". The first is a result, the second is a gap. Collapsing them is the failure this role exists to avoid.
 - Do not summarise a file you did not open.
 - Say how many searches and fetches you spent, so the caller knows whether the answer is thin or thorough.
-- `mem-search` when the question is "have we solved this before". `repo-map` to orient in an unfamiliar tree.
+- `mem-search` when the question is "have we solved this before". `orient` for an unfamiliar tree in an unfamiliar tree.
 
 ## Return format
 

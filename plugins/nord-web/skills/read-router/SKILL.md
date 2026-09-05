@@ -1,6 +1,6 @@
 ---
 name: read-router
-description: "Pick the right web-data READ paradigm per URL or file before fetching — never default to one tool for everything. Triggers on: 'scrape this', 'read this page/PDF', 'extract from <url>', 'get the data from', 'pull this document', 'what does this site say', or any time content must be pulled from a web URL or a document file. Routes to web-scrape (HTML→markdown, local), doc-extract (PDF/Office→markdown, local GPU), pixel-read (visual/layout→images), or search (external-context/exa) when the URL is unknown. Local-first and data-sovereign by default."
+description: "Pick the right web-data READ paradigm per URL or file before fetching — never default to one tool for everything. Triggers on: 'scrape this', 'read this page/PDF', 'extract from <url>', 'get the data from', 'pull this document', 'what does this site say', or any time content must be pulled from a web URL or a document file. Routes to web-scrape (HTML→markdown, local), doc-extract (PDF/Office→markdown, local GPU), pixel-read (visual/layout→images), or search (`research --web` / exa) when the URL is unknown. Local-first and data-sovereign by default."
 argument-hint: "<url | file | intent>"
 ---
 
@@ -21,7 +21,7 @@ This skill is a **router**: it classifies the input and hands off. It does not f
 INPUT
   │
   ├─ No URL yet — need to FIND sources?
-  │     → search first: external-context (web) or exa (mcp). Then re-enter with the URLs.
+  │     → search first: `research --web` or exa (mcp). Then re-enter with the URLs.
   │
   ├─ Document file (PDF / Office / scanned)?
   │     ├─ mostly text + tables        → doc-extract   (MinerU → markdown, CHEAP)

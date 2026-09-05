@@ -39,10 +39,10 @@ is denied `Workflow` unconditionally and `Task`/`Agent` by every policy.
 | **Plan** — what to build, and how | `plan` — the tournament, returns one plan | `--stage ideas` (idea board) · `--stage shortlist` (ranked, weak ones killed) · `--stage spec` (one question per round until requirements are pinned) · `--deep` (Planner→Architect→Critic after the tournament) | make-plan, ralplan, superpowers brainstorming |
 | **Implement** — anything behind a test/compiler/lint gate | `implement` — `--from task` (one story; **the only cell a worker may drive**) | `--from goal` (decompose, run until all green) · `--from plan` (split comes from a finished plan) · `+ --parallel` (disjoint stories concurrently) | self-verify loops, LLM-judge gates, do, executing-plans |
 | **Review** — a change, a codebase, or a plan | `review` — one pass over the diff | `--scope repo` (whole tree) · `--scope plan` (before anyone builds it) · `--lens security\|a11y\|claims` · `--deep` (parallel specialists, every finding adversarially verified) | `/code-review`, `/security-review` (denied — same job, three entry points), elite-code-reviewer, trusting a green suite, believing the docs |
-| **Cleanup** | `nord-cleanup` † | `/simplify` | ai-slop-cleaner |
+| **Cleanup** | `cleanup` — **no default**, say which | `--remove` (dead code, verified safe first) · `--move files\|modules` (relocate) · `/simplify` (quick) | ai-slop-cleaner |
 | **Debug** | `trace` | the `debugger` role, for a worker | systematic-debugging |
-| **Research** | `nord-codebase-research` † (codebase) | `external-context` † (web + docs) · native WebSearch/WebFetch | research, autoresearch |
-| **Orient in a repo** | `repo-map` | `smart_outline` (one file) · `deepinit` † (AGENTS.md) | `learn-codebase` — reads every file in full · reading files just to orient |
+| **Research** | `research` — this repo, local only | `--web` (docs, APIs, specs) · native WebSearch/WebFetch as fallback | research, autoresearch |
+| **Orient in a repo** | `orient` — ranks symbols by PageRank, no build, runs anywhere | `smart_outline` (one file) · `graphify` (what depends on what; needs a built graph) · `deepinit` † (writes AGENTS.md) | `learn-codebase` — reads every file in full · reading files just to orient |
 | **Verify** | `verify` | — | claiming done without evidence |
 | **Commit message** | `commit` | — | writing one ad hoc |
 | **Command needs a TTY** | `run-interactive` | — | asking the user to run it elsewhere |

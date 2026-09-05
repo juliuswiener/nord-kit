@@ -1,9 +1,23 @@
 ---
-name: repo-map
-description: "Whole-repo symbol skeleton ranked by PageRank over tree-sitter tags — orientation before a task without reading files. Use for 'map this repo', 'what are the key symbols', 'where's the important code', 'orient me in this codebase', or before planning a change in an unfamiliar tree. Local, data-sovereign (no network, no cloud). Complements per-file lsp/ast_grep/smart_search — this gives the cross-file IMPORTANCE ranking they can't."
+name: orient
+description: "Find out where you are in an unfamiliar repository, without reading files. Returns a whole-repo symbol skeleton ranked by PageRank over tree-sitter tags, so the answer is 'here is the important code' rather than 'here is all the code'. No network, no build step, no reasoning pass — it runs immediately in any tree. Use before planning a change in a repo you do not know, when asked to map it, or when asked which symbols matter. For the structure of ONE file use smart_outline; for what depends on what use the graphify skill."
 ---
 
-# repo-map — symbol-ranked whole-repo skeleton
+# orient — symbol-ranked whole-repo skeleton
+
+No modes. It does one thing, and the three it does NOT do are worth naming, because each
+of them sat under this roof in an earlier draft of the catalogue:
+
+- **What depends on what, what breaks if X changes** → the `graphify` skill. It answers
+  by traversing a knowledge graph, which has to be built first. Both extract with
+  tree-sitter; the difference is entirely what is computed on top — **orient ranks,
+  graphify relates.** orient needs nothing and runs anywhere; graphify needs
+  `graphify-out/graph.json` and exists in two repos here.
+- **Writing `AGENTS.md` across the tree** → `deepinit`. That writes files. Everything
+  here is read-only.
+- **How does this work, why does it behave that way** → `research`. That forms hypotheses
+  and dispatches agents. orient does no reasoning at all, which is what makes it cheap
+  enough to run before you know whether you need it.
 
 Emits the most important symbols across a repo as a compact `file: line: signature` skeleton, ranked by **PageRank over a tree-sitter def/reference graph** (vendored from Aider's `get_ranked_tags`, Apache-2.0). The cross-file orientation primitive that reading files or per-file outlines can't give cheaply: it tells you *which* symbols matter, not just what exists.
 

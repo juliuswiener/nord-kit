@@ -57,7 +57,7 @@ Workflow({
   judgment skill, so the confident-wrong floor applies (`../../implement/references/gate-pattern.md`); keep
   OFF until a side-by-side run shows no quality regression vs the baseline. NOTE: wiring point is the
   lane-agent `model:` in `repo-deep/audit.workflow.js` — not yet enabled there; the inline
-  `nord-review`/`nord-codebase-research` skills already expose `cheapGather`.
+  the `review --deep` and `research` skills already expose `cheapGather`.
 
 If the user only says "audit this repo," first determine the absolute repo root via `git rev-parse --show-toplevel` (fall back to `pwd` if not a git repo), then pass it as `args.path`.
 

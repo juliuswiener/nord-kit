@@ -90,5 +90,5 @@ The report, after execution:
 
 ## References
 
-- `references/templates.md` — the full plan and completion-report templates, and the
+- `move-templates.md` — the full plan and completion-report templates, and the
   conventions for where each file type belongs. Read when writing either document.

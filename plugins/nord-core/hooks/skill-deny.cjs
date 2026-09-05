@@ -30,7 +30,7 @@ const DENY = {
   // claude-mem overlaps the nord router explicitly bans / we don't use
   "make-plan":      "use plan (router canonical Plan)",
   "do":             "use implement (router canonical Execute)",
-  "knowledge-agent":"unused; use claude-mem search / external-context",
+  "knowledge-agent":"unused; use claude-mem search / research --web",
   "timeline-report":"unused memory-narrative skill",
   "weekly-digests": "unused memory-narrative skill",
   "babysit":        "use the Monitor tool for PR/CI watching",

@@ -350,7 +350,7 @@ Findings should name the module/file and the specific structural problem, not va
 `
 
 const LANE_CODE_QUALITY = (vitals) => `${BASE_CONTEXT(vitals)}
-Load the `review --scope diff` skill first — it carries the checklists and the severity rules this lane is judged on.
+Load the 'review --scope diff' skill first — it carries the checklists and the severity rules this lane is judged on.
 ## Lane: Code Quality & Smells
 
 Investigate:
@@ -367,7 +367,7 @@ Skip pure style issues a formatter handles. Focus on structural and semantic sme
 `
 
 const LANE_TEST_HEALTH = (vitals) => `${BASE_CONTEXT(vitals)}
-Read `../../../implement/references/test-strategy.md` first — it carries the checklists and the severity rules this lane is judged on.
+Read '../../../implement/references/test-strategy.md' first — it carries the checklists and the severity rules this lane is judged on.
 ## Lane: Test Health
 
 Investigate:
@@ -403,7 +403,7 @@ If a dep tool isn't installed, attempt installation via the project's package ma
 `
 
 const LANE_SECURITY = (vitals) => `${BASE_CONTEXT(vitals)}
-Load the `review --lens security` skill first — it carries the checklists and the severity rules this lane is judged on.
+Load the 'review --lens security' skill first — it carries the checklists and the severity rules this lane is judged on.
 ## Lane: Security
 
 Investigate:

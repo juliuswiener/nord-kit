@@ -67,4 +67,3 @@ substituted when this skill loads, so the correct value is already here:
 Claude-Session: ${CLAUDE_SESSION_ID}
 ```
 
-Commit and PR prose stays normal and clear, never caveman-compressed.

@@ -1,8 +1,8 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "nord-core",
-  "version": "1.51.0",
-  "description": "nord core: multi-agent skills (review/cleanup/plan/exec), task-routing hook, nord-hud statusline, brainstorm/audit, skill-authoring, MCP (filesystem/exa/github/caveman-shrink). + implement (cheap $0-worker + deterministic-gate orchestrator) and the claude_bridge worker substrate (WORKERS.md).",
+  "version": "1.52.0",
+  "description": "nord core: multi-agent skills (review/cleanup/plan/exec), task-routing hook, nord-hud statusline, brainstorm/audit, skill-authoring, MCP (filesystem/exa/github). + implement (cheap $0-worker + deterministic-gate orchestrator) and the claude_bridge worker substrate (WORKERS.md).",
   "author": {
     "name": "Julius Wiener",
     "email": "gyptii@gmail.com"

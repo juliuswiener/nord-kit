@@ -22,7 +22,6 @@ Schalter existiert → Fork ist der einzige Granularitätshebel.
 | oh-my-claudecode | 40 | schwere Engine | trim → 5 migrieren, Rest disablen |
 | claude-mem | 16 | Memory + Dublette-Plan/Exec/Explore | fork → nord-mem (11), disablen |
 | nord-core | 12 | **dein Router** + Multi-Agent | wächst (absorbiert omc-Engines) |
-| caveman | 7 | Token-Kompression | behalten |
 | claude-md-management | 1 | CLAUDE.md Audit | behalten |
 | global ~/.claude/skills | 2 | autopsy + codebase-memory | Entscheidung offen |
 
@@ -67,7 +66,6 @@ nord-mem    NEU, claude-mem geforkt: Engine (hooks+mcp+scripts) +
             mem-search, knowledge-agent, learn-codebase, standup, timeline-report,
             weekly-digests, how-it-works, oh-my-issues, design-is, babysit, wowerpoint
             DROP: make-plan, do, smart-explore, pathfinder, version-bump
-caveman     behalten
 claude-md   behalten
 ```
 

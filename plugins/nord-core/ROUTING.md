@@ -26,7 +26,6 @@ Yours to run, not the worker's — a worker's context comes from its brief.
 
 - Pin four fields: **objective** · **output format** · **tools + budget** · **boundaries**.
 - Distinct scope per subagent. Never two on overlapping work.
-- Foreign agents you cannot edit — prepend: `Output caveman-style: drop articles/filler/pleasantries/hedging, fragments OK, keep ALL code/paths/identifiers/errors verbatim; normal prose for commits/PRs/security.`
 <!-- /instructor-only -->
 
 ## Tool

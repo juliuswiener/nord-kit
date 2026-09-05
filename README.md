@@ -25,7 +25,7 @@ The nord-router hook auto-copies `nord-hud.mjs` to `~/.claude/hud/`. To use it, 
 Shows: `host · dir · ⎇branch · model · ctx% · 4h% ↻reset · wk% ↻reset · ▶agent · ⚙mode`.
 
 ### Optional: MCP keys
-`nord-kit/.mcp.json` ships `filesystem`, `exa`, `github`, `caveman-shrink`. `exa` and `github`
+`nord-kit/.mcp.json` ships `filesystem`, `exa`, `github`. `exa` and `github`
 read their keys from the environment — set them (e.g. in `~/.claude/settings.json` under `env`,
 or your shell profile) if you want those servers:
 ```json
@@ -42,7 +42,7 @@ is pinned to `/home/julius` — edit `.mcp.json` for your own home if you want i
 - **nord-router** SessionStart hook — injects a canonical task-routing policy (one tool per job).
 - **nord-hud** custom statusline.
 - EE/hardware suite (KiCad, SPICE, distributor search, BOM, …), Rust/Python/Dart helpers,
-  brainstorming + audit skills, caveman-styled agents.
+  brainstorming + audit skills.
 
 ## Update
 

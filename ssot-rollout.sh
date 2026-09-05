@@ -2,7 +2,7 @@
 set -u
 # All non-local plugins are mirrored in the nord marketplace (SSOT). Install missing-by-name from @nord.
 CATALOG=(
-oh-my-claudecode caveman claude-mem superpowers claude-session-driver double-shot-latte
+oh-my-claudecode claude-mem superpowers claude-session-driver double-shot-latte
 github claude-md-management skill-creator claude-code-setup lua-lsp rust-analyzer-lsp
 plugin-dev clangd-lsp agent-sdk-dev circleback frontend-design create-worktrees claude-hud
 )

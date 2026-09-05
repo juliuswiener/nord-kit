@@ -10,7 +10,7 @@
     {
       "name": "nord-core",
       "description": "nord core: multi-agent skills (review/cleanup/plan/exec), task-routing hook, nord-hud statusline, brainstorm/audit, skill-authoring, MCP.",
-      "version": "1.51.0",
+      "version": "1.52.0",
       "source": "./plugins/nord-core",
       "category": "productivity",
       "tags": [
@@ -64,15 +64,6 @@
       "source": {
         "source": "url",
         "url": "https://github.com/juliuswiener/oh-my-claudecode.git"
-      },
-      "category": "productivity"
-    },
-    {
-      "name": "caveman",
-      "description": "Talk like caveman. Cut ~75% tokens. Keep all technical accuracy.",
-      "source": {
-        "source": "url",
-        "url": "https://github.com/JuliusBrussee/caveman.git"
       },
       "category": "productivity"
     },

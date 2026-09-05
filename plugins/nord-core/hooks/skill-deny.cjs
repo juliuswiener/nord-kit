@@ -43,6 +43,13 @@ const DENY = {
   // Added 19.08.2026. The audit reconciled this list against what claude-mem
   // actually ships: 19 skills, 12 denied, 4 named as deliberately kept in the
   // header — and these three accounted for by neither. Unused, so denied.
+  //
+  // UPDATE 05.09.2026: the four "deliberately kept" are kept no longer. mem-search,
+  // smart-explore, how-it-works and learn-codebase now sit in permissions.deny, so all
+  // 19 of claude-mem's skills are blocked and none is reachable. Note what that does
+  // NOT buy: a denied skill still ships its description into the cached prefix — only
+  // the invocation is refused — so the plugin still costs 19 descriptions per session.
+  // It stays enabled for its MCP server and its seven hooks, which is the whole reason.
   "cloud-sync":     "unused; memory sync is not part of this setup",
   "mode-creator":   "unused; modes are configured directly",
   "what-the":       "off-topic grab-bag skill",

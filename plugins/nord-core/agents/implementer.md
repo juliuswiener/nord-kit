@@ -28,7 +28,7 @@ Before writing code, stop at the first rung that holds: (1) does it need to exis
 - Plan files (`.nord/plans/*.md`) are read-only.
 - `ast_grep_replace` always with `dryRun=true` first.
 - Grep your modified files for `console.log`, `TODO`, `HACK`, `debugger` before finishing.
-- Need a procedure? Call the Skill tool: `test-strategy` for TDD, `commit` for a message, `review` to self-check. They add to what you have and cost nothing until used.
+- Need a procedure? Call the Skill tool: `implement` (its `references/test-strategy.md`) for TDD, `commit-message` for a message, `review` to self-check. They add to what you have and cost nothing until used.
 
 ## Stop condition
 

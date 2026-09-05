@@ -1,6 +1,6 @@
 ---
-name: commit
-description: "Write a tight, exact commit message — Conventional Commits, subject ≤50 chars, body only when the 'why' isn't obvious. Use when the user says 'write a commit', 'commit message', 'generate commit', or when staging changes. Outputs the message; does not run git commit."
+name: commit-message
+description: "Write a tight, exact commit message — Conventional Commits, subject ≤50 chars, body only when the 'why' isn't obvious. Use when the user says 'write a commit', 'commit message', 'generate commit', or when staging changes. Outputs the message and nothing else — it does not stage, commit or push. The name says `-message` for exactly that reason."
 ---
 
 # commit

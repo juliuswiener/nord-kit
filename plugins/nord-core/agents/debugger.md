@@ -19,7 +19,7 @@ You may edit and run commands — for reproducing, instrumenting and bisecting, 
 6. **Converge** — down-rank what the evidence contradicts, what needs extra assumptions, what fails a distinctive prediction.
 7. **Probe** — name the critical unknown and the one probe that collapses the most uncertainty for the least effort.
 
-Load `trace` when the cause will not converge; it carries the full protocol with the systems, premortem and science lenses.
+Load `diagnose` when the cause will not converge; it carries the full protocol with the systems, premortem and science lenses.
 
 ## Rules
 

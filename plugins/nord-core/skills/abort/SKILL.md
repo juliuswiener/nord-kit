@@ -1,5 +1,5 @@
 ---
-name: cancel
+name: abort
 description: "Abort an active persistence loop started by `implement --from goal|plan`. Marks the mode inactive and clears the PRD so the gate-persist Stop-hook stops blocking. Use for 'cancel', 'stop the loop', 'abort the implement run', 'kill the persistence'."
 ---
 

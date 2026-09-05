@@ -163,7 +163,7 @@ in the hook had to change: `gate-persist.cjs` discovers state files with
 `readdirSync(stateDir).filter(f => f.endsWith("-state.json"))` and reads
 `st.mode || f.replace("-state.json","")`, so it is name-agnostic by construction. A stale
 `ralph-state.json` left over from before the rename is still picked up and still works —
-`nord-core:cancel` clears it.
+`nord-core:abort` clears it.
 
 ### 0b. Decompose FROM A PLAN (`--from plan`)
 An idea or a plan document is too vague to gate directly, so the split is delegated rather
@@ -204,7 +204,7 @@ LLM judge decides stall; a byte-comparison of gate output does.
 ### 2. Complete
 Done only when ALL stories `passes:true` AND you re-ran each gate to exit 0 THIS session. Set
 `active:false`. Report per story (gate → PASS / round-count) + cumulative diff. If the hook's iteration
-cap is hit first, it allows the stop — report the still-red stories + next step. `nord-core:cancel` aborts.
+cap is hit first, it allows the stop — report the still-red stories + next step. `nord-core:abort` aborts.
 
 **Why over a PRD + LLM-reviewer:** the story gate is a deterministic command, not a reviewer agent —
 objectively done, no judge in the $0 loop; cheap workers do the volume, frontier escalates on stall; the
@@ -229,5 +229,5 @@ Verify the schema deterministically (no live session needed): pipe a fake stop e
 `printf '{"cwd":"<repo>","session_id":"t"}' | node hooks/gate-persist.cjs` — a red story prints the
 `block` JSON, all-green prints nothing. Live-confirm by launching CC in a scratch dir with one
 `passes:false` story + `active:true` state, ending the turn (CC must re-inject, not stop), flipping to
-`passes:true` (CC stops), then `nord-core:cancel`. **Only one Stop hook may be active** for a clean
+`passes:true` (CC stops), then `nord-core:abort`. **Only one Stop hook may be active** for a clean
 verdict — a second continuation hook (e.g. double-shot-latte's LLM judge) masks this one.

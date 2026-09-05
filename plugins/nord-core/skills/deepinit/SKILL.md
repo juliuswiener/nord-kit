@@ -2,6 +2,8 @@
 name: deepinit
 description: Generates hierarchical AGENTS.md files across a codebase — one per significant directory, describing what lives there and how it fits together. Use when onboarding a repository that has no agent-facing documentation, when the user asks to initialize, prime or document a codebase for agents, or says "deepinit", "generate AGENTS.md" or "set this repo up for Claude". To merely orient yourself without writing files, use `orient`.
 level: 4
+
+disable-model-invocation: true   # writes files across the whole tree; a one-shot setup action nobody wants auto-triggered
 ---
 
 # Deep Init Skill

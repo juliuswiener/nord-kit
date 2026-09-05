@@ -50,7 +50,7 @@ Parse `args` before touching the Workflow:
 - **`list`** — `ls -lt .nord/research/` + read each `state.json` for id/goal/status summary; display table.
 - **`resume [id]`** — load `.nord/research/<id>/state.json` (or most-recent if id omitted); restore `goal`, `sessionId`, completed stage ids; pass to Workflow as `args`.
 - **`report <id>`** — read `.nord/research/<id>/state.json` + all stage markdown files; generate report inline without re-running Workflow.
-- **`cancel`** — write `"status": "cancelled"` into the current `state.json`. Stop.
+- **`abort`** — write `"status": "cancelled"` into the current `state.json`. Stop.
 - **`AUTO: <goal>`** — strip prefix, set `autoMode: true`, proceed to Workflow.
 - **anything else** — treat entire input as `goal`, `autoMode: false`.
 

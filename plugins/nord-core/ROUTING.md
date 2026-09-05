@@ -40,13 +40,13 @@ is denied `Workflow` unconditionally and `Task`/`Agent` by every policy.
 | **Implement** — anything behind a test/compiler/lint gate | `implement` — `--from task` (one story; **the only cell a worker may drive**) | `--from goal` (decompose, run until all green) · `--from plan` (split comes from a finished plan) · `+ --parallel` (disjoint stories concurrently) | self-verify loops, LLM-judge gates, do, executing-plans |
 | **Review** — a change, a codebase, or a plan | `review` — one pass over the diff | `--scope repo` (whole tree) · `--scope plan` (before anyone builds it) · `--lens security\|a11y\|claims` · `--deep` (parallel specialists, every finding adversarially verified) | `/code-review`, `/security-review` (denied — same job, three entry points), elite-code-reviewer, trusting a green suite, believing the docs |
 | **Cleanup** | `cleanup` — **no default**, say which | `--remove` (dead code, verified safe first) · `--move files\|modules` (relocate) · `/simplify` (quick) | ai-slop-cleaner |
-| **Debug** | `trace` | the `debugger` role, for a worker | systematic-debugging |
+| **Diagnose** — why does it behave this way | `diagnose` — competing hypotheses, ending at the one probe that settles it | the `debugger` agent when you can already reproduce and localise it | systematic-debugging · applying the fix from here (that is `implement`) |
 | **Research** | `research` — this repo, local only | `--web` (docs, APIs, specs) · native WebSearch/WebFetch as fallback | research, autoresearch |
 | **Orient in a repo** | `orient` — ranks symbols by PageRank, no build, runs anywhere | `smart_outline` (one file) · `graphify` (what depends on what; needs a built graph) · `deepinit` † (writes AGENTS.md) | `learn-codebase` — reads every file in full · reading files just to orient |
 | **Verify** | `verify` | — | claiming done without evidence |
-| **Commit message** | `commit` | — | writing one ad hoc |
-| **Command needs a TTY** | `run-interactive` | — | asking the user to run it elsewhere |
-| **Abort a loop** | `cancel` | — | deleting `.nord/state` by hand |
+| **Commit message** | `commit-message` — writes it, does **not** commit | — | writing one ad hoc |
+| **Command needs a TTY** | `interactive` | — | asking the user to run it elsewhere |
+| **Abort a loop** | `abort` | — | deleting `.nord/state` by hand |
 | **Change or replace a tool** | `TOOLING.md` | — | editing `src/` only, trusting a green suite |
 
 ## Not loaded

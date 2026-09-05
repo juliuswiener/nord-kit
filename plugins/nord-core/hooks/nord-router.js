@@ -95,9 +95,9 @@ if (!routing.trim()) {
     'IMPLEMENT (anything behind a test/compiler/lint gate): implement. One axis, the input: --from task (one story, the only cell a worker may drive) | --from goal (decompose, run until all green) | --from plan (take the split from a finished plan). Add --parallel for disjoint stories.',
     'REVIEW: review. Axes: --scope diff|repo|plan (a change / a whole codebase / a plan before anyone builds it) | --lens security|a11y|claims | --deep (parallel specialists, every finding adversarially verified). Default: one pass over the diff.',
     'CLEANUP: cleanup. No default — say --remove (delete dead code, verified safe first) or --move files|modules (relocate). Quick alternative: /simplify.',
-    'DEBUG: causal->trace.',
+    'DIAGNOSE: diagnose — competing hypotheses against each other, ending at the one probe that settles what is open. It does NOT apply the fix. For a failure you can already reproduce and localise, the debugger agent is enough.',
     'RESEARCH: research. Default = this repo (local only, never the web) | --web = docs/APIs/specs | fallback->native WebSearch/WebFetch.',
-    'VERIFY->verify. MEMORY->claude-mem mem-search. ORIENT->orient (ranks symbols; graphify relates them). TTY->run-interactive.',
+    'VERIFY->verify. COMMIT MESSAGE->commit-message (writes the message, does not commit). ABORT A LOOP->abort. MEMORY->claude-mem mem-search. ORIENT->orient (ranks symbols; graphify relates them). TTY->interactive.',
     'NOT loaded: nord-web, nord-dev, nord-ee are off in settings.json — do not reach for their tools.',
   ].join('\n');
 }

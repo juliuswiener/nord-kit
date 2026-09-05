@@ -1,6 +1,6 @@
 ---
-name: trace
-description: Finds the cause of an observed behaviour by running competing hypotheses against each other — evidence for and against each, a rebuttal round, then the one probe that would settle what is left. Use when a test fails for reasons that are not obvious, when a measurement or benchmark result needs explaining, when two explanations both fit the facts, or when the user asks why something happens, why a number changed, or says "trace this". For a failure you can already reproduce and localise, the debugger role is enough.
+name: diagnose
+description: Finds WHY something behaves as it does by running competing hypotheses against each other — evidence for and against each, a rebuttal round, then the one probe that would settle what is left. Use when a test fails for reasons that are not obvious, when a measurement or benchmark result needs explaining, when two explanations both fit the facts, or when the user asks why something happens, why a number changed, or says "trace this". For a failure you can already reproduce and localise, the `debugger` agent is enough — this skill is for the case where two explanations both fit and neither has been ruled out. It ends at the decisive probe; it does not apply the fix.
 argument-hint: "<observation to trace>"
 agent: debugger
 level: 2
@@ -14,7 +14,7 @@ This is the orchestration layer on top of the `debugger` agent. The goal is to m
 
 ## Good entry cases
 
-Use `/nord-core:trace` when the problem is:
+Use `/nord-core:diagnose` when the problem is:
 
 - ambiguous
 - causal

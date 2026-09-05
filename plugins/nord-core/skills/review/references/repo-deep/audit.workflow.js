@@ -367,7 +367,7 @@ Skip pure style issues a formatter handles. Focus on structural and semantic sme
 `
 
 const LANE_TEST_HEALTH = (vitals) => `${BASE_CONTEXT(vitals)}
-Load the `test-strategy` skill first — it carries the checklists and the severity rules this lane is judged on.
+Read `../../../implement/references/test-strategy.md` first — it carries the checklists and the severity rules this lane is judged on.
 ## Lane: Test Health
 
 Investigate:

@@ -2,6 +2,8 @@
 name: find-deals
 description: "Best-deal sourcing + negotiation leverage. Triggers: 'find me the best deal', 'cheapest near me', 'is this a good price', 'buy now or wait', 'compare deals', 'negotiate', sourcing/validating vehicle deals."
 version: 0.1.0
+
+disable-model-invocation: true   # off-topic for a code setup; it costs a description in every session prefix
 ---
 
 > **Date anchor:** Today's date comes from the `# currentDate` system context. Compute ALL relative dates from it. Example: if today = 2026-03-14, then "prior month" = 2026-02-01 to 2026-02-28, "current month" (most recent complete) = February 2026, "three months ago" = December 2025. Never use training-data dates.

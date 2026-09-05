@@ -1,6 +1,6 @@
 ---
-name: run-interactive
-description: "Run a command that needs a real TTY or human input — sudo password, ssh passphrase, installer questions, TUI — in a tmux pane the user types into directly. Agent subprocesses have no TTY, so such commands fail ('sudo: a terminal is required to read the password'). Use whenever a command prompts interactively, needs privilege escalation, or already failed for lack of a TTY. Triggers: sudo needs password, interactive prompt, terminal required error, ssh passphrase, installer asks y/n."
+name: interactive
+description: "Run a command that needs a real TTY or human input — sudo password, ssh passphrase, installer questions, TUI — in a pane or terminal the user types into directly. Agent subprocesses have no TTY, so such commands fail ('sudo: a terminal is required to read the password'). Use whenever a command prompts interactively, needs privilege escalation, or already failed for lack of a TTY. Triggers: sudo needs password, interactive prompt, terminal required error, ssh passphrase, installer asks y/n."
 argument-hint: "<command>"
 ---
 

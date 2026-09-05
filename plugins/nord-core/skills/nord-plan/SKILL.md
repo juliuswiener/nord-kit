@@ -99,7 +99,7 @@ Default (no flag) = tournament only, above. When `--consensus` is set, run the p
 
 ## Pre-Execution Gate → `references/pre-execution-gate.md`
 
-When an execution keyword (`ralph`/`autopilot`/`team`/`nord-execute`/`ultrawork`/`ultrapilot`) appears with a ≤15-word prompt and NO concrete anchor (file path, symbol, issue #, code block, error, numbered steps), the request is underspecified → redirect through `nord-plan --consensus` to scope it first. Bypass with a `force:`/`!` prefix. Full gate logic + anchor table + examples: `references/pre-execution-gate.md`.
+When an execution keyword (`implement`/`ultrawork`/`ultrapilot`) appears with a ≤15-word prompt and NO concrete anchor (file path, symbol, issue #, code block, error, numbered steps), the request is underspecified → redirect through `nord-plan --consensus` to scope it first. Bypass with a `force:`/`!` prefix. Full gate logic + anchor table + examples: `references/pre-execution-gate.md`.
 
 ## Quality techniques (adopted)
 Apply to every plan (grafted from make-plan / writing-plans / task_planner):

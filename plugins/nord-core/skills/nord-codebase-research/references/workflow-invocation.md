@@ -33,7 +33,7 @@ const goal          = (args && args.goal)          || 'the stated research goal'
 const sessionId     = (args && args.sessionId)     || `research-${Date.now().toString(36)}`
 const autoMode      = (args && args.autoMode)      || false
 // EXPERIMENTAL (default OFF): args.cheapGather routes non-opus investigate stages to a $0 bridge
-// worker; cross-validate stays frontier. Confident-wrong floor applies (../gate-loop/references/
+// worker; cross-validate stays frontier. Confident-wrong floor applies (../implement/references/
 // gate-pattern.md). Keep OFF until a no-regression A/B vs the haiku/sonnet baseline.
 const cheapGather   = (args && args.cheapGather)   || false
 const resumeStages  = (args && args.resumeStages)  || []

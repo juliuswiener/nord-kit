@@ -80,7 +80,7 @@ export const meta = {
 const target = (args && args.target) || 'the current git diff (run: git diff HEAD)'
 // EXPERIMENTAL (default OFF): args.cheapGather pins the GATHER lane (per-dimension review) to a $0
 // bridge worker; adversarial Verify stays on the frontier. No-runtime-gate skill → confident-wrong
-// floor applies (see ../gate-loop/references/gate-pattern.md). Keep OFF until a no-regression A/B.
+// floor applies (see ../implement/references/gate-pattern.md). Keep OFF until a no-regression A/B.
 const cheapGather = !!(args && args.cheapGather)
 const DIMENSIONS = [
   { key: 'correctness', prompt: 'Logic bugs, off-by-one, null/undefined, error handling, race conditions, broken edge cases. Also: lsp_diagnostics MUST have been run on every modified file before this review — any type error is CRITICAL.' },

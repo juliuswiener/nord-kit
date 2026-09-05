@@ -1,16 +1,16 @@
 # Pre-Execution Gate
 
-Intercepts underspecified execution requests (ralph/autopilot/team/nord-execute) and redirects them through `nord-plan --consensus` to scope the work first. Read when an execution keyword is present.
+Intercepts underspecified execution requests (implement) and redirects them through `nord-plan --consensus` to scope the work first. Read when an execution keyword is present.
 
 ## Why the Gate Exists
 
-Execution modes (ralph, autopilot, team, nord-exec) spin up heavy multi-agent orchestration. Vague requests like `ralph improve the app` give agents no bounded target — cycles waste on scope discovery that belongs in planning.
+Execution modes (`implement --from goal|plan`) spin up heavy multi-agent orchestration. Vague requests like `implement --from goal improve the app` give agents no bounded target — cycles waste on scope discovery that belongs in planning.
 
 ## Gate Logic
 
 Gate fires when **all three** conditions hold:
 
-1. An execution keyword is present: `ralph`, `autopilot`, `team`, `nord-execute`, `ultrawork`, `ultrapilot`
+1. An execution keyword is present: `implement`, `ultrawork`, `ultrapilot`
 2. Prompt is ≤ 15 effective words (stop-words excluded)
 3. NO concrete anchor is detected
 

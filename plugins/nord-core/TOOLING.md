@@ -101,7 +101,7 @@ were unreachable. Nobody noticed for three releases. The probe finds it in under
   blocked routine cleanup and permitted the one thing worth blocking.
 - **Budget the schema for your CHEAPEST consumer.** ≤1 required parameter, ≤7 properties, a short
   description. `gate-worker` runs on the cheap `worker` class; see
-  `skills/gate-loop/references/gate-pattern.md` on verbose schemas and tool selection. Verify by
+  `skills/implement/references/gate-pattern.md` on verbose schemas and tool selection. Verify by
   A/B with a deliberately bloated third arm — if that arm does not score worse, the harness is not
   sensitive enough for "no difference" to mean anything.
 - **Delete the dead guard in the same commit.** Unregistered protection reads as active protection

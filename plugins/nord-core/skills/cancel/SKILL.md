@@ -1,6 +1,6 @@
 ---
 name: cancel
-description: "Abort an active nord persistence loop (ralph/team/autopilot/gate-loop PRD). Marks the mode inactive and clears the PRD so the gate-persist Stop-hook stops blocking. Use for 'cancel', 'stop the loop', 'abort ralph/team/autopilot', 'kill the persistence'."
+description: "Abort an active persistence loop started by `implement --from goal|plan`. Marks the mode inactive and clears the PRD so the gate-persist Stop-hook stops blocking. Use for 'cancel', 'stop the loop', 'abort the implement run', 'kill the persistence'."
 ---
 
 # cancel — abort a persistence loop
@@ -22,4 +22,8 @@ done
 ```
 
 Do NOT delete the state files themselves (nord-hud may still read them; `active:false` is enough). After
-cancel, a fresh `ralph`/`team`/`autopilot` writes a new prd.json + flips `active:true` again.
+cancel, a fresh `implement --from goal|plan` writes a new prd.json + flips `active:true` again.
+
+The `*-state.json` glob in step 1 is deliberate and is why this skill needed no change when
+`ralph`/`team`/`autopilot` became `implement` on 2026-09-05: it cancels whatever modes it finds,
+including an `implement-state.json` and any stale `ralph-state.json` left over from before.

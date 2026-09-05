@@ -54,7 +54,7 @@ Workflow({
 - `cheapGather` (EXPERIMENTAL, default OFF) — route the **lane specialists** (Phase 2 gather) to a $0
   bridge worker (class `worker`, needs CC launched through the bridge — see `../../WORKERS.md`) while
   **Phase 3 adversarial verification + Phase 5 synthesis stay on the frontier**. This is a no-runtime-gate
-  judgment skill, so the confident-wrong floor applies (`../gate-loop/references/gate-pattern.md`); keep
+  judgment skill, so the confident-wrong floor applies (`../implement/references/gate-pattern.md`); keep
   OFF until a side-by-side run shows no quality regression vs the baseline. NOTE: wiring point is the
   lane-agent `model:` in `audit.workflow.js` (the external workflow) — not yet enabled there; the inline
   `nord-review`/`nord-codebase-research` skills already expose `cheapGather`.
@@ -299,5 +299,5 @@ After major remediation, re-run the workflow. Track findings closed quarter-over
 - `superpowers:writing-skills` & `author-skills` — how this skill was authored
 - `scrutinize-code` — lighter alternative
 - `superpowers:dispatching-parallel-agents` — meta-skill for parallel work
-- `nord-core:team` — alternative orchestration (process-based, not workflow-based)
+- `nord-core:implement --from goal --parallel` — alternative orchestration (process-based, not workflow-based)
 - `nord-core:reviewer`, `nord-core:researcher`, `nord-core:expert` — the underlying role agents this skill orchestrates

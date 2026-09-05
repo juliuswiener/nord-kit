@@ -38,8 +38,7 @@ is denied `Workflow` unconditionally and `Task`/`Agent` by every policy.
 |---|---|---|---|
 | **Plan** | `nord-plan` † | `nord-plan --consensus` (vague or high-stakes) · `nord-requirements` † (pin requirements first) | make-plan, ralplan |
 | **Brainstorm** | `brainstorm-adversarial` † (decide between ideas) | `brainstorm` † (explore the space) | superpowers brainstorming |
-| **Code-gen behind a gate** | `gate-loop` † (cheap worker + exit-code gate, escalate after 3 reds) | `nord-execute` † (no gate) · `ralph`/`team`/`autopilot` † | self-verify loops, LLM-judge gates |
-| **Execute** | `nord-execute` † | `gate-loop` † (per-item gate) · `ralph` † (until done) · `team` † (parallel) · `autopilot` † (idea→code) | do, executing-plans |
+| **Implement** — anything behind a test/compiler/lint gate | `implement` — `--from task` (one story; **the only cell a worker may drive**) | `--from goal` (decompose, run until all green) · `--from plan` (split comes from a finished plan) · `+ --parallel` (disjoint stories concurrently) | self-verify loops, LLM-judge gates, do, executing-plans |
 | **Review a diff** | `nord-review` † | `/code-review` (quick) · `/security-review` | elite-code-reviewer |
 | **Cleanup** | `nord-cleanup` † | `/simplify` | ai-slop-cleaner |
 | **Debug** | `trace` | the `debugger` role, for a worker | systematic-debugging |

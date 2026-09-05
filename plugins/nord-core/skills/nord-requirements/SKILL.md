@@ -372,7 +372,7 @@ How would you like to proceed?
 
 2. Execute directly with nord-exec
    Straight to execution with the spec as the task definition.
-   Action: Invoke `Skill("nord-core:nord-execute")` with the spec path only after explicit selection.
+   Action: Invoke `Skill("nord-core:implement")` with the spec path only after explicit selection.
 
 3. Refine further
    Continue interviewing (current ambiguity: <score>%).

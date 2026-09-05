@@ -33,8 +33,8 @@ Read this only when `--consensus` (or `--deliberate`) is set. The default tourna
 6. **Persist** final plan to `.nord/plans/ralplan-<timestamp>.md` (exact naming required — `autopilot`'s glob `.nord/plans/ralplan-*.md` depends on it).
 
 7. **Approval routing** — use `AskUserQuestion` (never plain text) with options:
-   - **Approve execution via team** (Recommended) — invokes `Skill("nord-core:team")` with the plan path
-   - **Approve execution via ralph** — invokes `Skill("nord-core:ralph")` with the plan path
+   - **Approve execution via implement** (Recommended) — invokes `Skill("nord-core:implement")` with the plan path and `--from plan --parallel`
+   - **Approve execution via ralph** — invokes `Skill("nord-core:implement")` with the plan path
    - **Compact then return for execution approval** — invokes compact to shrink accumulated planning context, then re-presents the pending-approval plan without auto-executing (recommended when context is 50%+ full after planning)
    - **Request changes** — return to step 1 with user feedback
    - **Reject** — discard plan entirely

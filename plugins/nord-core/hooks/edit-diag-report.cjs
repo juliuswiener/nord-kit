@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+// NOT REGISTERED since 2026-09-05. This pair needs dist/tools/lsp/index.js, which
+// lived in the nord-core development repo (retired 2026-09-03, deleted 2026-09-05) and
+// was never part of nord-kit. Without it the report hook quits on every call, and this
+// capture hook has been writing a full copy of every edited file to
+// /tmp/nord-edit-diag-<uid>/ for nobody — 195 files on the day it was measured. Both
+// files stay so the pair can be re-registered in hooks.json once dist/ is back.
 // PostToolUse(Edit|Write|NotebookEdit) — report the errors THIS edit introduced.
 //
 // Edit verifies that old_string occurs exactly once. That is a string check,

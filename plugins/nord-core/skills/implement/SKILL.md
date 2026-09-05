@@ -51,12 +51,13 @@ This is the whole of `--from task`, and the only part a worker drives.
 bridge:
 
 ```sh
-test "${ANTHROPIC_BASE_URL%/}" = "http://127.0.0.1:8318" \
-  && curl -sf --max-time 5 http://127.0.0.1:8318/healthz >/dev/null
+test -n "$ANTHROPIC_BASE_URL" \
+  && curl -sf --max-time 5 "${ANTHROPIC_BASE_URL%/}/healthz" >/dev/null
 ```
 
-On failure, STOP and tell the user to relaunch with
-`ANTHROPIC_BASE_URL=http://127.0.0.1:8318 claude`, or continue with a normal-tier worker.
+On failure, STOP and tell the user to relaunch with `ANTHROPIC_BASE_URL` pointing at the
+bridge (`http://127.0.0.1:8318` locally, the Tailnet address from elsewhere — whichever the
+bridge is bound to), or continue with a normal-tier worker.
 Never let a worker id 404 mid-loop — `WORKERS.md` has the id→provider table.
 
 Parse the goal and the gate from the input. **The gate is a single deterministic command

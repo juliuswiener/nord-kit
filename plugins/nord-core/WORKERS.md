@@ -30,14 +30,16 @@ Cheap-worker ids only resolve when the session is launched through the bridge:
 ANTHROPIC_BASE_URL=http://127.0.0.1:8318 claude
 ```
 
-(or set it globally: `set -Ux ANTHROPIC_BASE_URL http://127.0.0.1:8318`). Without it, CC resolves
+(or set it globally: `set -Ux ANTHROPIC_BASE_URL <bridge-url>`; the bridge may be bound to
+127.0.0.1 or to a Tailnet address — the preflight below checks whatever is set, not a fixed
+address). Without it, CC resolves
 `qwen3.6-plus` against `api.anthropic.com` → **404 "model not found"**. A mid-loop 404 is worse than
 no offload, so every cheap-worker seam MUST **preflight** (below) and fail loud.
 
 ## Preflight (run before any cheap dispatch)
 ```sh
-test "${ANTHROPIC_BASE_URL%/}" = "http://127.0.0.1:8318" \
-  && curl -sf --max-time 5 http://127.0.0.1:8318/healthz >/dev/null
+test -n "$ANTHROPIC_BASE_URL" \
+  && curl -sf --max-time 5 "${ANTHROPIC_BASE_URL%/}/healthz" >/dev/null
 ```
 On failure: STOP and tell the user the launch line above, OR fall back to a normal model — never let
 a `qwen3.6-plus`/`glm-5.1` worker id 404 mid-loop.

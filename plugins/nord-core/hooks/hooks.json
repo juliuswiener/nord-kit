@@ -10,30 +10,9 @@
             "timeout": 5
           }
         ]
-      },
-      {
-        "matcher": "Edit|Write|NotebookEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/edit-diag-capture.cjs",
-            "timeout": 5
-          }
-        ]
       }
     ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write|NotebookEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/edit-diag-report.cjs",
-            "timeout": 20
-          }
-        ]
-      }
-    ],
+    "PostToolUse": [],
     "SessionStart": [
       {
         "hooks": [

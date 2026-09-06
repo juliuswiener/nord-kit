@@ -1,0 +1,352 @@
+/**
+ * LSP Utilities
+ *
+ * Helper functions for formatting LSP results and converting between formats.
+ */
+
+import type { Hover, Location, DocumentSymbol, SymbolInformation, Diagnostic, CodeAction, WorkspaceEdit, Range, CallHierarchyItem, CallHierarchyIncomingCall, CallHierarchyOutgoingCall, CallHierarchyResult, IndexState } from './client.js';
+
+/**
+ * The sentence that separates "nothing found" from "nothing found YET".
+ *
+ * An empty answer from a still-indexing server used to render exactly like an
+ * empty answer from a fully-indexed one, so "no callers" read as "dead code,
+ * delete it". These two states must never produce the same text.
+ *
+ * Returns '' when the server is ready — the empty answer is then a fact about
+ * the code and should be stated plainly, with no hedge it hasn't earned.
+ */
+export function indexCaveat(state: IndexState | undefined): string {
+  if (state === 'indexing') {
+    return '\n\nNOTE: the language server was STILL BUILDING ITS INDEX when it answered, '
+      + 'and it was re-asked until it either answered or the retry budget ran out. '
+      + 'This empty result reflects the server\'s state, NOT the code — do not read it '
+      + 'as "nothing found". Ask again in a few seconds.';
+  }
+  if (state === 'unknown') {
+    return '\n\nNOTE: this server reports no readiness signal and was connected moments ago, '
+      + 'so it may still have been indexing. An empty result is not conclusive yet — '
+      + 'ask again in a few seconds to confirm.';
+  }
+  return '';
+}
+
+/**
+ * Symbol kind names (LSP spec)
+ */
+const SYMBOL_KINDS: Record<number, string> = {
+  1: 'File',
+  2: 'Module',
+  3: 'Namespace',
+  4: 'Package',
+  5: 'Class',
+  6: 'Method',
+  7: 'Property',
+  8: 'Field',
+  9: 'Constructor',
+  10: 'Enum',
+  11: 'Interface',
+  12: 'Function',
+  13: 'Variable',
+  14: 'Constant',
+  15: 'String',
+  16: 'Number',
+  17: 'Boolean',
+  18: 'Array',
+  19: 'Object',
+  20: 'Key',
+  21: 'Null',
+  22: 'EnumMember',
+  23: 'Struct',
+  24: 'Event',
+  25: 'Operator',
+  26: 'TypeParameter'
+};
+
+/**
+ * Diagnostic severity names
+ */
+const SEVERITY_NAMES: Record<number, string> = {
+  1: 'Error',
+  2: 'Warning',
+  3: 'Information',
+  4: 'Hint'
+};
+
+/**
+ * Convert URI to file path
+ */
+export function uriToPath(uri: string): string {
+  if (uri.startsWith('file://')) {
+    try {
+      return decodeURIComponent(uri.slice(7));
+    } catch {
+      // Malformed percent-encoding — return the raw path segment
+      return uri.slice(7);
+    }
+  }
+  return uri;
+}
+
+/**
+ * Format a position for display
+ */
+export function formatPosition(line: number, character: number): string {
+  return `${line + 1}:${character + 1}`;
+}
+
+/**
+ * Format a range for display
+ */
+export function formatRange(range: Range): string {
+  const start = formatPosition(range.start.line, range.start.character);
+  const end = formatPosition(range.end.line, range.end.character);
+  return start === end ? start : `${start}-${end}`;
+}
+
+/**
+ * Format a location for display
+ */
+export function formatLocation(location: Location): string {
+  const uri = location.uri || (location as any).targetUri;
+  if (!uri) return 'Unknown location';
+  const path = uriToPath(uri);
+  const locationRange = location.range || (location as any).targetRange || (location as any).targetSelectionRange;
+  if (!locationRange) return path;
+  const range = formatRange(locationRange);
+  return `${path}:${range}`;
+}
+
+/**
+ * Format hover content
+ */
+export function formatHover(hover: Hover | null): string {
+  if (!hover) return 'No hover information available';
+
+  let text = '';
+
+  if (typeof hover.contents === 'string') {
+    text = hover.contents;
+  } else if (Array.isArray(hover.contents)) {
+    text = hover.contents.map(c => {
+      if (typeof c === 'string') return c;
+      return c.value;
+    }).join('\n\n');
+  } else if ('value' in hover.contents) {
+    text = hover.contents.value;
+  }
+
+  if (hover.range) {
+    text += `\n\nRange: ${formatRange(hover.range)}`;
+  }
+
+  return text || 'No hover information available';
+}
+
+/**
+ * Format locations array
+ */
+export function formatLocations(locations: Location | Location[] | null, indexState?: IndexState): string {
+  const locs = locations ? (Array.isArray(locations) ? locations : [locations]) : [];
+
+  if (locs.length === 0) return `No locations found${indexCaveat(indexState)}`;
+
+  return locs.map(loc => formatLocation(loc)).join('\n');
+}
+
+/**
+ * Format document symbols (hierarchical)
+ */
+export function formatDocumentSymbols(symbols: DocumentSymbol[] | SymbolInformation[] | null, indent = 0): string {
+  if (!symbols || symbols.length === 0) return 'No symbols found';
+
+  const lines: string[] = [];
+  const prefix = '  '.repeat(indent);
+
+  for (const symbol of symbols) {
+    const kind = SYMBOL_KINDS[symbol.kind] || 'Unknown';
+
+    if ('range' in symbol) {
+      // DocumentSymbol
+      const range = formatRange(symbol.range);
+      lines.push(`${prefix}${kind}: ${symbol.name} [${range}]`);
+
+      if (symbol.children && symbol.children.length > 0) {
+        lines.push(formatDocumentSymbols(symbol.children, indent + 1));
+      }
+    } else {
+      // SymbolInformation
+      const loc = formatLocation(symbol.location);
+      const container = symbol.containerName ? ` (in ${symbol.containerName})` : '';
+      lines.push(`${prefix}${kind}: ${symbol.name}${container} [${loc}]`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Format workspace symbols
+ */
+export function formatWorkspaceSymbols(symbols: SymbolInformation[] | null, indexState?: IndexState): string {
+  if (!symbols || symbols.length === 0) return `No symbols found${indexCaveat(indexState)}`;
+
+  const lines = symbols.map(symbol => {
+    const kind = SYMBOL_KINDS[symbol.kind] || 'Unknown';
+    const loc = formatLocation(symbol.location);
+    const container = symbol.containerName ? ` (in ${symbol.containerName})` : '';
+    return `${kind}: ${symbol.name}${container}\n  ${loc}`;
+  });
+
+  return lines.join('\n\n');
+}
+
+/**
+ * Format a call hierarchy item as "Kind: name [path:range]"
+ */
+export function formatCallHierarchyItem(item: CallHierarchyItem): string {
+  const kind = SYMBOL_KINDS[item.kind] || 'Unknown';
+  const detail = item.detail ? ` (${item.detail})` : '';
+  const loc = `${uriToPath(item.uri)}:${formatRange(item.selectionRange || item.range)}`;
+  return `${kind}: ${item.name}${detail} [${loc}]`;
+}
+
+/**
+ * Format call hierarchy items returned by prepare
+ */
+export function formatCallHierarchyItems(items: CallHierarchyItem[] | null, indexState?: IndexState): string {
+  if (!items || items.length === 0) {
+    return `No call hierarchy item at that position${indexCaveat(indexState)}`;
+  }
+  return items.map(item => formatCallHierarchyItem(item)).join('\n');
+}
+
+/**
+ * Format incoming/outgoing calls.
+ *
+ * A null result means the position resolved to no symbol; an empty `calls` list
+ * means the symbol genuinely has none. These print differently on purpose — a
+ * server that has not finished indexing yet must not read as "nothing calls it".
+ */
+export function formatCallHierarchyCalls(
+  result: CallHierarchyResult<CallHierarchyIncomingCall | CallHierarchyOutgoingCall> | null,
+  direction: 'incoming' | 'outgoing',
+  indexState?: IndexState
+): string {
+  if (!result) {
+    return `No call hierarchy item at that position (is the position on a function name?)${indexCaveat(indexState)}`;
+  }
+
+  const subject = formatCallHierarchyItem(result.item);
+  const label = direction === 'incoming' ? 'Called by' : 'Calls';
+
+  if (result.calls.length === 0) {
+    const none = direction === 'incoming' ? 'No callers found' : 'No outgoing calls found';
+    return `${subject}\n\n${none}${indexCaveat(indexState)}`;
+  }
+
+  const lines = result.calls.map(call => {
+    const other = 'from' in call ? call.from : call.to;
+    const sites = call.fromRanges?.length
+      ? `\n  call site(s): ${call.fromRanges.map(r => formatRange(r)).join(', ')}`
+      : '';
+    return `  ${formatCallHierarchyItem(other)}${sites}`;
+  });
+
+  return `${subject}\n\n${label} (${result.calls.length}):\n${lines.join('\n')}`;
+}
+
+/**
+ * Format diagnostics
+ */
+export function formatDiagnostics(diagnostics: Diagnostic[], filePath?: string): string {
+  if (diagnostics.length === 0) return 'No diagnostics';
+
+  const lines = diagnostics.map(diag => {
+    const severity = SEVERITY_NAMES[diag.severity || 1] || 'Unknown';
+    const range = formatRange(diag.range);
+    const source = diag.source ? `[${diag.source}]` : '';
+    const code = diag.code ? ` (${diag.code})` : '';
+    const location = filePath ? `${filePath}:${range}` : range;
+
+    return `${severity}${code}${source}: ${diag.message}\n  at ${location}`;
+  });
+
+  return lines.join('\n\n');
+}
+
+/**
+ * Format code actions
+ */
+export function formatCodeActions(actions: CodeAction[] | null): string {
+  if (!actions || actions.length === 0) return 'No code actions available';
+
+  const lines = actions.map((action, index) => {
+    const preferred = action.isPreferred ? ' (preferred)' : '';
+    const kind = action.kind ? ` [${action.kind}]` : '';
+    return `${index + 1}. ${action.title}${kind}${preferred}`;
+  });
+
+  return lines.join('\n');
+}
+
+/**
+ * Format workspace edit
+ */
+export function formatWorkspaceEdit(edit: WorkspaceEdit | null): string {
+  if (!edit) return 'No edits';
+
+  const lines: string[] = [];
+
+  if (edit.changes) {
+    for (const [uri, changes] of Object.entries(edit.changes)) {
+      const path = uriToPath(uri);
+      lines.push(`File: ${path}`);
+      for (const change of changes) {
+        const range = formatRange(change.range);
+        const preview = change.newText.length > 50
+          ? change.newText.slice(0, 50) + '...'
+          : change.newText;
+        lines.push(`  ${range}: "${preview}"`);
+      }
+    }
+  }
+
+  if (edit.documentChanges) {
+    for (const docChange of edit.documentChanges) {
+      const path = uriToPath(docChange.textDocument.uri);
+      lines.push(`File: ${path}`);
+      for (const change of docChange.edits) {
+        const range = formatRange(change.range);
+        const preview = change.newText.length > 50
+          ? change.newText.slice(0, 50) + '...'
+          : change.newText;
+        lines.push(`  ${range}: "${preview}"`);
+      }
+    }
+  }
+
+  return lines.length > 0 ? lines.join('\n') : 'No edits';
+}
+
+/**
+ * Count edits in a workspace edit
+ */
+export function countEdits(edit: WorkspaceEdit | null): { files: number; edits: number } {
+  if (!edit) return { files: 0, edits: 0 };
+
+  let files = 0;
+  let edits = 0;
+
+  if (edit.changes) {
+    files += Object.keys(edit.changes).length;
+    edits += Object.values(edit.changes).reduce((sum, changes) => sum + changes.length, 0);
+  }
+
+  if (edit.documentChanges) {
+    files += edit.documentChanges.length;
+    edits += edit.documentChanges.reduce((sum, doc) => sum + doc.edits.length, 0);
+  }
+
+  return { files, edits };
+}

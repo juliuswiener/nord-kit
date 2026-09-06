@@ -19,8 +19,8 @@ printf '%s\n' \
  | node bridge/mcp-server.cjs
 ```
 
-`npm run mcp:smoke` wraps this with assertions; `npm run mcp:smoke:selftest` proves those
-assertions can fail. It runs inside `npm run build`, right after the bundle is produced.
+`(cd mcp && npm run smoke)` wraps this with assertions; `(cd mcp && npm run smoke:selftest)`
+proves those assertions can fail. Run it right after `(cd mcp && npm run build)` produces the bundle.
 
 **Receipt:** from 1.18.0 until 2026-08-09 that request answered JSON-RPC -32603 and all 55 tools
 were unreachable. Nobody noticed for three releases. The probe finds it in under a second.
@@ -108,21 +108,23 @@ were unreachable. Nobody noticed for three releases. The probe finds it in under
 
 ## Checklist
 
-1. `npm run mcp:smoke` — record the BEFORE surface.
-2. `npm run plugin:copies` — record existing drift, so new drift is distinguishable.
-3. Make the change in `src/`; add or update the named assertion for it.
-4. `npx tsc --noEmit`, then the targeted test files. **`npm test` is not a gate** — 206
-   pre-existing failures.
-5. `node scripts/build-mcp-server.mjs`.
-6. `npm run mcp:smoke` — diff against step 1. An unexplained count change is the finding.
+1. `(cd mcp && npm run smoke)` — record the BEFORE surface.
+2. `node scripts/plugin-copies-diff.mjs` — record existing drift, so new drift is distinguishable.
+3. Make the change in `mcp/src/`; add or update the named assertion for it.
+4. `(cd mcp && npm run typecheck)`. Erased `import type … from './types.js'` targets and the
+   externalized `@ast-grep/napi`/`better-sqlite3` (no local `node_modules` for either, by design)
+   are pre-existing noise; a NEW error outside that set is the finding. No test suite ships with
+   this copy, so there is no `npm test` step here.
+5. `(cd mcp && npm run build)`.
+6. `(cd mcp && npm run smoke)` — diff against step 1. An unexplained count change is the finding.
 7. Bump `plugin.json` **and** `marketplace.json` in the same commit. They are separate files
    and a release with only one of them bumped installs the old version under the new number.
 8. Commit and push. The marketplace resolves `nord-core` to `./plugins/nord-core` inside
    this repository, so this push is what ships.
 9. Copy to a new versioned cache dir; point `installed_plugins.json` at it. Keep the previous dir
    until every running session has restarted.
-10. `npm run mcp:smoke -- --bundle <cache>/bridge/mcp-server.cjs` — the cache copy is what runs.
-11. `npm run plugin:copies` — only the intended files may differ from step 2.
+10. `(cd mcp && npm run smoke -- --bundle <cache>/bridge/mcp-server.cjs)` — the cache copy is what runs.
+11. `node scripts/plugin-copies-diff.mjs` — only the intended files may differ from step 2.
 12. Restart a session and confirm the tool is listed and callable.
 
 ## Do NOT

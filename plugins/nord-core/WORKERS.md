@@ -63,10 +63,10 @@ the `gate-persist` hook read and write `.nord/state/*.json` directly, and
 
 - **Env-slim is available.** `NORD_DISABLE_TOOLS` is wired (`disable-tools.ts`); measured,
   `=custom` removes exactly `{Bash, BashOutput, KillShell}` and `=python` exactly `{python_repl}`.
-- **The bundle has source.** `node scripts/build-mcp-server.mjs` builds it from
-  `src/mcp/standalone-server.ts` (esbuild). Rebuild it; never hand-edit the bundle.
+- **The bundle has source.** `(cd mcp && npm run build)` builds it from
+  `mcp/src/mcp/standalone-server.ts` (esbuild). Rebuild it; never hand-edit the bundle.
 
-Verify the surface with `npm run mcp:smoke` before and after any change to it.
+Verify the surface with `(cd mcp && npm run smoke)` before and after any change to it.
 
 ## Cache mirror + version label
 The live copy CC loads is whatever `installed_plugins.json` names in nord-core's `installPath` —

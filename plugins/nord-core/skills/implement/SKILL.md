@@ -159,7 +159,9 @@ mirrored into the state file. Per story:
 | `replans` | how often this story was re-planned |
 
 **`.nord/state/<mode>-state.json` — mixed ownership.** This skill writes `mode`, `active`
-(true at start, false on complete or cancel), `max`, `startedAt`, optional `session_id`.
+(true at start, false on complete or cancel), `max`, `startedAt`, and `session_id`
+(**mandatory** — a state file without it is invisible to the hook's own-session check and
+gets skipped, so the loop never blocks the stop it exists to block).
 **The hook owns `iteration` and `updatedAt`: initialise `iteration: 0` and never bump it**,
 or every round counts twice. No stories embedded here. nord-hud reads both, read-only;
 keep the flat `.nord/state/<mode>-state.json` path.
@@ -187,10 +189,15 @@ cap and the run looks like a model failure instead of a typo. A story with no ru
 gate is not a story: fold it into another, or give it a real one (a placeholder check like
 `! grep -rnE "TODO|\.skip\(" src` counts). Prefer a middle gate here too.
 
-Then write the state file — prd.json **before** flipping `active`:
+Then write the state file — prd.json **before** flipping `active`. `max` is capped at 8:
+Claude Code overrides a Stop hook after 8 consecutive blocks regardless
+(`CLAUDE_CODE_STOP_HOOK_BLOCK_CAP ?? 8`), so anything higher is theatre — the hook clamps
+it anyway. `session_id` is mandatory, never type it by hand: the substitution is filled in
+when this skill loads.
 
 ```json
-{ "mode": "implement", "active": true, "iteration": 0, "max": <max(12, 6*stories)>, "startedAt": "<iso>" }
+{ "mode": "implement", "active": true, "iteration": 0, "max": 8, "startedAt": "<iso>",
+  "session_id": "${CLAUDE_SESSION_ID}" }
 ```
 
 The hook is name-agnostic by construction: it finds state files by suffix

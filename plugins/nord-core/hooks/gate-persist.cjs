@@ -7,21 +7,27 @@
 // On a stop attempt: if an active .nord/state/<mode>-state.json has unfinished PRD
 // stories (passes:false) in .nord/prd.json, BLOCK the stop, atomically bump iteration,
 // and re-inject what to do next — forcing escalation for any story stuck at >=3 reds.
-// ALLOW the stop on: all stories green, iteration cap, staleness, or a safety bypass
-// (context-limit / >=95% context / user-abort / auth-error / session-cancel) so a
-// blocked stop at full context can never DEADLOCK (nord #213).
+// ALLOW the stop on: all stories green, iteration cap, or staleness. There is no other
+// bypass — Claude Code's Stop hook payload carries no stop-reason field (measured on
+// 2.1.261: session_id, transcript_path, cwd, prompt_id, permission_mode, hook_event_name,
+// stop_hook_active, last_assistant_message, background_tasks, session_crons — nothing
+// else), and the host already ends the turn before this hook runs on prompt-too-long,
+// API/auth errors and Ctrl+C, and overrides a Stop hook after
+// CLAUDE_CODE_STOP_HOOK_BLOCK_CAP ?? 8 consecutive blocks. A bypass keyed on those fields
+// can never fire, so it is not deadlock protection, it is dead code (nord #213 is handled
+// by the host, not by this hook).
 //
 // STATE CONTRACT (single-writer-per-field):
 //   prd.json            — SKILL only (goal, stories[{id,desc,gate,passes,redCount,escalated,files?,lastFail?}])
 //   state.json.iteration, .updatedAt — HOOK only (this file)
-//   state.json.active/max/mode/startedAt/session_id — SKILL only
+//   state.json.active/max/mode/startedAt/session_id — SKILL only, session_id is mandatory
 //   nord-hud — read-only.
 
 const fs = require("fs");
 const path = require("path");
 
 const STALE_MS = 2 * 60 * 60 * 1000; // 2h — never trap a session forever
-const HARD_MAX = 12;
+const HARD_MAX = 8; // CC overrides a Stop hook after 8 consecutive blocks anyway
 
 function readStdin() { try { return fs.readFileSync(0, "utf8"); } catch { return ""; } }
 function allow() { process.exit(0); }            // no output => stop proceeds
@@ -33,26 +39,8 @@ function atomicWrite(file, obj) {
   fs.renameSync(tmp, file); // atomic on same fs — nord-hud never reads a torn file
 }
 
-// --- safety bypasses (allow stop; prevent compaction deadlock). Field names vary
-// across CC versions, so check many keys. Ported from nord persistent-mode/context-guard. ---
-function bypassReason(inp) {
-  const reason = String(
-    inp.stop_reason || inp.stopReason || inp.end_turn_reason || inp.reason || ""
-  ).toLowerCase();
-  if (/context|max_tokens|token limit|compact|overloaded/.test(reason)) return "context-limit";
-  if (inp.user_abort || inp.userAbort || /abort|interrupt|cancel|user_stop/.test(reason)) return "user-abort";
-  if (inp.auth_error || /unauthor|forbidden|401|403|invalid api key|rate.?limit|429/.test(reason)) return "auth-error";
-  // context window near full -> let it compact rather than block
-  const cw = inp.context_window || inp.contextWindow || {};
-  const pct = Number(cw.used_percentage ?? cw.usedPercentage ?? inp.context_used_percentage ?? 0);
-  if (pct >= 95) return "context-95pct";
-  return null;
-}
-
 let input = {};
 try { input = JSON.parse(readStdin() || "{}"); } catch {}
-
-if (bypassReason(input)) allow(); // a safety condition -> never block
 
 // resolve the repo root from cwd: walk up to the dir holding .nord (preferred, so a
 // subproject's own loop wins) or .git; fallback = cwd (old behaviour). Fixes the
@@ -95,11 +83,12 @@ for (const f of files) {
   // A name check would miss the next signal file someone adds.
   if (st && (st.expires_at || st.requested_at)) continue;
   if (!st || !st.active) continue;                                   // skill marked done/cancelled
-  if (st.session_id && sid && st.session_id !== sid) continue;       // another session's loop
+  if (!st.session_id) continue;                                      // no session_id -> not this session's loop
+  if (sid && st.session_id !== sid) continue;                        // another session's loop
   const ts = Date.parse(st.updatedAt || st.startedAt || "") || 0;
   if (ts && Date.now() - ts > STALE_MS) continue;                    // stale -> allow stop
   const iter = Number(st.iteration || 0);
-  const max = Number(st.max || HARD_MAX);
+  const max = Math.min(Number(st.max || HARD_MAX), HARD_MAX);        // clamp -> CC overrides past 8 anyway
   if (iter >= max) continue;                                         // cap -> allow stop, skill reports remaining
 
   const stories = prdStories || (Array.isArray(st.stories) ? st.stories : []);

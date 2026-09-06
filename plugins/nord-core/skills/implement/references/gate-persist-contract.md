@@ -15,8 +15,25 @@ The continuation guarantee behind Part B is a Claude Code **Stop hook**,
   it relies on deterministic story state, the iteration cap and a 2 h staleness window, so
   the flag alone cannot trick it into an infinite loop.
 - **Allow** — let it stop. Print nothing, exit 0. Emitted when every story is
-  `passes:true`, when there is no active state, when the cap is hit, when the state is
-  stale, or when a safety bypass fires (context limit, ≥95 %, user abort, auth error).
+  `passes:true`, when there is no active state, when a state carries no `session_id`
+  (not this session's loop), when the cap is hit, or when the state is stale. There is no
+  other bypass: the Stop payload carries no stop-reason field to key one on (measured on
+  CC 2.1.261 — ten keys, none of them a reason), and the host already ends the turn before
+  this hook runs on prompt-too-long, API/auth errors and Ctrl+C, and overrides a Stop hook
+  after `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP ?? 8` consecutive blocks.
+
+## session_id is mandatory
+
+Every writer of `state.json` **must** set `session_id`. A state without one is treated as
+not-this-session's-loop and skipped (same as a genuine mismatch) — the alternative, an
+empty `session_id` matching every session by omission, blocked every session in the repo
+regardless of who started the loop.
+
+## The iteration cap is capped at 8
+
+`max` is clamped to `HARD_MAX = 8` in the hook (`Math.min(st.max, 8)`) — CC overrides a
+Stop hook after 8 consecutive blocks regardless (`CLAUDE_CODE_STOP_HOOK_BLOCK_CAP ?? 8`),
+so a state file writing anything above 8 has no effect; the skill writes 8.
 
 ## Repo-root resolution
 

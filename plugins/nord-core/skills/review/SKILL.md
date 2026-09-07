@@ -1,6 +1,6 @@
 ---
 name: review
-description: "Judge finished work and return severity-rated findings, each anchored to a file:line that was actually read. Three axes: `--scope diff|repo|plan` (what is under review — a change, a whole codebase, or a plan before anyone builds it), `--lens security|a11y|claims` (narrow to one question), `--deep` (parallel specialists with every finding adversarially verified, instead of one pass). Defaults to a single pass over the current diff. Use for reviewing a diff or PR, auditing a codebase, checking whether a plan is sound, asking whether the documentation is true, or on 'schau dir das mal an', 'review das', 'ist der Code gut', 'stimmt das so'."
+description: "Judge finished work and return severity-rated findings, each anchored to a file:line that was actually read. Three axes: `--scope diff|repo|plan` (what is under review — a change, a whole codebase, or a plan before anyone builds it), `--lens security|a11y|claims|contract` (narrow to one question), `--deep` (parallel specialists with every finding adversarially verified, instead of one pass). Defaults to a single pass over the current diff. Use for reviewing a diff or PR, auditing a codebase, checking whether a plan is sound, asking whether the documentation is true, or on 'schau dir das mal an', 'review das', 'ist der Code gut', 'stimmt das so'."
 ---
 
 # review
@@ -25,6 +25,7 @@ below the selection table lives in `references/` and is not loaded until you cho
 | `security` | `references/lens-security.md` | auth, input validation, output encoding, secrets, dependency CVEs — with a remediation deadline per severity |
 | `a11y` | `references/lens-a11y.md` | WCAG 2.2 AA / BITV 2.0 / EN 301 549 and plain language for citizen-facing pages, with real tooling (axe-core/pa11y/Lighthouse) as a deterministic gate before any judgement |
 | `claims` | `references/lens-claims.md` | **not whether the documentation is good — whether it is true.** Every conclusion traced back to running code, never to a doc. Normally `--scope repo --lens claims` |
+| `contract` | `references/lens-contract.md` | the `judgment`-class rules from `~/00_projects/vault/contract/rules.yaml` — the ones no hook can enforce because they need reading the change against the intent. Read from the register at runtime, never restated here |
 
 ## What every cell shares
 

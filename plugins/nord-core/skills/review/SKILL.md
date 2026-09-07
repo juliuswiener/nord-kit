@@ -50,6 +50,7 @@ These three hold for whatever cell you picked:
 - "is this codebase any good", "can we build on this", "due diligence" → `--scope repo`.
 - "the docs say X, is that real", "what is actually true here" → `--scope repo --lens claims`.
 - "check this before we start" on a plan, spec or ADR → `--scope plan`.
+- "hält sich das an unsere Regeln", "ist das sauber gemacht" → `--lens contract`.
 - Add `--deep` when being wrong is expensive: before a release, before a handover, or
   when a cheap pass already found something and you need to know what else is there.
   It costs parallel agents plus a verification round; do not reach for it by default.

@@ -46,6 +46,21 @@ This is the whole of `--from task`, and the only part a worker drives.
 
 ## A0. Preflight and setup
 
+**Work-entry preflight comes first.** Inspect the input before running a gate, spawning a
+worker, or changing code. A path under `~/00_projects/vault/tickets/` (or a relative
+`tickets/<slug>.md` referring to that vault) is capture and triage, not executable work.
+STOP and require the orchestrator to establish the red command and decision, then run:
+
+```sh
+~/00_projects/vault/bin/note qualify <project>/<slug> <decision-note>
+```
+
+Continue only from the resulting `backlog/<project>/<slug>.md`, whose frontmatter carries
+`qualifiziert_durch:`. Never let built work jump directly from `tickets/` to
+`tickets/archive/`; it closes through `note archive` after qualification. This check is
+before every other preflight because a green baseline on an unqualified ticket would
+otherwise legitimize exactly the bypass the lifecycle is meant to prevent.
+
 **Preflight, and it must pass before any worker spawn.** The cheap `implementer`
 (`model: worker`) only routes to the $0 coder when Claude Code was launched through the
 bridge:

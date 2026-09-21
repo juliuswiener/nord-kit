@@ -92,17 +92,22 @@ for (const f of files) {
   if (iter >= max) continue;                                         // cap -> allow stop, skill reports remaining
 
   const stories = prdStories || (Array.isArray(st.stories) ? st.stories : []);
+  // No stories = no gate = nothing to enforce, so fail OPEN. A crash between writing the
+  // state file and writing prd.json used to land here and block with "0/? stories still
+  // RED", wedging the session until a manual `abort` — a block that names no failing gate
+  // is a block the session cannot work off.
+  if (!stories.length) continue;
   const red = stories.filter((s) => s && !s.passes);
-  if (stories.length && red.length === 0) continue;                  // all green -> allow
+  if (red.length === 0) continue;                                    // all green -> allow
 
   // HOOK OWNS iteration: bump atomically on every block (this is the real cap enforcement)
   try { st.iteration = iter + 1; st.updatedAt = new Date().toISOString(); atomicWrite(fp, st); } catch {}
 
   const mode = st.mode || f.replace("-state.json", "");
-  const redIds = red.map((s) => s.id || s.desc || "?").join(", ") || "(stories not decomposed yet)";
+  const redIds = red.map((s) => s.id || s.desc || "?").join(", ");
   const stuck = red.filter((s) => Number(s.redCount || 0) >= 3 && !s.escalated);
   let reason =
-    `[${mode}] not done — ${red.length}/${stories.length || "?"} stories still RED (${redIds}), ` +
+    `[${mode}] not done — ${red.length}/${stories.length} stories still RED (${redIds}), ` +
     `iteration ${iter + 1}/${max}. Continue the implement loop: re-run each red story's deterministic gate ` +
     `via a gate-worker; set passes:true in .nord/prd.json only on exit 0. Do NOT stop until all stories ` +
     `pass or the cap is hit.`;

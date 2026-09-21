@@ -16,11 +16,24 @@ The continuation guarantee behind Part B is a Claude Code **Stop hook**,
   the flag alone cannot trick it into an infinite loop.
 - **Allow** — let it stop. Print nothing, exit 0. Emitted when every story is
   `passes:true`, when there is no active state, when a state carries no `session_id`
-  (not this session's loop), when the cap is hit, or when the state is stale. There is no
+  (not this session's loop), when there are **no stories at all** (`prd.json` missing or
+  `stories: []` — no gate to enforce, so the hook fails open; see below), when the cap is
+  hit, or when the state is stale. There is no
   other bypass: the Stop payload carries no stop-reason field to key one on (measured on
   CC 2.1.261 — ten keys, none of them a reason), and the host already ends the turn before
   this hook runs on prompt-too-long, API/auth errors and Ctrl+C, and overrides a Stop hook
   after `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP ?? 8` consecutive blocks.
+
+## No stories means fail open
+
+An active state whose `prd.json` is missing or carries `stories: []` allows the stop. This
+is the one place the hook deliberately fails **open**, because the alternative fails closed
+on nothing: a crash between writing the state file and writing the PRD left the session
+blocked with `0/? stories still RED ()` — a directive naming no gate, which the session
+cannot work off, so it wedged until a manual `abort`. B0 still says to write `prd.json`
+*before* flipping `active`; this is what happens when that ordering does not survive.
+
+Covered by checks (e) and (f) in `gate-persist.test.cjs`.
 
 ## session_id is mandatory
 

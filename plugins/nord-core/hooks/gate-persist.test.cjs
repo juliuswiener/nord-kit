@@ -140,6 +140,41 @@ const redStory = [{ id: "s1", desc: "d1", passes: false, redCount: 0 }];
   fs.rmSync(root, { recursive: true, force: true });
 }
 
+// (e) active state but NO prd.json -> allow. A crash between writing the state file and
+// writing the PRD used to wedge the session until a manual `abort`: no stories means no
+// gate, and a hook with no gate to enforce has nothing to block on.
+{
+  const root = mkRepo();
+  writeState(root, "implement", {
+    mode: "implement",
+    active: true,
+    session_id: "sess-e",
+    iteration: 0,
+    max: 8,
+    startedAt: new Date().toISOString(),
+  });
+  const r = runHook(payload({ cwd: root, session_id: "sess-e" }));
+  check("(e) active state, no prd.json -> allow", r.status === 0 && isAllow(r), `exit=${r.status} stdout=${JSON.stringify(r.stdout)}`);
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// (f) prd.json present but stories: [] -> allow, same reason as (e).
+{
+  const root = mkRepo();
+  writePrd(root, []);
+  writeState(root, "implement", {
+    mode: "implement",
+    active: true,
+    session_id: "sess-f",
+    iteration: 0,
+    max: 8,
+    startedAt: new Date().toISOString(),
+  });
+  const r = runHook(payload({ cwd: root, session_id: "sess-f" }));
+  check("(f) prd.json with stories: [] -> allow", r.status === 0 && isAllow(r), `exit=${r.status} stdout=${JSON.stringify(r.stdout)}`);
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 console.log(`gate-persist.test.cjs — hook under test: ${HOOK}\n`);
 let failed = 0;
 for (const { name, pass, detail } of results) {

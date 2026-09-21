@@ -1,0 +1,14 @@
+[tool.pytest.ini_options]
+# Ein Importstil im ganzen Baum: from atoms.<kategorie>.<name>.main import run —
+# derselbe im Test wie im Feature. Dafuer muss die Projektwurzel auf sys.path.
+pythonpath = ["."]
+testpaths = ["atoms", "features"]
+python_files = ["*_test.py"]
+
+# Jedes Atom hat sein main_test.py, jedes Feature sein handlers_test.py — die
+# Basenamen wiederholen sich also zwangslaeufig. Im Standard-Importmodus kollidieren
+# sie beim Einsammeln ("use a unique basename"), sobald es das zweite Atom gibt.
+# importlib importiert ueber den Pfad und braucht weder eindeutige Namen noch
+# __init__.py. Belegt: 3 Atome + 2 Features -> mit dieser Zeile 11 passed, ohne sie
+# 5 Collection-Errors.
+addopts = "--import-mode=importlib"

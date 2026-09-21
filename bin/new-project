@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+# new-project [name] [sprache] — legt ~/00_projects/<NNN>_<name>/ aus der Vorlage an.
+#
+# Die Nummer ist die hoechste vorhandene plus eins. Vorhandene Doppelnummern
+# (161, 169) bleiben, wie sie sind — kollidieren kann die neue nicht.
+#
+# VIER SPRACHEN, EINE KONVENTION. Die Vorlage liegt nicht mehr als Zwitter da, aus dem
+# man die ungenutzte Haelfte loescht: sie ist nach Sprache getrennt, und hier wird genau
+# eine kopiert. Der Grund ist nicht Ordnung, sondern das Tor — `orch gate detect`
+# erkennt die Sprache an ihrer Projektdatei (pyproject.toml / package.json / go.mod /
+# Cargo.toml) und liefert den passenden Testbefehl. Zwei Projektdateien nebeneinander
+# heissen: es raet.
+#
+# DESHALB SCHREIBT DIESES SKRIPT KEIN .orch-gate.json. `gate.Source` unterscheidet
+# `declared` von `detected`, weil "gruen aus einem deklarierten Tor" und "gruen aus
+# einem geratenen" verschieden viel wert sind. Eine vom Skript kopierte Deklaration
+# waere ein Rateschluss, der sich als menschliche Entscheidung ausgibt. Die Datei
+# entsteht erst, wenn jemand `package`/`full` trennen will — dort traegt sie Information.
+#
+# PROJECTS_DIR ueberschreibt das Zielverzeichnis (fuer den Selbsttest).
+set -euo pipefail
+
+PROJECTS="${PROJECTS_DIR:-$HOME/00_projects}"
+# TEMPLATE_DIR getrennt von PROJECTS_DIR, damit ein Selbsttest in einem Wegwerfordner
+# die ECHTE Vorlage benutzt. Vorher zog PROJECTS_DIR die Vorlagensuche mit, und der Test
+# pruefte damit eine Vorlage, die es nur im Test gab.
+# Die Vorlage liegt im selben Repo wie dieses Skript, eine Ebene ueber bin/.
+# `readlink -f` loest den Symlink in ~/.local/bin auf: ohne das suchte das Skript
+# die Vorlage neben dem SYMLINK statt neben sich selbst und faende nichts.
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+TEMPLATE="${TEMPLATE_DIR:-$(dirname "$SELF")/../projektvorlage}"
+
+[ -d "$TEMPLATE" ] || { echo "Vorlage fehlt: $TEMPLATE" >&2; exit 1; }
+
+SPRACHEN="python typescript go rust"
+
+name="${1:-}"
+if [ -z "$name" ]; then
+  read -rp "Projektname: " name
+fi
+
+# Leerzeichen zu _, alles ausserhalb von [A-Za-z0-9._-] faellt weg.
+slug=$(printf '%s' "$name" | tr ' ' '_' | tr -cd 'A-Za-z0-9._-')
+[ -n "$slug" ] || { echo "Aus '$name' wird kein brauchbarer Ordnername." >&2; exit 1; }
+
+sprache="${2:-}"
+if [ -z "$sprache" ]; then
+  echo
+  echo "  Sprache?"
+  echo "    1) python      pytest, atoms/<kat>/<name>/main.py"
+  echo "    2) typescript  node --test, kein Build-Schritt"
+  echo "    3) go          go build && go test, Einstiegspunkt Run"
+  echo "    4) rust        cargo test, Schichten unter src/"
+  echo
+  read -rp "  [1-4 oder Name]: " sprache
+fi
+case "$sprache" in
+  1|python|py)         sprache=python ;;
+  2|typescript|ts|js)  sprache=typescript ;;
+  3|go|golang)         sprache=go ;;
+  4|rust|rs)           sprache=rust ;;
+  *) echo "Unbekannte Sprache: '$sprache'. Erlaubt: $SPRACHEN" >&2; exit 1 ;;
+esac
+[ -d "$TEMPLATE/$sprache" ] || { echo "Vorlage fehlt: $TEMPLATE/$sprache" >&2; exit 1; }
+
+# Derselbe Name unter einer ANDEREN Nummer ist der wahrscheinliche Fehlgriff:
+# die Nummer zaehlt hoch, also kollidiert der Pfad nie, und man haette den Ordner
+# stillschweigend zweimal. Deshalb gegen den Slug pruefen, nicht gegen den Pfad.
+existing=$(ls -1 "$PROJECTS" 2>/dev/null | sed -n "s/^\([0-9]\{1,\}_\)\?$slug$/&/p" || true)
+if [ -n "$existing" ]; then
+  echo "Gibt es schon: $existing" >&2
+  echo "Anderen Namen waehlen, oder den vorhandenen Ordner benutzen." >&2
+  exit 1
+fi
+
+last=$(ls -1 "$PROJECTS" 2>/dev/null | sed -n 's/^\([0-9]\{1,\}\)_.*/\1/p' | sort -n | tail -1)
+printf -v num '%03d' "$(( 10#${last:-0} + 1 ))"
+
+dir="$PROJECTS/${num}_${slug}"
+[ -e "$dir" ] && { echo "Existiert schon: $dir" >&2; exit 1; }
+projekt="${num}_${slug}"
+
+mkdir -p "$dir"
+# Gemeinsames zuerst, dann die Sprache darueber. Punktdateien einzeln, weil `cp -r x/.`
+# sie zwar mitnimmt, `cp -r x/*` aber nicht — und ein fehlendes .githooks/ faellt erst
+# beim ersten Commit auf, wenn niemand mehr weiss, warum das Tor schweigt.
+cp -r "$TEMPLATE/_gemeinsam/." "$dir/"
+cp -r "$TEMPLATE/$sprache/." "$dir/"
+
+# CLAUDE.md = gemeinsamer Rumpf + Sprachteil. Zwei Dateien statt vier Vollfassungen,
+# damit eine Korrektur an der Schichtregel nicht viermal gemacht werden muss.
+cat "$TEMPLATE/_gemeinsam/CLAUDE.md" "$TEMPLATE/$sprache/CLAUDE-teil.md" > "$dir/CLAUDE.md"
+rm -f "$dir/CLAUDE-teil.md"
+
+# .gitignore = gemeinsamer Teil + Sprachteil.
+cat "$TEMPLATE/_gemeinsam/.gitignore" "$TEMPLATE/$sprache/.gitignore-teil" > "$dir/.gitignore"
+rm -f "$dir/.gitignore-teil"
+
+# PROJEKTNAME ersetzen — in der CLAUDE.md-Kopfzeile und in jeder Projektdatei, die den
+# Modulnamen traegt. Go und Rust brauchen das zwingend: der Importpfad enthaelt ihn.
+find "$dir" -type f \( -name '*.md' -o -name '*.toml' -o -name '*.json' -o -name '*.mod' \
+  -o -name '*.go' -o -name '*.rs' \) -print0 \
+  | xargs -0 sed -i "s/PROJEKTNAME/${projekt}/g"
+
+# Cargo verbietet einen Paketnamen, der mit einer Ziffer beginnt ("invalid character `0`
+# in package name") — und JEDER Projektname hier beginnt mit einer, weil die Nummer
+# davorsteht. Gemessen 2026-09-21 an 004_probe_rust: `cargo test` bricht sofort ab.
+# Go hat das Problem nicht, dort ist `module 003_probe_go` gueltig.
+# Der Paketname ist in Rust auch nicht der Importpfad — innerhalb der Crate heisst es
+# `crate::`, nicht `<paket>::` —, also kostet die Abweichung nichts.
+if [ "$sprache" = rust ]; then
+  paket=$(printf '%s' "$slug" | tr '.-' '__')
+  case "$paket" in [0-9]*) paket="p$paket" ;; esac
+  sed -i "0,/^name = /s|^name = .*|name = \"$paket\"|" "$dir/Cargo.toml"
+fi
+
+git -C "$dir" init -q
+# .githooks kommt aus der Vorlage mit; git muss nur hinsehen. Ohne die Zeile
+# liegt der pre-commit-Hook da und laeuft nie.
+git -C "$dir" config core.hooksPath .githooks
+
+case "$sprache" in
+  python)     pruef="pytest" ;;
+  typescript) pruef="node --test" ;;
+  go)         pruef="go build ./... && go test ./..." ;;
+  rust)       pruef="cargo test" ;;
+esac
+
+cat <<MSG
+
+  $dir   ($sprache)
+
+  atoms/     pure Funktionen  — kein I/O, kein globaler Zustand
+  features/  Geschaeftslogik  — I/O erlaubt
+  (in Rust unter src/, weil Cargo darauf besteht)
+
+  cd "$dir" && $pruef      # laeuft gruen, bevor du etwas anfasst
+
+  Kein .orch-gate.json: \`orch gate detect\` erkennt $sprache von selbst.
+  Eines anlegen, wenn du ein schnelles Paket-Tor von einem vollen trennen willst.
+MSG

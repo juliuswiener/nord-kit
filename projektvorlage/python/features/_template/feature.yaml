@@ -1,0 +1,10 @@
+name: "_template"
+description: "<was dieses Feature tut>"
+
+# Nur die Vorwaertsrichtung: was DIESES Feature benutzt.
+# Format "<kategorie>/<name>" — derselbe Pfad wie im Import:
+#   from atoms.text.count_words.main import run   ->   - "text/count_words"
+atoms_used:
+  - "_template/example"
+depends_on_features: []
+external_dependencies: []

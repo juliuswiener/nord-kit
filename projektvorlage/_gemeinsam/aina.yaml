@@ -1,0 +1,11 @@
+# Marker: dieses Repo folgt der Verzeichniskonvention.
+#
+# Anwesenheit dieser Datei mit version 1.x schaltet zwei Pruefungen ein:
+#   ~/.claude/hooks/layering-gate.py   lehnt einen Aufwaertsimport beim Schreiben ab
+#   vault/bin/layering-check           findet Zyklen ueber den ganzen Baum (.githooks/pre-commit)
+#
+# Alles andere am Harness — Regelregister, Exceptions, Context-Packs, Vault — gilt ohne
+# diese Datei genauso. Sie schaltet nur die Schichtenpruefung ein, und die gilt laut
+# vault/decisions/aina-konvention-nur-fuer-neue-projekte.md ausschliesslich fuer neue
+# Projekte.
+version: "1.0"

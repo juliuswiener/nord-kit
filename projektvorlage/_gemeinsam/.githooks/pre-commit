@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# pre-commit — zwei Pruefungen, beide gehoeren dem Vault und leben dort:
+#
+#   layering-check  Zyklen im Importgraphen. Aufwaertsimporte faengt schon der
+#                   Edit-Hook ab; ein Zyklus ist eine Eigenschaft des ganzen
+#                   Graphen und nur hier pruefbar.
+#   dead-links      [[slug]]-Zitate auf Vault-Notizen, die es nicht gibt. Sie
+#                   entstehen BEIM SCHREIBEN IN DIESEM REPO, deshalb steht das
+#                   Tor hier und nicht im Vault -- der Vault sieht fremde Repos
+#                   nicht. Gemessen am 2026-09-21: 22 solche Verweise in drei
+#                   Repos, keiner davon je eine Datei. Es sind Versprechen, die
+#                   niemand eingeloest hat.
+#
+# Fail-open, wenn das Werkzeug fehlt: der Vault ist nicht auf jedem Rechner
+# gemountet, und ein Commit soll nicht daran scheitern, dass eine Pruefung nicht
+# auffindbar ist. Das ist eine Abwaegung, keine Nachlaessigkeit -- ein Repo darf
+# nicht unbenutzbar werden, weil ein fremdes Verzeichnis fehlt.
+set -euo pipefail
+
+VAULT="${VAULT_DIR:-$HOME/00_projects/vault}"
+ROOT="$(git rev-parse --show-toplevel)"
+rc=0
+
+[ -x "$VAULT/bin/layering-check" ] && { "$VAULT/bin/layering-check" "$ROOT" || rc=1; }
+[ -x "$VAULT/bin/dead-links" ]     && { "$VAULT/bin/dead-links"     "$ROOT" || rc=1; }
+
+exit $rc

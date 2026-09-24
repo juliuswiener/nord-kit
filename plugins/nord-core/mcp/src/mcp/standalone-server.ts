@@ -19,6 +19,7 @@ import { registerStandaloneShutdownHandlers } from './standalone-shutdown.js';
 import { cleanupOwnedBridgeSessions } from '../tools/python-repl/bridge-manager.js';
 import { buildListToolsResponse, getEnabledTools } from './tool-registry.js';
 import { disconnectAll as disconnectAllLsp } from '../tools/lsp/index.js';
+import { startDiagSocket } from '../tools/lsp/diag-socket.js';
 
 type StandaloneCallToolHandler = (
   request: CallToolRequest,
@@ -112,6 +113,8 @@ registerStandaloneShutdownHandlers({
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  // Lend the warm language servers to the edit-diag hook (never throws).
+  startDiagSocket();
   console.error('NORD Tools MCP Server running on stdio');
 }
 

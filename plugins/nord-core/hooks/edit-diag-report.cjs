@@ -1,10 +1,8 @@
 #!/usr/bin/env node
-// NOT REGISTERED since 2026-09-05. This pair needs dist/tools/lsp/index.js, which
-// lived in the nord-core development repo (retired 2026-09-03, deleted 2026-09-05) and
-// was never part of nord-kit. Without it the report hook quits on every call, and this
-// capture hook has been writing a full copy of every edited file to
-// /tmp/nord-edit-diag-<uid>/ for nobody — 195 files on the day it was measured. Both
-// files stay so the pair can be re-registered in hooks.json once dist/ is back.
+// Registered again since 2026-09-24 (unregistered 2026-09-05 to 2026-09-24: its
+// dist/ and daemon lived in the retired nord-core development repo). dist/tools/lsp/
+// is now built from mcp/src by mcp/build.mjs, and the MCP server stands in for the
+// lost daemon. Vault: edit-diagnose-laeuft-ueber-den-warmen-mcp-server.
 // PostToolUse(Edit|Write|NotebookEdit) — report the errors THIS edit introduced.
 //
 // Edit verifies that old_string occurs exactly once. That is a string check,
@@ -52,9 +50,9 @@
 // 1st: TypeScript 7.1s, JSON 1.68s, TOML 0.76s, Rust 0.27s answering
 // "not checked" (2.7s if made to actually answer).
 //
-// So the work is handed to a daemon that keeps the servers warm between
-// processes. If the daemon cannot be reached the hook does the work in-process
-// exactly as before -- slow, but correct. The daemon is an optimisation, and a
+// So the work is handed to the MCP server, which keeps the servers warm for the
+// whole session and answers on a Unix socket. If no socket answers, the hook does
+// the work in-process -- slow, but correct. The socket is an optimisation, and a
 // broken one must never be able to turn a real answer into silence.
 
 "use strict";
@@ -63,7 +61,6 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
-const { pathToFileURL } = require("url");
 
 const WATCHED = new Set(["Edit", "Write", "NotebookEdit"]);
 const BUDGET_MS = positiveInt(process.env.NORD_EDIT_DIAG_BUDGET_MS, 4000);
@@ -146,7 +143,7 @@ async function main() {
   // here would be a second source of truth that drifts.
   const dist = path.join(__dirname, "..", "dist", "tools", "lsp", "index.js");
   if (!fs.existsSync(dist)) quit();
-  const lsp = await import(pathToFileURL(dist).href);
+  const lsp = require(dist);
 
   const serverConfig = lsp.getServerForFile(file);
   // No server for this language, or the server is not installed. Say nothing:
@@ -168,62 +165,31 @@ async function main() {
   if (beforeText === afterText) quit();   // nothing actually changed
 
   const t0 = Date.now();
-  let before = [];
-  let after = [];
-  let answered = false;
-  let indexState = "unknown";
-  let via = "daemon";
+  const req = { file, beforeText, afterText, budgetMs: BUDGET_MS, waitReadyMs: WAIT_READY_MS };
 
-  // The whole before/after sequence goes over in ONE request. Splitting it into
-  // per-step calls would mean the daemon holding a client lease across socket
-  // round-trips, and this process dying mid-sequence would pin that client.
-  const useDaemon = process.env.NORD_LSP_DAEMON !== "0";
-  let daemonErr = null;
-  if (useDaemon) {
+  // Ask the MCP server first: it lives for the whole session and keeps its
+  // language servers warm (vault: edit-diagnose-laeuft-ueber-den-warmen-mcp-server).
+  // The whole before/after sequence goes over in ONE request, so no client lease
+  // is held across round trips. NORD_LSP_DAEMON=0 skips it (name kept from the
+  // retired daemon).
+  let r = null;
+  let via = "socket";
+  if (process.env.NORD_LSP_DAEMON !== "0") {
     try {
-      const dc = await import(pathToFileURL(
-        path.join(__dirname, "..", "dist", "tools", "lsp", "daemon", "client.js")).href);
-      const r = await dc.daemonEditDiagnostics(
-        { file, beforeText, afterText, budgetMs: BUDGET_MS, waitReadyMs: WAIT_READY_MS },
-        BUDGET_MS * 2 + WAIT_READY_MS + 30000);
-      before = r.before; after = r.after;
-      answered = r.answered; indexState = r.indexState;
-    } catch (e) {
-      // Reaching the daemon failed. Fall through to doing it here -- never to
-      // reporting "no new errors", which is the one answer we have not earned.
-      daemonErr = e && e.message ? e.message : String(e);
+      r = await lsp.requestEditDiagnostics(req, BUDGET_MS * 2 + WAIT_READY_MS + 5000);
+    } catch { r = null; }
+  }
+  if (!r) {
+    // Nobody answered. Do it here -- slow but correct, never a silent all-clear.
+    via = "in-process";
+    try {
+      r = await lsp.editDiagnostics(req);
+    } finally {
+      // A server this process started must not outlive it.
+      await lsp.disconnectAll().catch(() => {});
     }
   }
-
-  if (!useDaemon || daemonErr) {
-    via = daemonErr ? "in-process (daemon: " + daemonErr.slice(0, 80) + ")" : "in-process";
-    await lsp.lspClientManager.runWithClientLease(file, async (client) => {
-      if (WAIT_READY_MS > 0) {
-        const until = Date.now() + WAIT_READY_MS;
-        // Wait for POSITIVE readiness, not for the absence of "indexing":
-        // a server that has not sent its first status yet reports "unknown", and
-        // treating that as ready returns before rust-analyzer has said anything.
-        while (client.indexState !== "ready" && Date.now() < until) {
-          await new Promise(r => setTimeout(r, 100));
-        }
-      }
-      if (beforeText === null) {
-        // No baseline. Open the real file and treat every error as "cannot tell".
-        await client.openDocument(file);
-        after = await client.collectDiagnostics(file, BUDGET_MS);
-      } else {
-        // baseSeq is -1 on a fresh open and the current publish counter when the
-        // document was already open (a reused client), so the baseline's
-        // diagnostics are never satisfied by the previous edit's publish.
-        const baseSeq = await client.openDocumentWithText(file, beforeText);
-        before = await client.collectDiagnostics(file, BUDGET_MS, baseSeq);
-        const sentAt = client.changeDocument(file, afterText);
-        after = await client.collectDiagnostics(file, BUDGET_MS, sentAt);
-      }
-      answered = client.diagnosticsAnswered(file);
-      indexState = client.indexState;
-    });
-  }
+  const { before, after, answered, indexState } = r;
 
   // A publish having arrived is not enough. Measured: rust-analyzer publishes an
   // EMPTY set immediately on didOpen and only later replaces it with the real

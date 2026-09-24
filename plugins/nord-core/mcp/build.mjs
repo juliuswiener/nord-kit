@@ -54,6 +54,15 @@ const buildConfig = {
   ],
 };
 
+// Second output: the LSP pieces the edit-diag hooks load (hooks/edit-diag-report.cjs).
+// Vault: edit-diagnose-laeuft-ueber-den-warmen-mcp-server.
+const hookBuildConfig = {
+  ...buildConfig,
+  entryPoints: ['src/tools/lsp/hook-entry.ts'],
+  outfile: '../dist/tools/lsp/index.js',
+  banner: undefined,
+};
+
 if (watchMode) {
   const ctx = await esbuild.context(buildConfig);
   await ctx.watch();
@@ -61,4 +70,6 @@ if (watchMode) {
 } else {
   await esbuild.build(buildConfig);
   console.error(`Built ${outfile}`);
+  await esbuild.build(hookBuildConfig);
+  console.error(`Built ${hookBuildConfig.outfile}`);
 }

@@ -1,10 +1,8 @@
 #!/usr/bin/env node
-// NOT REGISTERED since 2026-09-05. This pair needs dist/tools/lsp/index.js, which
-// lived in the nord-core development repo (retired 2026-09-03, deleted 2026-09-05) and
-// was never part of nord-kit. Without it the report hook quits on every call, and this
-// capture hook has been writing a full copy of every edited file to
-// /tmp/nord-edit-diag-<uid>/ for nobody — 195 files on the day it was measured. Both
-// files stay so the pair can be re-registered in hooks.json once dist/ is back.
+// Registered again since 2026-09-24 (unregistered 2026-09-05 to 2026-09-24: its
+// dist/ and daemon lived in the retired nord-core development repo). dist/tools/lsp/
+// is now built from mcp/src by mcp/build.mjs, and the MCP server stands in for the
+// lost daemon. Vault: edit-diagnose-laeuft-ueber-den-warmen-mcp-server.
 // PreToolUse(Edit|Write|NotebookEdit) — stash the file's CURRENT bytes so the
 // PostToolUse companion can tell a newly-introduced error from one that was
 // already there.

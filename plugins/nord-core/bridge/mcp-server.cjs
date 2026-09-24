@@ -24811,6 +24811,84 @@ function buildListToolsResponse(envValue) {
   };
 }
 
+// src/tools/lsp/diag-socket.ts
+var import_net = require("net");
+var import_fs12 = require("fs");
+var import_os4 = require("os");
+var import_path13 = require("path");
+
+// src/tools/lsp/edit-diagnostics.ts
+async function editDiagnostics(req) {
+  const { file, beforeText, afterText, budgetMs, waitReadyMs } = req;
+  return lspClientManager.runWithClientLease(file, async (client) => {
+    if (waitReadyMs > 0) {
+      const until = Date.now() + waitReadyMs;
+      while (client.indexState !== "ready" && Date.now() < until) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    }
+    let before = [];
+    let after;
+    if (beforeText === null) {
+      await client.openDocument(file);
+      after = await client.collectDiagnostics(file, budgetMs);
+    } else {
+      const baseSeq = await client.openDocumentWithText(file, beforeText);
+      before = await client.collectDiagnostics(file, budgetMs, baseSeq);
+      const sentAt = client.changeDocument(file, afterText);
+      after = await client.collectDiagnostics(file, budgetMs, sentAt);
+    }
+    return { before, after, answered: client.diagnosticsAnswered(file), indexState: client.indexState };
+  });
+}
+
+// src/tools/lsp/diag-socket.ts
+function diagSocketDir() {
+  return (0, import_path13.join)((0, import_os4.tmpdir)(), `nord-lsp-${process.getuid ? process.getuid() : 0}`);
+}
+function startDiagSocket() {
+  try {
+    const dir = diagSocketDir();
+    (0, import_fs12.mkdirSync)(dir, { recursive: true, mode: 448 });
+    const path6 = (0, import_path13.join)(dir, `${process.pid}.sock`);
+    if ((0, import_fs12.existsSync)(path6)) (0, import_fs12.unlinkSync)(path6);
+    const server2 = (0, import_net.createServer)((conn) => {
+      let buf = "";
+      conn.setEncoding("utf8");
+      conn.on("data", async (chunk) => {
+        buf += chunk;
+        const nl = buf.indexOf("\n");
+        if (nl < 0) return;
+        let reply;
+        try {
+          reply = await editDiagnostics(JSON.parse(buf.slice(0, nl)));
+        } catch (e) {
+          reply = { error: e instanceof Error ? e.message : String(e) };
+        }
+        conn.end(JSON.stringify(reply) + "\n");
+      });
+      conn.on("error", () => {
+      });
+    });
+    server2.on("error", () => {
+    });
+    server2.listen(path6, () => {
+      try {
+        (0, import_fs12.chmodSync)(path6, 384);
+      } catch {
+      }
+    });
+    server2.unref();
+    process.once("exit", () => {
+      try {
+        (0, import_fs12.unlinkSync)(path6);
+      } catch {
+      }
+    });
+  } catch {
+  }
+}
+
 // src/mcp/standalone-server.ts
 var server = new Server(
   {
@@ -24873,6 +24951,7 @@ registerStandaloneShutdownHandlers({
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  startDiagSocket();
   console.error("NORD Tools MCP Server running on stdio");
 }
 main().catch((error2) => {

@@ -6,8 +6,8 @@
  */
 
 import { spawnSync } from 'child_process';
-import { existsSync, readFileSync } from 'fs';
-import { dirname, extname, isAbsolute, join, parse, resolve } from 'path';
+import { existsSync, readFileSync, realpathSync } from 'fs';
+import { delimiter, dirname, extname, isAbsolute, join, parse, resolve } from 'path';
 
 export interface LspServerConfig {
   name: string;
@@ -81,9 +81,51 @@ function shouldUseNativeTypeScriptServer(packageRoot: string): boolean {
   return !existsSync(join(packageRoot, 'lib', 'tsserver.js'));
 }
 
+/**
+ * The `tsc` the shell would run, if it is TypeScript 7 native.
+ *
+ * A project without its own typescript used to get the classic server, which
+ * needs a tsserver from typescript <= 6 -- and a global TypeScript 7 ships
+ * none, so such projects got no diagnostics at all. The native server also
+ * answers pull diagnostics: an unchanged, clean file is answered in ~80 ms
+ * instead of the classic server's 8 s wait for a publish that never comes
+ * (measured 2026-09-24; vault: zwei-hooks-ohne-eintrag-in-hooks-json).
+ */
+function findGlobalNativeTsc(): string | null {
+  const executable = process.platform === 'win32' ? 'tsc.cmd' : 'tsc';
+  for (const dir of (process.env.PATH ?? '').split(delimiter)) {
+    if (!dir) continue;
+    const bin = join(dir, executable);
+    if (!existsSync(bin)) continue;
+    // Only the first tsc on PATH counts: it is the one the shell would run.
+    try {
+      const packageRoot = dirname(dirname(realpathSync(bin)));   // <pkg>/bin/tsc
+      if (!existsSync(join(packageRoot, 'package.json'))) return null;
+      return shouldUseNativeTypeScriptServer(packageRoot) ? bin : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function nativeTypeScriptServer(command: string): LspServerConfig {
+  return {
+    name: 'TypeScript 7 Native Language Server (typescript-go)',
+    command,
+    args: ['--lsp', '--stdio'],
+    extensions: TYPESCRIPT_EXTENSIONS,
+    installHint: 'Install TypeScript 7 locally so node_modules/.bin/tsc is available'
+  };
+}
+
 export function getTypeScriptServerForWorkspace(workspaceRoot: string): LspServerConfig {
   const packageRoot = findTypeScriptPackageRoot(workspaceRoot);
-  if (!packageRoot || !shouldUseNativeTypeScriptServer(packageRoot)) {
+  if (!packageRoot) {
+    const globalTsc = findGlobalNativeTsc();
+    return globalTsc ? nativeTypeScriptServer(globalTsc) : TYPESCRIPT_CLASSIC_SERVER;
+  }
+  if (!shouldUseNativeTypeScriptServer(packageRoot)) {
     return TYPESCRIPT_CLASSIC_SERVER;
   }
 
@@ -92,13 +134,7 @@ export function getTypeScriptServerForWorkspace(workspaceRoot: string): LspServe
     return TYPESCRIPT_CLASSIC_SERVER;
   }
 
-  return {
-    name: 'TypeScript 7 Native Language Server (typescript-go)',
-    command: localTsc,
-    args: ['--lsp', '--stdio'],
-    extensions: TYPESCRIPT_EXTENSIONS,
-    installHint: 'Install TypeScript 7 locally so node_modules/.bin/tsc is available'
-  };
+  return nativeTypeScriptServer(localTsc);
 }
 
 /**

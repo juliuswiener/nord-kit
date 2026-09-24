@@ -19317,22 +19317,45 @@ function shouldUseNativeTypeScriptServer(packageRoot) {
   }
   return !(0, import_fs5.existsSync)((0, import_path6.join)(packageRoot, "lib", "tsserver.js"));
 }
+function findGlobalNativeTsc() {
+  const executable = process.platform === "win32" ? "tsc.cmd" : "tsc";
+  for (const dir of (process.env.PATH ?? "").split(import_path6.delimiter)) {
+    if (!dir) continue;
+    const bin = (0, import_path6.join)(dir, executable);
+    if (!(0, import_fs5.existsSync)(bin)) continue;
+    try {
+      const packageRoot = (0, import_path6.dirname)((0, import_path6.dirname)((0, import_fs5.realpathSync)(bin)));
+      if (!(0, import_fs5.existsSync)((0, import_path6.join)(packageRoot, "package.json"))) return null;
+      return shouldUseNativeTypeScriptServer(packageRoot) ? bin : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+function nativeTypeScriptServer(command) {
+  return {
+    name: "TypeScript 7 Native Language Server (typescript-go)",
+    command,
+    args: ["--lsp", "--stdio"],
+    extensions: TYPESCRIPT_EXTENSIONS,
+    installHint: "Install TypeScript 7 locally so node_modules/.bin/tsc is available"
+  };
+}
 function getTypeScriptServerForWorkspace(workspaceRoot) {
   const packageRoot = findTypeScriptPackageRoot(workspaceRoot);
-  if (!packageRoot || !shouldUseNativeTypeScriptServer(packageRoot)) {
+  if (!packageRoot) {
+    const globalTsc = findGlobalNativeTsc();
+    return globalTsc ? nativeTypeScriptServer(globalTsc) : TYPESCRIPT_CLASSIC_SERVER;
+  }
+  if (!shouldUseNativeTypeScriptServer(packageRoot)) {
     return TYPESCRIPT_CLASSIC_SERVER;
   }
   const localTsc = getTypeScriptNativeBin(packageRoot);
   if (!(0, import_fs5.existsSync)(localTsc)) {
     return TYPESCRIPT_CLASSIC_SERVER;
   }
-  return {
-    name: "TypeScript 7 Native Language Server (typescript-go)",
-    command: localTsc,
-    args: ["--lsp", "--stdio"],
-    extensions: TYPESCRIPT_EXTENSIONS,
-    installHint: "Install TypeScript 7 locally so node_modules/.bin/tsc is available"
-  };
+  return nativeTypeScriptServer(localTsc);
 }
 var LSP_SERVERS = {
   typescript: TYPESCRIPT_CLASSIC_SERVER,

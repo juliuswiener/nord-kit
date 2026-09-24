@@ -27,11 +27,11 @@ function check(name, ok, detail) {
 const TMP = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), "edit-diag-test-"));
 const ENV = { ...process.env, TMPDIR: TMP, NORD_EDIT_DIAG_DEBUG: "1" };
 
-function project() {
+function project({ ownTypescript = true } = {}) {
   const root = fs.mkdtempSync(path.join(TMP, "proj-"));
   fs.writeFileSync(path.join(root, "tsconfig.json"), JSON.stringify({ compilerOptions: { strict: true, noEmit: true } }));
-  // A real project brings its own typescript; the global one here is TS 7 (Go),
-  // which ships no tsserver for typescript-language-server to drive.
+  if (!ownTypescript) return root;
+  // A project with its own classic typescript (5.x) drives typescript-language-server.
   fs.mkdirSync(path.join(root, "node_modules"));
   fs.symlinkSync(path.join(HOOKS, "..", "mcp", "node_modules", "typescript"), path.join(root, "node_modules", "typescript"));
   return root;
@@ -90,6 +90,20 @@ async function main() {
   check("socket answer reports the new error", /introduced 1 new error/.test(out3), `got: ${JSON.stringify(out3)}`);
   check("answer came over the socket", /via=socket/.test(out3), `got: ${JSON.stringify(out3)}`);
   console.log(`     warm edit round trip: ${warmMs} ms`);
+
+  // 3b. A project WITHOUT its own typescript uses the global TS 7 native server,
+  //     which answers pull diagnostics -- so the everyday clean edit is fast.
+  //     Measured 2026-09-24: 77 ms native vs 8,070 ms classic (vault:
+  //     zwei-hooks-ohne-eintrag-in-hooks-json AK3).
+  const p5 = project({ ownTypescript: false });
+  const f5 = path.join(p5, "e.ts");
+  edit(f5, "export const v = 1;\n", "export const v = 2;\n");            // warms it
+  const out5clean = edit(f5, "export const v = 2;\n", "export const v = 3;\n");
+  const ms5 = Number((/nord-edit-diag (\d+)ms/.exec(out5clean) || [])[1]);
+  check("no own typescript: clean edit is answered", /no new errors/.test(out5clean), `got: ${JSON.stringify(out5clean)}`);
+  check("no own typescript: clean edit under 1 s", ms5 < 1000, `took ${ms5} ms: ${JSON.stringify(out5clean)}`);
+  const out5err = edit(f5, "export const v: number = 3;\n", 'export const v: number = "e";\n');
+  check("no own typescript: new error is reported", /introduced 1 new error/.test(out5err), `got: ${JSON.stringify(out5err)}`);
 
   server.kill();
   for (let i = 0; i < 30 && fs.existsSync(sock); i++) await new Promise((r) => setTimeout(r, 100));

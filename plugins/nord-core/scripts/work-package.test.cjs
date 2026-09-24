@@ -47,6 +47,47 @@ const SECTIONS = {
     check("ungueltig: all-invalid questions give an empty package", items(none).length === 0);
   },
 
+  // Findings of the first real worker run (vault: Übergabe 2026-09-24, Befunde 2–4).
+  aufloesung() {
+    const where = (pkg, s) => pkg.tiers.aendern.filter((i) => bare(i.symbol) === s).map((i) => i.file);
+    const bySub = wp.buildPackage({ repo: REPO, questions: { symbols: ["Overview"], terms: [], subsystems: ["router"] } });
+    check("aufloesung: an ambiguous name prefers the expected subsystem",
+      JSON.stringify(where(bySub, "Overview")) === '["internal/router/overview.go"]', JSON.stringify(where(bySub, "Overview")));
+    check("aufloesung: ...and then raises no feedback", bySub.feedback.length === 0, JSON.stringify(bySub.feedback));
+    const qual = wp.buildPackage({ repo: REPO, questions: { symbols: ["Router.Overview"], terms: [], subsystems: [] } });
+    check("aufloesung: Type.Method resolves through the receiver",
+      JSON.stringify(where(qual, "Overview")) === '["internal/router/overview.go"]', JSON.stringify(where(qual, "Overview")));
+    const router = qual.tiers.aendern.find((i) => i.symbol === "Router");
+    check("aufloesung: a receiver declared in another file still gets its code",
+      Boolean(router && /^(type )?Router struct/.test(router.code || "") && router.file !== "internal/router/overview.go"),
+      JSON.stringify(router && { file: router.file, code: (router.code || "").slice(0, 40) }));
+    check("aufloesung: an unknown Type.Method drops", items(wp.buildPackage({ repo: REPO,
+      questions: { symbols: ["Nirgends.Overview"], terms: [], subsystems: [] } })).length === 0);
+    const term = wp.buildPackage({ repo: REPO, questions: { symbols: [], terms: ["deadlock"], subsystems: [] } });
+    check("aufloesung: a term never pulls a test into aendern",
+      term.tiers.aendern.every((i) => !/_test\.go$/.test(i.file)), JSON.stringify(term.tiers.aendern.map((i) => i.file)));
+    // Router.Overview is no neighbour of Deliver (checked), so only `affected` can put it there.
+    const aff = wp.buildPackage({ repo: REPO, questions: { symbols: ["Deliver"], affected: ["Router.Overview"], terms: [], subsystems: ["agent", "router"] } });
+    check("aufloesung: affected symbols land in wahrscheinlich, not aendern",
+      aff.tiers.wahrscheinlich.some((i) => i.id === "router_router_overview")
+        && !aff.tiers.aendern.some((i) => i.id === "router_router_overview"),
+      JSON.stringify(aff.tiers.aendern.map((i) => i.symbol)));
+    check("aufloesung: affected items carry a signature",
+      aff.tiers.wahrscheinlich.filter((i) => i.id === "router_router_overview").every((i) => i.signature));
+  },
+
+  // The Read guard refuses a ranged read wholly inside these spans (Befund 1).
+  bereiche() {
+    const pkg = wp.buildPackage({ repo: REPO, questions: { symbols: ["Deliver"], terms: [], subsystems: ["agent"] } });
+    const it = pkg.tiers.aendern.find((i) => bare(i.symbol) === "Deliver");
+    const spans = (pkg.ranges || {})[it && it.file] || [];
+    const lines = fs.readFileSync(path.join(REPO, it.file), "utf8").split("\n");
+    check("bereiche: every aendern item with code has a span",
+      pkg.tiers.aendern.filter((i) => i.code).every((i) => (pkg.ranges || {})[i.file]), JSON.stringify(pkg.ranges));
+    check("bereiche: the Deliver span is exactly its code in the working tree",
+      spans.some(([s, e]) => lines.slice(s - 1, e).join("\n") === it.code), JSON.stringify(spans));
+  },
+
   commitstand() {
     const sha = git("rev-parse", `${HIST_COMMIT}~1`).trim();
     const pkg = wp.buildPackage({ repo: REPO, commit: `${HIST_COMMIT}~1`,
@@ -96,15 +137,17 @@ const SECTIONS = {
   },
 
   budget() {
-    // Uncapped this package is ~3.600 tokens, aendern alone ~1.460: 3000 forces a cut
-    // that must take pruefen first and leave aendern whole.
-    const q = { symbols: ["Deliver", "Interrupt", "Overview"], terms: [], subsystems: ["agent", "router"] };
+    // The cap sits halfway between aendern alone and the uncapped package, so a cut is
+    // forced and must take pruefen first and leave aendern whole.
+    const q = { symbols: ["Deliver", "Interrupt"], terms: [], subsystems: ["agent"] };
+    const tok = (p) => wp.renderMarkdown(p).length / 4;
     const full = wp.buildPackage({ repo: REPO, budgetTokens: 1e9, questions: q });
-    const pkg = wp.buildPackage({ repo: REPO, budgetTokens: 3000, questions: q });
+    const floor = wp.buildPackage({ repo: REPO, budgetTokens: 0, questions: q });
+    const cap = Math.round((tok(floor) + tok(full)) / 2);
+    const pkg = wp.buildPackage({ repo: REPO, budgetTokens: cap, questions: q });
     const md = wp.renderMarkdown(pkg);
-    check("budget: uncapped package is above the cap (else nothing is tested)",
-      wp.renderMarkdown(full).length / 4 > 3000, String(wp.renderMarkdown(full).length / 4));
-    check("budget: rendered package stays under the cap", md.length / 4 <= 3000, String(md.length / 4));
+    check("budget: uncapped package is above the cap (else nothing is tested)", tok(full) > cap, `${tok(full)} vs ${cap}`);
+    check("budget: rendered package stays under the cap", md.length / 4 <= cap, `${md.length / 4} vs ${cap}`);
     check("budget: pruefen is cut before wahrscheinlich",
       pkg.tiers.pruefen.length < full.tiers.pruefen.length && pkg.tiers.wahrscheinlich.length > 0);
     check("budget: aendern survives the cut", pkg.tiers.aendern.length >= 2 && pkg.tiers.aendern.every((i) => i.code));

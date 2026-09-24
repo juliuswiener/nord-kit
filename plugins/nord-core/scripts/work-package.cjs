@@ -73,20 +73,46 @@ function loadGraph(repo) {
 
 // ---- entry-symbol resolution (AK2: unknown/empty questions drop silently) ------
 
-function resolveEntries(graph, symbols, terms) {
+// The type a method node hangs off (graphify: type -method-> method), or null.
+function receiverOf(graph, node) {
+  for (const e of graph.adjacency.get(node.id) || []) {
+    if (e.relation !== "method") continue;
+    const owner = graph.nodesById.get(e.other);
+    if (owner && !/\(\)$/.test(owner.label)) return owner;
+  }
+  return null;
+}
+
+// One symbol question -> one node. "Type.Method" resolves through the receiver. A bare
+// name that several nodes carry (Overview: 12 in orch_tui) prefers non-test files, then
+// the subsystems the order expects, then the old deterministic tie-break — the plain
+// alphabetical pick sent Overview to internal/bus on the first real run.
+function resolveSymbol(graph, sym, subsystems) {
+  const dot = sym.lastIndexOf(".");
+  const [type, name] = dot > 0 ? [sym.slice(0, dot), sym.slice(dot + 1)] : [null, sym];
+  let candidates = graph.codeNodes.filter((n) => bareLabel(n.label) === name);
+  if (type) candidates = candidates.filter((n) => bareLabel((receiverOf(graph, n) || {}).label || "") === type);
+  if (!candidates.length) return null; // unknown symbol -> silently dropped
+  const nonTest = candidates.filter((n) => !isTestFile(n.source_file));
+  let pool = nonTest.length ? nonTest : candidates;
+  const expected = pool.filter((n) => matchesSubsystem(subsystemOf(n.source_file), subsystems || []));
+  if (expected.length) pool = expected;
+  return pool.slice().sort(cmpCandidate)[0];
+}
+
+function resolveEntries(graph, symbols, terms, subsystems) {
   const picked = new Map(); // id -> node
   for (const sym of symbols || []) {
     if (typeof sym !== "string" || !sym.trim()) continue;
-    const candidates = graph.codeNodes.filter((n) => bareLabel(n.label) === sym);
-    if (!candidates.length) continue; // unknown symbol -> silently dropped
-    const nonTest = candidates.filter((n) => !isTestFile(n.source_file));
-    const pool = (nonTest.length ? nonTest : candidates).slice().sort(cmpCandidate);
-    picked.set(pool[0].id, pool[0]);
+    const node = resolveSymbol(graph, sym.trim(), subsystems);
+    if (node) picked.set(node.id, node);
   }
   for (const term of terms || []) {
     if (typeof term !== "string" || !term.trim()) continue; // empty term -> silently dropped
     const t = term.toLowerCase();
-    const candidates = graph.codeNodes.filter((n) => bareLabel(n.label).toLowerCase().includes(t));
+    // Tests never enter aendern through a search term ("deadlock" hit TestTroubleNoDeadlock).
+    const candidates = graph.codeNodes.filter((n) => !isTestFile(n.source_file)
+      && bareLabel(n.label).toLowerCase().includes(t));
     candidates.sort(cmpCandidate);
     for (const c of candidates.slice(0, 5)) picked.set(c.id, c);
   }
@@ -102,11 +128,8 @@ function resolveEntries(graph, symbols, terms) {
 function withReceivers(graph, entryNodes) {
   const out = new Map(entryNodes.map((n) => [n.id, n]));
   for (const n of entryNodes) {
-    for (const e of graph.adjacency.get(n.id) || []) {
-      if (e.relation !== "method") continue;
-      const owner = graph.nodesById.get(e.other);
-      if (owner && owner.file_type === "code" && !/\(\)$/.test(owner.label)) out.set(owner.id, owner);
-    }
+    const owner = receiverOf(graph, n);
+    if (owner && owner.file_type === "code") out.set(owner.id, owner);
   }
   return [...out.values()];
 }
@@ -266,6 +289,16 @@ function signatureOf(text) {
   return idx === -1 ? text.split("\n")[0] : text.slice(0, idx + 1);
 }
 
+// The file in `file`'s directory that declares type `name` at `commit`, or null.
+// ponytail: Go only (`type Name `); other languages keep the graph's file.
+function typeHome(repo, commit, file, name) {
+  if (!file.endsWith(".go")) return null;
+  const r = spawnSync("git", ["-C", repo, "grep", "-l", "-E", `^type ${name}[ \\[]`, commit, "--",
+    `${path.posix.dirname(file)}/*.go`], { encoding: "utf8" });
+  const hit = (r.stdout || "").split("\n").map((l) => l.slice(commit.length + 1)).find((f) => f && !isTestFile(f));
+  return hit || null;
+}
+
 function extractCodeForItems(repo, commit, aendernItems, wahrItems) {
   const wantedByFile = new Map(); // file -> Set(name)
   for (const it of [...aendernItems, ...wahrItems]) {
@@ -274,6 +307,18 @@ function extractCodeForItems(repo, commit, aendernItems, wahrItems) {
   }
   const extracted = new Map(); // file -> {name: text}
   for (const [file, names] of wantedByFile) extracted.set(file, extractSymbolsBatch(repo, commit, file, [...names]));
+  // graphify puts a type node into every file that declares methods on it, so a
+  // receiver (Router via Router.Overview) can point at overview.go while the struct
+  // sits in router.go. Not found where the graph says -> look in the same package.
+  for (const it of [...aendernItems, ...wahrItems]) {
+    const name = bareLabel(it.symbol);
+    if (extracted.get(it.file)?.[name] || /\(\)$/.test(it.symbol)) continue;
+    const home = typeHome(repo, commit, it.file, name);
+    if (!home) continue;
+    if (!extracted.has(home)) extracted.set(home, {});
+    Object.assign(extracted.get(home), extractSymbolsBatch(repo, commit, home, [name]));
+    if (extracted.get(home)[name]) it.file = home;
+  }
   for (const it of aendernItems) {
     const text = extracted.get(it.file)?.[bareLabel(it.symbol)];
     if (text) it.code = text;
@@ -381,9 +426,20 @@ function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12
   const sha = execFileSync("git", ["-C", repo, "rev-parse", commit], { encoding: "utf8" }).trim();
   const graph = loadGraph(repo);
 
-  const entryNodes = withReceivers(graph, resolveEntries(graph, questions.symbols, questions.terms));
+  const entryNodes = withReceivers(graph, resolveEntries(graph, questions.symbols, questions.terms, questions.subsystems));
   const aendern = entryNodes.map(toItem);
-  const { wahrscheinlich, pruefen } = neighbourTiers(graph, entryNodes);
+  let { wahrscheinlich, pruefen } = neighbourTiers(graph, entryNodes);
+
+  // Symbols the order names as affected, not as change targets, go in with their
+  // signature (first real run: 6 of 9 aendern entries were only ever read).
+  const aendernIds = new Set(entryNodes.map((n) => n.id));
+  const affected = (questions.affected || [])
+    .filter((s) => typeof s === "string" && s.trim())
+    .map((s) => resolveSymbol(graph, s.trim(), questions.subsystems))
+    .filter((n) => n && !aendernIds.has(n.id));
+  const affectedIds = new Set(affected.map((n) => n.id));
+  wahrscheinlich = [...affected.map(toItem), ...wahrscheinlich.filter((i) => !affectedIds.has(i.id))];
+  pruefen = pruefen.filter((i) => !affectedIds.has(i.id));
 
   extractCodeForItems(repo, sha, aendern, wahrscheinlich);
   const { feedback, hints } = deviation(aendern, wahrscheinlich, questions.subsystems);
@@ -403,7 +459,26 @@ function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12
   // Only aendern/wahrscheinlich carry content the worker was already handed; pruefen is a
   // path+symbol pointer, so a read of it is not a re-read and the guard must not gate it.
   pkg.files = fileHashes(repo, [...pkg.tiers.aendern, ...pkg.tiers.wahrscheinlich]);
+  pkg.ranges = codeRanges(repo, pkg.tiers.aendern);
   return pkg;
+}
+
+// 1-based inclusive line spans of the full code aendern carries, located in the working
+// tree at dispatch. The Read guard refuses a ranged read wholly inside one: the worker
+// already holds those lines. Code not found verbatim (tree differs from the commit)
+// gets no span, so the guard lets that read through.
+function codeRanges(repo, items) {
+  const ranges = {};
+  const texts = {};
+  for (const it of items) {
+    if (!it.code) continue;
+    try { texts[it.file] ??= fs.readFileSync(path.join(repo, it.file), "utf8"); } catch { continue; }
+    const at = texts[it.file].indexOf(it.code);
+    if (at < 0) continue;
+    const start = texts[it.file].slice(0, at).split("\n").length;
+    (ranges[it.file] ??= []).push([start, start + it.code.split("\n").length - 1]);
+  }
+  return ranges;
 }
 
 const LANG_FENCE = { go: "go", ts: "ts", tsx: "tsx", js: "js", py: "python", rs: "rust" };
@@ -480,21 +555,26 @@ function computeMetrics(repo, pkg, reads, diffText) {
 function decompose(auftrag) {
   // --bare and no tools: in the full harness Haiku sees CLAUDE.md and hooks and
   // answers with a clarifying question instead of JSON (measured 2026-09-24).
+  // symbols vs affected: the first real run put every function the order MENTIONED
+  // into symbols, and 6 of 9 aendern entries were then only ever read.
   const system = "Du zerlegst einen Code-Änderungsauftrag in Graph-Fragen. symbols = exakte "
-    + "Funktions-, Methoden- oder Typnamen, die geändert werden müssen (ohne Receiver, ohne "
-    + "Klammern). terms = kurze Suchbegriffe für Stellen, deren Namen nicht im Auftrag stehen. "
-    + "subsystems = Package-Namen, in denen die Änderung erwartet wird. Nur Namen, die im "
-    + "Auftrag stehen oder zwingend aus ihm folgen.";
+    + "Funktions-, Methoden- oder Typnamen, deren Code geändert werden muss (ohne Receiver, "
+    + "ohne Klammern; Typ.Methode nur bei Mehrdeutigkeit). affected = Namen, die der Auftrag "
+    + "nur als betroffen, wartend oder Symptom nennt, aber nicht ändert. terms = kurze "
+    + "Suchbegriffe für Stellen, deren Namen nicht im Auftrag stehen. subsystems = "
+    + "Package-Namen, in denen die Änderung erwartet wird. Nur Namen, die im Auftrag stehen "
+    + "oder zwingend aus ihm folgen.";
   const list = { type: "array", items: { type: "string" } };
-  const schema = { type: "object", properties: { symbols: list, terms: list, subsystems: list },
-    required: ["symbols", "terms", "subsystems"] };
+  const schema = { type: "object", properties: { symbols: list, affected: list, terms: list, subsystems: list },
+    required: ["symbols", "affected", "terms", "subsystems"] };
   const r = spawnSync("claude", ["-p", `Auftrag: ${auftrag}`, "--model", "haiku", "--bare",
     "--tools", "", "--system-prompt", system, "--json-schema", JSON.stringify(schema),
     "--output-format", "json"], { encoding: "utf8", maxBuffer: 1 << 26 });
   if (r.status !== 0) throw new Error("decompose failed: " + (r.stderr || "").slice(0, 300));
   const outer = JSON.parse(r.stdout);
   const inner = outer.structured_output || JSON.parse(outer.result);
-  return { symbols: inner.symbols || [], terms: inner.terms || [], subsystems: inner.subsystems || [] };
+  return { symbols: inner.symbols || [], affected: inner.affected || [], terms: inner.terms || [],
+    subsystems: inner.subsystems || [] };
 }
 
 // ---- CLI --------------------------------------------------------------

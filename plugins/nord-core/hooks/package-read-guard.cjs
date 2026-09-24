@@ -3,8 +3,9 @@
 // active for the repo (.nord/work-package/active), a Read of a file that is
 // IN the package and UNCHANGED since dispatch is refused: the relevant code
 // already sits in the package, re-reading it just spends tokens for nothing
-// new. A ranged read (offset/limit) always passes, and every Read while a
-// package is active is logged to <run>/reads.jsonl for the post-run audit
+// new. A ranged read (offset/limit) is refused only when it lies wholly inside
+// a declaration the package carries in full (package.json `ranges`); every
+// Read while a package is active is logged to <run>/reads.jsonl for the post-run audit
 // (AK6). Vault: backlog/nord/implementierer-paket-aus-dem-graphen.
 //
 // Fail-OPEN: any error (no git root, no/empty active package, unreadable or
@@ -83,10 +84,12 @@ try {
 
   const dir = path.join(wpDir, run);
   let files = {};
+  let ranges = {};
   if (active) {
     try {
       const pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
       files = pkg.files || {};
+      ranges = pkg.ranges || {};
     } catch { /* corrupt/missing package.json -> nothing recorded, still logged below */ }
   }
 
@@ -94,19 +97,24 @@ try {
   const relFile = path.relative(root, absFile).split(path.sep).join("/");
   const ranged = ti.offset !== undefined || ti.limit !== undefined;
 
+  // Read's offset is the 1-based first line; without a limit it reads up to 2000 lines.
+  const first = Number(ti.offset) || 1;
+  const last = first + (Number(ti.limit) || 2000) - 1;
+  // The first real worker run read only ranged, 5 of 5, so a whole-file rule alone
+  // never fired. A span that reaches past a packaged declaration still passes: the
+  // package holds that declaration, not its surroundings.
+  const inside = (ranges[relFile] || []).some(([s, e]) => first >= s && last <= e);
+
   let verdict = "allow";
-  // ponytail: a ranged read always passes, even for an unchanged package
-  // file — the package only holds the relevant declarations, not the whole
-  // file, so offset/limit reaches material the package does not cover.
-  if (!ranged && Object.prototype.hasOwnProperty.call(files, relFile)) {
+  if ((!ranged || inside) && Object.prototype.hasOwnProperty.call(files, relFile)) {
     let currentHash = null;
     try { currentHash = sha256(absFile); } catch { /* unreadable -> no match */ }
     if (currentHash === files[relFile]) verdict = "deny";
   }
 
-  fs.appendFileSync(path.join(dir, "reads.jsonl"), JSON.stringify({
-    ts: Date.now(), file: relFile, verdict, ranged,
-  }) + "\n");
+  const entry = { ts: Date.now(), file: relFile, verdict, ranged };
+  if (ranged) Object.assign(entry, { offset: ti.offset, limit: ti.limit });
+  fs.appendFileSync(path.join(dir, "reads.jsonl"), JSON.stringify(entry) + "\n");
 
   if (verdict === "deny") {
     const packageMd = path.join(dir, "package.md");

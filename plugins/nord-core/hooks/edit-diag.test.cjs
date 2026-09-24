@@ -37,8 +37,8 @@ function project({ ownTypescript = true } = {}) {
   return root;
 }
 
-function hook(script, event, file, env = ENV) {
-  const payload = { hook_event_name: event, tool_name: "Edit", tool_input: { file_path: file }, cwd: path.dirname(file) };
+function hook(script, event, file, env = ENV, tool = "Edit") {
+  const payload = { hook_event_name: event, tool_name: tool, tool_input: { file_path: file }, cwd: path.dirname(file) };
   const r = spawnSync("node", [script], { input: JSON.stringify(payload), env, encoding: "utf8", timeout: 60000 });
   let ctx = "";
   try { ctx = JSON.parse(r.stdout).hookSpecificOutput.additionalContext; } catch { /* silent = no output */ }
@@ -108,6 +108,19 @@ async function main() {
   check("no own typescript: clean edit under 1 s", ms5 < 1000, `took ${ms5} ms: ${JSON.stringify(out5clean)}`);
   const out5err = edit(f5, "export const v: number = 3;\n", 'export const v: number = "e";\n');
   check("no own typescript: new error is reported", /introduced 1 new error/.test(out5err), `got: ${JSON.stringify(out5err)}`);
+
+  // 3c. Write creates a file that did not exist: "before" is empty, so every
+  //     error in it is new, and a clean new file stays quiet.
+  const f6 = path.join(p5, "fresh.ts");
+  hook(CAPTURE, "PreToolUse", f6, ENV, "Write");
+  fs.writeFileSync(f6, 'export const n: number = "w";\n');
+  const out6 = hook(REPORT, "PostToolUse", f6, ENV, "Write");
+  check("Write of a new file: its error is reported", /introduced 1 new error/.test(out6), `got: ${JSON.stringify(out6)}`);
+  const f7 = path.join(p5, "fresh-clean.ts");
+  hook(CAPTURE, "PreToolUse", f7, ENV, "Write");
+  fs.writeFileSync(f7, "export const m = 1;\n");
+  const out7 = hook(REPORT, "PostToolUse", f7, ENV, "Write");
+  check("Write of a clean new file stays quiet", !/introduced/.test(out7) && /no new errors/.test(out7), `got: ${JSON.stringify(out7)}`);
 
   server.kill();
   for (let i = 0; i < 30 && fs.existsSync(sock); i++) await new Promise((r) => setTimeout(r, 100));

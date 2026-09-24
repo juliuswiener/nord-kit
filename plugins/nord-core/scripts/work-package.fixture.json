@@ -1,0 +1,7 @@
+{
+  "commit": "94cab77",
+  "auftrag": "In orch_tui (Go) blockiert eine zweite gleichzeitige Zustellung an einen Worker, dessen stdin voll ist, alle Leser dieses Agenten: Deliver und Interrupt nehmen writeMu, während a.mu noch gehalten wird. Dadurch warten Snapshot, Idle, LastResult und readLoop, und Router.Overview friert die ganze Anzeige ein. Die Schreibreihenfolge auf stdin muss erhalten bleiben, aber das Warten auf den Vorgänger darf nicht unter a.mu passieren. Erwartete Subsysteme: agent.",
+  "recorded": "2026-09-24, claude -p --model haiku --bare, zweiter von drei Laeufen",
+  "questions": {"symbols":["Deliver","Interrupt"],"terms":["lock order","write queue","FIFO","goroutine blocking","critical section"],"subsystems":["agent"]},
+  "changed": ["Agent", "Deliver", "Interrupt"]
+}

@@ -49,7 +49,7 @@ check("unchanged package file is refused", d.verdict === "deny", JSON.stringify(
 check("refusal points at package.md", d.reason.includes(path.join(dir, "package.md")), d.reason);
 check("a ranged read outside the packaged lines passes", decide({ file_path: a, offset: 1, limit: 2 }).verdict !== "deny");
 d = decide({ file_path: a, offset: 3, limit: 1 });
-check("a ranged read wholly inside the packaged lines is refused", d.verdict === "deny", JSON.stringify(d));
+check("a ranged read wholly inside the packaged lines passes (measure only)", d.verdict !== "deny", JSON.stringify(d));
 check("a ranged read reaching past the packaged lines passes", decide({ file_path: a, offset: 2, limit: 5 }).verdict !== "deny");
 check("a file outside the package passes", decide({ file_path: path.join(root, "b.go") }).verdict !== "deny");
 check("a subdirectory cwd still finds the package", decide({ file_path: a }, path.join(root, ".nord")).verdict === "deny");
@@ -61,7 +61,9 @@ check("no active package: nothing is refused", decide({ file_path: path.join(roo
 
 const log = fs.readFileSync(path.join(dir, "reads.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
 check("every read under an active package is logged", log.length === 8, String(log.length));
-check("a ranged read logs its span", log.some((e) => e.offset === 3 && e.limit === 1), JSON.stringify(log[2]));
+check("a ranged read logs its span and the lines the package already carried",
+  log.some((e) => e.offset === 3 && e.limit === 1 && e.packagedLines === 1)
+  && log.some((e) => e.offset === 1 && e.limit === 2 && e.packagedLines === 0), JSON.stringify(log.slice(1, 4)));
 check("log entries carry the repo-relative file and the verdict",
   log.every((e) => typeof e.file === "string" && !path.isAbsolute(e.file) && ["allow", "deny"].includes(e.verdict)),
   JSON.stringify(log[0]));

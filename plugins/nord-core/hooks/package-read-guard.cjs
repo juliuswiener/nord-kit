@@ -3,8 +3,8 @@
 // active for the repo (.nord/work-package/active), a Read of a file that is
 // IN the package and UNCHANGED since dispatch is refused: the relevant code
 // already sits in the package, re-reading it just spends tokens for nothing
-// new. A ranged read (offset/limit) is refused only when it lies wholly inside
-// a declaration the package carries in full (package.json `ranges`); every
+// new. A ranged read (offset/limit) always passes and is only measured: its log
+// line says how many of its lines the package already carried (`ranges`). Every
 // Read while a package is active is logged to <run>/reads.jsonl for the post-run audit
 // (AK6). Vault: backlog/nord/implementierer-paket-aus-dem-graphen.
 //
@@ -100,20 +100,23 @@ try {
   // Read's offset is the 1-based first line; without a limit it reads up to 2000 lines.
   const first = Number(ti.offset) || 1;
   const last = first + (Number(ti.limit) || 2000) - 1;
-  // The first real worker run read only ranged, 5 of 5, so a whole-file rule alone
-  // never fired. A span that reaches past a packaged declaration still passes: the
-  // package holds that declaration, not its surroundings.
-  const inside = (ranges[relFile] || []).some(([s, e]) => first >= s && last <= e);
+  // Two real worker runs read ranged only (10 of 10), with a margin around the packaged
+  // declarations, so no refusal rule fired. Decision 2026-09-24: measure, do not refuse,
+  // until enough runs show where a threshold belongs.
+  // ponytail: overlap is counted against the requested span; a read past EOF overcounts nothing,
+  // because ranges never extend past the file.
+  const packagedLines = (ranges[relFile] || []).reduce(
+    (n, [s, e]) => n + Math.max(0, Math.min(e, last) - Math.max(s, first) + 1), 0);
 
   let verdict = "allow";
-  if ((!ranged || inside) && Object.prototype.hasOwnProperty.call(files, relFile)) {
+  if (!ranged && Object.prototype.hasOwnProperty.call(files, relFile)) {
     let currentHash = null;
     try { currentHash = sha256(absFile); } catch { /* unreadable -> no match */ }
     if (currentHash === files[relFile]) verdict = "deny";
   }
 
   const entry = { ts: Date.now(), file: relFile, verdict, ranged };
-  if (ranged) Object.assign(entry, { offset: ti.offset, limit: ti.limit });
+  if (ranged) Object.assign(entry, { offset: ti.offset, limit: ti.limit, packagedLines });
   fs.appendFileSync(path.join(dir, "reads.jsonl"), JSON.stringify(entry) + "\n");
 
   if (verdict === "deny") {

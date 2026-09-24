@@ -89,7 +89,11 @@ async function main() {
   const warmMs = Date.now() - t0;
   check("socket answer reports the new error", /introduced 1 new error/.test(out3), `got: ${JSON.stringify(out3)}`);
   check("answer came over the socket", /via=socket/.test(out3), `got: ${JSON.stringify(out3)}`);
-  console.log(`     warm edit round trip: ${warmMs} ms`);
+  const ms3 = Number((/nord-edit-diag (\d+)ms/.exec(out3) || [])[1]);
+  // Own classic typescript (5.9) still gets the global TS 7 native server
+  // (Julius, 2026-09-24): the classic one waited 4-8 s per clean edit.
+  check("own classic typescript: answered under 1 s", ms3 < 1000, `took ${ms3} ms`);
+  console.log(`     warm edit round trip: ${warmMs} ms (diagnostics ${ms3} ms)`);
 
   // 3b. A project WITHOUT its own typescript uses the global TS 7 native server,
   //     which answers pull diagnostics -- so the everyday clean edit is fast.

@@ -119,22 +119,25 @@ function nativeTypeScriptServer(command: string): LspServerConfig {
   };
 }
 
+/**
+ * Native beats classic wherever a native server exists: the project's own
+ * TS 7 first, then a global TS 7 -- even for a project pinned to classic
+ * TypeScript 5/6. Julius, 2026-09-24: the classic server waits 4-8 s per clean
+ * edit for a publish that never comes; TS 6 is the bridge to 7 and the
+ * differences are small. Classic stays the fallback when no TS 7 is anywhere.
+ * ponytail: a project whose code only type-checks under TS 5 would see TS 7's
+ * verdict; add a per-project opt-out if one shows up.
+ */
 export function getTypeScriptServerForWorkspace(workspaceRoot: string): LspServerConfig {
   const packageRoot = findTypeScriptPackageRoot(workspaceRoot);
-  if (!packageRoot) {
-    const globalTsc = findGlobalNativeTsc();
-    return globalTsc ? nativeTypeScriptServer(globalTsc) : TYPESCRIPT_CLASSIC_SERVER;
+  if (packageRoot && shouldUseNativeTypeScriptServer(packageRoot)) {
+    const localTsc = getTypeScriptNativeBin(packageRoot);
+    if (existsSync(localTsc)) {
+      return nativeTypeScriptServer(localTsc);
+    }
   }
-  if (!shouldUseNativeTypeScriptServer(packageRoot)) {
-    return TYPESCRIPT_CLASSIC_SERVER;
-  }
-
-  const localTsc = getTypeScriptNativeBin(packageRoot);
-  if (!existsSync(localTsc)) {
-    return TYPESCRIPT_CLASSIC_SERVER;
-  }
-
-  return nativeTypeScriptServer(localTsc);
+  const globalTsc = findGlobalNativeTsc();
+  return globalTsc ? nativeTypeScriptServer(globalTsc) : TYPESCRIPT_CLASSIC_SERVER;
 }
 
 /**

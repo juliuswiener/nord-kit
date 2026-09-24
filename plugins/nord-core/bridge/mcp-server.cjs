@@ -19344,18 +19344,14 @@ function nativeTypeScriptServer(command) {
 }
 function getTypeScriptServerForWorkspace(workspaceRoot) {
   const packageRoot = findTypeScriptPackageRoot(workspaceRoot);
-  if (!packageRoot) {
-    const globalTsc = findGlobalNativeTsc();
-    return globalTsc ? nativeTypeScriptServer(globalTsc) : TYPESCRIPT_CLASSIC_SERVER;
+  if (packageRoot && shouldUseNativeTypeScriptServer(packageRoot)) {
+    const localTsc = getTypeScriptNativeBin(packageRoot);
+    if ((0, import_fs5.existsSync)(localTsc)) {
+      return nativeTypeScriptServer(localTsc);
+    }
   }
-  if (!shouldUseNativeTypeScriptServer(packageRoot)) {
-    return TYPESCRIPT_CLASSIC_SERVER;
-  }
-  const localTsc = getTypeScriptNativeBin(packageRoot);
-  if (!(0, import_fs5.existsSync)(localTsc)) {
-    return TYPESCRIPT_CLASSIC_SERVER;
-  }
-  return nativeTypeScriptServer(localTsc);
+  const globalTsc = findGlobalNativeTsc();
+  return globalTsc ? nativeTypeScriptServer(globalTsc) : TYPESCRIPT_CLASSIC_SERVER;
 }
 var LSP_SERVERS = {
   typescript: TYPESCRIPT_CLASSIC_SERVER,

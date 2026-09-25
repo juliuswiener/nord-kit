@@ -61,6 +61,7 @@ const TUNING = {
   // Sonnet decomposition + 5 hits per term + subsystem filter: package recall 0.72,
   // aendern precision 0.53; Haiku + 2 per term: 0.56 / 0.41.
   maxPerTerm: 5,          // search-term hits per term
+  termTier: "wahrscheinlich", // where term hits go: aendern | split | wahrscheinlich (sweep: prec 0.53, 5.3k tok)
   termsInSubsystem: true, // term hits only inside questions.subsystems
   wahrFull: false,        // wahrscheinlich carries full code instead of signatures
   pruefen: true,          // emit the pruefen tier at all
@@ -120,7 +121,22 @@ function resolveSymbol(graph, sym, subsystems) {
   return pool.slice().sort(cmpCandidate)[0];
 }
 
-function resolveEntries(graph, symbols, terms, subsystems, tuning = TUNING) {
+// Words of an identifier or a phrase: camelCase and snake_case split, lower case,
+// words under 3 letters and stop words dropped. Messreihe 2 lost 6 of 23 changed
+// symbols because a phrase ("idle nudge") was matched as a substring and never hit the
+// identifier (nudgeIdleWorkers).
+const STOP = new Set(["the", "and", "for", "with", "from", "into", "not", "der", "die", "das", "und", "ein", "eine", "mit"]);
+function words(s) {
+  return String(s).replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOP.has(w));
+}
+
+// termTier decides where a search-term hit goes. Terms are hints, not change targets:
+// with every hit in aendern, Messreihe 2's token search filled aendern with 12-14
+// entries per package at precision 0.10. "aendern" = all hits there (old behaviour);
+// "split" = a hit carrying EVERY word of its term goes to aendern, the rest to
+// wahrscheinlich; "wahrscheinlich" = all hits there. `hints` collects the latter.
+function resolveEntries(graph, symbols, terms, subsystems, tuning = TUNING, hints = []) {
   const picked = new Map(); // id -> node
   for (const sym of symbols || []) {
     if (typeof sym !== "string" || !sym.trim()) continue;
@@ -129,16 +145,26 @@ function resolveEntries(graph, symbols, terms, subsystems, tuning = TUNING) {
   }
   for (const term of terms || []) {
     if (typeof term !== "string" || !term.trim()) continue; // empty term -> silently dropped
-    const t = term.toLowerCase();
+    const want = new Set(words(term));
+    if (!want.size) continue; // only stop words -> nothing to look for
     // Tests never enter aendern through a search term ("deadlock" hit TestTroubleNoDeadlock).
     // Terms answer inside the expected subsystems only (first series: a term pulled
     // encoding/json.RawMessage and a file name into aendern, 20-36 entries).
     const inScope = (n) => !tuning.termsInSubsystem || !(subsystems || []).length
       || matchesSubsystem(subsystemOf(n.source_file), subsystems);
-    const candidates = graph.codeNodes.filter((n) => !isTestFile(n.source_file)
-      && bareLabel(n.label).toLowerCase().includes(t) && inScope(n));
-    candidates.sort(cmpCandidate);
-    for (const c of candidates.slice(0, tuning.maxPerTerm)) picked.set(c.id, c);
+    // A label scores one point per term word it carries; the most matching words win.
+    const scored = [];
+    for (const n of graph.codeNodes) {
+      if (isTestFile(n.source_file) || !inScope(n)) continue;
+      const score = words(bareLabel(n.label)).filter((w) => want.has(w)).length;
+      if (score) scored.push({ n, score });
+    }
+    scored.sort((a, b) => b.score - a.score || cmpCandidate(a.n, b.n));
+    for (const { n, score } of scored.slice(0, tuning.maxPerTerm)) {
+      const full = score === want.size;
+      if (tuning.termTier === "aendern" || (tuning.termTier === "split" && full)) picked.set(n.id, n);
+      else hints.push(n);
+    }
   }
   return [...picked.values()];
 }
@@ -521,17 +547,18 @@ function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12
   const sha = execFileSync("git", ["-C", repo, "rev-parse", commit], { encoding: "utf8" }).trim();
   const graph = loadGraph(repo);
 
-  const entryNodes = withReceivers(graph, resolveEntries(graph, questions.symbols, questions.terms, questions.subsystems, tuning));
+  const termHints = [];
+  const entryNodes = withReceivers(graph, resolveEntries(graph, questions.symbols, questions.terms, questions.subsystems, tuning, termHints));
   const aendern = entryNodes.map(toItem);
   let { wahrscheinlich, pruefen } = neighbourTiers(graph, entryNodes);
 
   // Symbols the order names as affected, not as change targets, go in with their
   // signature (first real run: 6 of 9 aendern entries were only ever read).
   const aendernIds = new Set(entryNodes.map((n) => n.id));
-  const affected = (questions.affected || [])
+  const affected = [...(questions.affected || [])
     .filter((s) => typeof s === "string" && s.trim())
-    .map((s) => resolveSymbol(graph, s.trim(), questions.subsystems))
-    .filter((n) => n && !aendernIds.has(n.id));
+    .map((s) => resolveSymbol(graph, s.trim(), questions.subsystems)), ...termHints]
+    .filter((n, i, all) => n && !aendernIds.has(n.id) && all.findIndex((m) => m && m.id === n.id) === i);
   const affectedIds = new Set(affected.map((n) => n.id));
   wahrscheinlich = [...affected.map(toItem), ...wahrscheinlich.filter((i) => !affectedIds.has(i.id))];
   pruefen = pruefen.filter((i) => !affectedIds.has(i.id));
@@ -681,8 +708,9 @@ function decompose(auftrag, { model = "sonnet" } = {}) {
   const system = "Du zerlegst einen Code-Änderungsauftrag in Graph-Fragen. symbols = exakte "
     + "Funktions-, Methoden- oder Typnamen, deren Code geändert werden muss (ohne Receiver, "
     + "ohne Klammern; Typ.Methode nur bei Mehrdeutigkeit). affected = Namen, die der Auftrag "
-    + "nur als betroffen, wartend oder Symptom nennt, aber nicht ändert. terms = kurze "
-    + "Suchbegriffe für Stellen, deren Namen nicht im Auftrag stehen. subsystems = "
+    + "nur als betroffen, wartend oder Symptom nennt, aber nicht ändert. terms = englische "
+    + "Wortteile von Bezeichnern, wie sie im Code stehen (z. B. 'nudge idle', 'worktree remove'), "
+    + "für Stellen, deren Namen nicht im Auftrag stehen; keine deutschen Beschreibungen. subsystems = "
     + "Package-Namen, in denen die Änderung erwartet wird. Nur Namen, die im Auftrag stehen "
     + "oder zwingend aus ihm folgen.";
   const list = { type: "array", items: { type: "string" } };

@@ -103,7 +103,8 @@ const SECTIONS = {
   // Knobs for the second series: each must change the package, and the defaults must hold.
   tuning() {
     const q = { symbols: ["Deliver"], terms: ["write"], subsystems: ["agent"] };
-    const termHits = (pkg) => pkg.tiers.aendern.filter((i) => /write/i.test(i.symbol));
+    // Term hits are hints, not change targets: by default they land in wahrscheinlich.
+    const termHits = (pkg) => pkg.tiers.wahrscheinlich.filter((i) => /write/i.test(i.symbol));
     const def = wp.buildPackage({ repo: REPO, questions: q });
     check("tuning: defaults are subsystem-only terms, 5 per term",
       wp.TUNING.maxPerTerm === 5 && wp.TUNING.termsInSubsystem === true);
@@ -123,6 +124,25 @@ const SECTIONS = {
     const loose = wp.buildPackage({ repo: REPO, questions: q, budgetTokens: 1e9, tuning: { ccMinConfidence: 0.15, ccMinCount: 1 } });
     const strict = wp.buildPackage({ repo: REPO, questions: q, budgetTokens: 1e9 });
     check("tuning: looser AP12 thresholds admit more neighbours", cc(loose) > cc(strict), `${cc(loose)} vs ${cc(strict)}`);
+  },
+
+  // Messreihe 2 misses: terms are phrases, code has identifiers. "idle nudge" must find
+  // nudgeIdleWorkers (ab92a97 changed it), "worktree remove" removeWorktree (2a63b3e).
+  begriffe() {
+    const pkgOf = (terms, subsystems, tuning) => wp.buildPackage({ repo: REPO, questions: { symbols: [], terms, subsystems }, tuning });
+    const find = (terms, subsystems) => pkgOf(terms, subsystems).tiers.wahrscheinlich.map((i) => bare(i.symbol));
+    const a = find(["idle nudge"], ["app"]);
+    check("begriffe: a phrase finds the identifier with its words in another order", a.includes("nudgeIdleWorkers"), JSON.stringify(a));
+    const b = find(["worktree remove"], ["router"]);
+    check("begriffe: verb and noun find removeWorktree", b.includes("removeWorktree"), JSON.stringify(b));
+    const c = find(["idle nudge"], ["app"]);
+    check("begriffe: the label matching more words ranks first", c[0] === "nudgeIdleWorkers", JSON.stringify(c));
+    check("begriffe: a stop word alone finds nothing", find(["the and"], []).length === 0);
+    check("begriffe: by default a term hit never enters aendern", pkgOf(["idle nudge"], ["app"]).tiers.aendern.length === 0);
+    const split = pkgOf(["idle nudge"], ["app"], { termTier: "split" });
+    check("begriffe: termTier split sends a hit carrying every word to aendern",
+      split.tiers.aendern.some((i) => bare(i.symbol) === "nudgeIdleWorkers")
+      && !split.tiers.aendern.some((i) => bare(i.symbol) === "nudgeMessage"), JSON.stringify(split.tiers.aendern.map((i) => i.symbol)));
   },
 
   // The Read guard refuses a ranged read wholly inside these spans (Befund 1).

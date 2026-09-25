@@ -59,14 +59,14 @@ function loadGraph(repo) {
     nodesById.set(n.id, n);
     if (n.file_type === "code") codeNodes.push(n);
   }
-  const adjacency = new Map(); // id -> [{other, relation, confidence}]
-  const addEdge = (from, other, relation, confidence) => {
+  const adjacency = new Map(); // id -> [{other, relation, confidence, out, loc}]
+  const addEdge = (from, other, relation, confidence, out, loc) => {
     if (!adjacency.has(from)) adjacency.set(from, []);
-    adjacency.get(from).push({ other, relation, confidence });
+    adjacency.get(from).push({ other, relation, confidence, out, loc });
   };
   for (const l of data.links) {
-    addEdge(l.source, l.target, l.relation, l.confidence);
-    addEdge(l.target, l.source, l.relation, l.confidence);
+    addEdge(l.source, l.target, l.relation, l.confidence, true, l.source_location);
+    addEdge(l.target, l.source, l.relation, l.confidence, false, l.source_location);
   }
   return { nodesById, codeNodes, adjacency, builtAtCommit: data.built_at_commit };
 }
@@ -274,8 +274,17 @@ function extractSymbolsBatch(repo, commit, file, names) {
   try { content = execFileSync("git", ["-C", repo, "show", `${commit}:${file}`], { encoding: "utf8", maxBuffer: 1 << 28 }); }
   catch { return result; } // file didn't exist at this commit
   const wanted = new Set(names);
+  const lines = content.split("\n");
+  const prefix = langKey === "py" ? "#" : "//";
   for (const d of astGrepDeclarations(content, langKey)) {
-    if (wanted.has(d.name) && !(d.name in result)) result[d.name] = d.text; // first declaration wins
+    if (!wanted.has(d.name) || d.name in result) continue; // first declaration wins
+    // The comment block right above belongs to the declaration: pkg3 read the comments
+    // over pipes.write by hand. Kept only if the joined text is still verbatim (a
+    // type_spec starts mid-line, after `type `).
+    let i = d.start - 1;
+    while (i > 0 && lines[i - 1].trim().startsWith(prefix)) i--;
+    const withDoc = i < d.start - 1 ? lines.slice(i, d.start - 1).join("\n") + "\n" + d.text : d.text;
+    result[d.name] = content.includes(withDoc) ? withDoc : d.text;
   }
   return result;
 }
@@ -325,7 +334,8 @@ function extractCodeForItems(repo, commit, aendernItems, wahrItems) {
   }
   for (const it of wahrItems) {
     const text = extracted.get(it.file)?.[bareLabel(it.symbol)];
-    if (text) it.signature = signatureOf(text);
+    if (text && it.full) it.code = text;
+    else if (text) it.signature = signatureOf(text);
   }
 }
 
@@ -422,6 +432,30 @@ function fileHashes(repo, items) {
   return files;
 }
 
+// Where a type in aendern gets built: a free, non-test function in the type's own
+// package whose SIGNATURE names the type — the references edge sits on the function's
+// declaration line. pkg3 read New() by hand because the package carried Agent but not
+// where its new field is initialised. Of 57 references to Agent, 30 come from a
+// signature and exactly one (New) passes all four conditions.
+// ponytail: the graph does not tell parameter from return type, so a same-package
+// helper `f(a *Agent)` rides along too; add a New*/new* name check if that turns
+// out to be noise (aendernOhneAenderung, packagedLines).
+function constructorsOf(graph, entryNodes) {
+  const out = new Map();
+  for (const t of entryNodes) {
+    if (/\(\)$/.test(t.label)) continue; // types only
+    for (const e of graph.adjacency.get(t.id) || []) {
+      if (e.relation !== "references" || e.out) continue;
+      const f = graph.nodesById.get(e.other);
+      if (!f || f.file_type !== "code" || isTestFile(f.source_file) || f.label.startsWith(".")) continue;
+      if (e.loc !== f.source_location) continue;
+      if (subsystemOf(f.source_file) !== subsystemOf(t.source_file)) continue;
+      out.set(f.id, f);
+    }
+  }
+  return [...out.values()];
+}
+
 function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12000 }) {
   const sha = execFileSync("git", ["-C", repo, "rev-parse", commit], { encoding: "utf8" }).trim();
   const graph = loadGraph(repo);
@@ -441,6 +475,11 @@ function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12
   wahrscheinlich = [...affected.map(toItem), ...wahrscheinlich.filter((i) => !affectedIds.has(i.id))];
   pruefen = pruefen.filter((i) => !affectedIds.has(i.id));
 
+  const ctorIds = new Set(constructorsOf(graph, entryNodes).map((n) => n.id));
+  wahrscheinlich = [...[...ctorIds].map((id) => ({ ...toItem(graph.nodesById.get(id)), full: true })),
+    ...wahrscheinlich.filter((i) => !ctorIds.has(i.id))];
+  pruefen = pruefen.filter((i) => !ctorIds.has(i.id));
+
   extractCodeForItems(repo, sha, aendern, wahrscheinlich);
   const { feedback, hints } = deviation(aendern, wahrscheinlich, questions.subsystems);
 
@@ -451,7 +490,7 @@ function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12
   if (overBudget()) {
     pkg.tiers.pruefen = [];
     if (overBudget()) {
-      for (const it of pkg.tiers.wahrscheinlich) delete it.signature;
+      for (const it of pkg.tiers.wahrscheinlich) { delete it.signature; delete it.code; }
       if (overBudget()) pkg.tiers.wahrscheinlich = [];
     }
   }

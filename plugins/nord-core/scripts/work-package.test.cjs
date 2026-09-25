@@ -59,7 +59,7 @@ const SECTIONS = {
       JSON.stringify(where(qual, "Overview")) === '["internal/router/overview.go"]', JSON.stringify(where(qual, "Overview")));
     const router = qual.tiers.aendern.find((i) => i.symbol === "Router");
     check("aufloesung: a receiver declared in another file still gets its code",
-      Boolean(router && /^(type )?Router struct/.test(router.code || "") && router.file !== "internal/router/overview.go"),
+      Boolean(router && /(^|\n)(type )?Router struct/.test(router.code || "") && router.file !== "internal/router/overview.go"),
       JSON.stringify(router && { file: router.file, code: (router.code || "").slice(0, 40) }));
     check("aufloesung: an unknown Type.Method drops", items(wp.buildPackage({ repo: REPO,
       questions: { symbols: ["Nirgends.Overview"], terms: [], subsystems: [] } })).length === 0);
@@ -74,6 +74,30 @@ const SECTIONS = {
       JSON.stringify(aff.tiers.aendern.map((i) => i.symbol)));
     check("aufloesung: affected items carry a signature",
       aff.tiers.wahrscheinlich.filter((i) => i.id === "router_router_overview").every((i) => i.signature));
+  },
+
+  // Gaps the with/without comparison showed (pkg3 read New() and the comments over pipes.write).
+  umgebung() {
+    const pkg = wp.buildPackage({ repo: REPO, questions: { symbols: ["Deliver"], terms: [], subsystems: ["agent"] } });
+    const ctor = pkg.tiers.wahrscheinlich.find((i) => i.id === "internal_agent_agent_new");
+    check("umgebung: the receiver's constructor comes with full code",
+      Boolean(ctor && ctor.code && ctor.code.includes("func New(cfg Config) *Agent")), JSON.stringify(ctor));
+    // 57 references point at Agent, 30 of them from a signature; only New() is a
+    // same-package, non-test, non-method one. None of the others may ride along with code.
+    const withCode = pkg.tiers.wahrscheinlich.filter((i) => i.code).map((i) => i.symbol);
+    check("umgebung: no other signature user of Agent gets code", JSON.stringify(withCode) === '["New()"]', JSON.stringify(withCode));
+    // Spec (internal/abrun): ParseSpec names it in its signature; Block and Manifest
+    // only hold it as a field, on a line of their own — they must not get code.
+    const spec = wp.buildPackage({ repo: REPO, questions: { symbols: ["Spec"], terms: [], subsystems: ["abrun"] } });
+    const specCode = spec.tiers.wahrscheinlich.filter((i) => i.code).map((i) => i.symbol).sort();
+    check("umgebung: a field reference is no constructor (declaration-line rule)",
+      JSON.stringify(specCode) === '["ParseSpec()"]', JSON.stringify(specCode));
+    const deliver = pkg.tiers.aendern.find((i) => bare(i.symbol) === "Deliver");
+    check("umgebung: the doc comment right above a declaration comes with it",
+      Boolean(deliver && deliver.code.startsWith("// Deliver")), JSON.stringify((deliver && deliver.code || "").slice(0, 60)));
+    const sha = git("rev-parse", "HEAD").trim();
+    check("umgebung: code with its comment is still verbatim at the commit",
+      git("show", `${sha}:${deliver.file}`).includes(deliver.code));
   },
 
   // The Read guard refuses a ranged read wholly inside these spans (Befund 1).

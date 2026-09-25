@@ -16,6 +16,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { execFileSync, spawnSync } = require("child_process");
+const { vaultContext } = require("./vault-context.cjs");
 
 // ---- shared helpers -------------------------------------------------------
 
@@ -504,7 +505,8 @@ function applyCochange(repo, graph, entryNodes, tiers, tuning = TUNING) {
   return hints;
 }
 
-function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12000, cochange = true, tuning = {} }) {
+function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12000, cochange = true, tuning = {},
+  vault = false, vaultBefore, auftrag }) {
   tuning = { ...TUNING, ...tuning };
   const sha = execFileSync("git", ["-C", repo, "rev-parse", commit], { encoding: "utf8" }).trim();
   const graph = loadGraph(repo);
@@ -539,10 +541,21 @@ function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12
 
   const pkg = { commit: sha, graphCommit: graph.builtAtCommit, tiers: { aendern, wahrscheinlich, pruefen }, feedback, hints, files: {} };
 
-  // Budget: cut from the bottom. aendern is never cut.
+  // Vault: a short "Entscheidungen und Vorgeschichte" section, searched with whatever
+  // text describes the order — the raw auftrag if dispatch got one, else the terms the
+  // questions were already decomposed into (a --questions run never keeps the prose).
+  if (vault) {
+    const pkgFiles = [...new Set([...aendern, ...wahrscheinlich, ...pruefen].map((i) => i.file))];
+    const auftragText = auftrag || [...(questions.symbols || []), ...(questions.terms || []), ...(questions.subsystems || [])].join(" ");
+    pkg.vault = vaultContext({ auftrag: auftragText, repo, files: pkgFiles, before: vaultBefore }).notes;
+  }
+
+  // Budget: cut from the bottom. aendern is never cut. The vault section goes first —
+  // it is the least structural, a hint of prior art rather than code the worker needs.
   const overBudget = () => renderMarkdown(pkg).length / 4 > budgetTokens;
   if (overBudget()) {
-    pkg.tiers.pruefen = [];
+    if (pkg.vault && pkg.vault.length) pkg.vault = [];
+    if (overBudget()) pkg.tiers.pruefen = [];
     if (overBudget()) {
       for (const it of pkg.tiers.wahrscheinlich) { delete it.signature; delete it.code; }
       if (overBudget()) pkg.tiers.wahrscheinlich = [];
@@ -598,6 +611,11 @@ function renderMarkdown(pkg) {
 
   L.push("", "## Prüfen");
   for (const it of pkg.tiers.pruefen) L.push(`- ${it.symbol} — ${it.file}:${it.line}`);
+
+  if (pkg.vault) {
+    L.push("", "## Entscheidungen und Vorgeschichte");
+    for (const n of pkg.vault) L.push("", `### ${n.title} — ${n.path} (${n.source})`, "", n.excerpt);
+  }
 
   L.push("", "## Hinweise");
   for (const h of pkg.hints) L.push(`- ${h}`);
@@ -681,7 +699,7 @@ function parseArgs(argv) {
   return out;
 }
 
-function cliDispatch(args, cochange) {
+function cliDispatch(args, cochange, vault) {
   const repo = args.repo;
   const commit = args.commit || "HEAD";
   const out = args.out || path.join(repo, ".nord", "work-package");
@@ -691,7 +709,8 @@ function cliDispatch(args, cochange) {
     : decompose(args._[0] || "");
 
   const tuning = args.tuning ? JSON.parse(args.tuning) : {};
-  const pkg = buildPackage({ repo, commit, questions, budgetTokens, cochange, tuning });
+  const vaultBefore = args["vault-before"] ? parseInt(args["vault-before"], 10) : undefined;
+  const pkg = buildPackage({ repo, commit, questions, budgetTokens, cochange, tuning, vault, vaultBefore, auftrag: args._[0] });
   const run = `run-${Date.now()}`;
   const runDir = path.join(out, run);
   fs.mkdirSync(runDir, { recursive: true });
@@ -730,8 +749,11 @@ function main() {
   const noCochangeAt = rest.indexOf("--no-cochange");
   const cochange = noCochangeAt === -1;
   if (noCochangeAt !== -1) rest.splice(noCochangeAt, 1);
+  const vaultAt = rest.indexOf("--vault");
+  const vault = vaultAt !== -1;
+  if (vaultAt !== -1) rest.splice(vaultAt, 1);
   const args = parseArgs(rest);
-  if (cmd === "dispatch") return cliDispatch(args, cochange);
+  if (cmd === "dispatch") return cliDispatch(args, cochange, vault);
   if (cmd === "check") return cliCheck(args);
   if (cmd === "decompose") return console.log(JSON.stringify(decompose(args._[0] || "")));
   console.error("usage: work-package.cjs dispatch|check|decompose ...");

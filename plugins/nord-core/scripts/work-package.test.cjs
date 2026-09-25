@@ -145,6 +145,20 @@ const SECTIONS = {
       && !split.tiers.aendern.some((i) => bare(i.symbol) === "nudgeMessage"), JSON.stringify(split.tiers.aendern.map((i) => i.symbol)));
   },
 
+  // Expected subsystems are checked against the graph (234c539: the decomposition named
+  // worker/task/probing, none of them a package, and the filter cut the real hits).
+  subsysteme() {
+    const hits = (subsystems) => {
+      const p = wp.buildPackage({ repo: REPO, questions: { symbols: [], terms: ["decide policy"], subsystems } });
+      return [...p.tiers.aendern, ...p.tiers.wahrscheinlich].map((i) => i.file);
+    };
+    check("subsysteme: names that match no package are dropped, then nothing filters",
+      hits(["probing", "nosuchpackage"]).some((f) => f.startsWith("internal/permit/")), JSON.stringify(hits(["probing", "nosuchpackage"])));
+    check("subsysteme: a real package still filters", !hits(["agent"]).some((f) => f.startsWith("internal/permit/")),
+      JSON.stringify(hits(["agent"])));
+    check("subsysteme: a mix keeps only the real one", !hits(["agent", "probing"]).some((f) => f.startsWith("internal/permit/")));
+  },
+
   // The Read guard refuses a ranged read wholly inside these spans (Befund 1).
   bereiche() {
     const pkg = wp.buildPackage({ repo: REPO, questions: { symbols: ["Deliver"], terms: [], subsystems: ["agent"] } });

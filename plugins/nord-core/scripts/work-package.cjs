@@ -104,6 +104,18 @@ function receiverOf(graph, node) {
   return null;
 }
 
+// The methods declared on a type node — reverse of receiverOf, same "type -method->
+// method" edge.
+function methodsOf(graph, node) {
+  const out = [];
+  for (const e of graph.adjacency.get(node.id) || []) {
+    if (e.relation !== "method") continue;
+    const m = graph.nodesById.get(e.other);
+    if (isCode(m) && !isTestFile(m.source_file) && /\(\)$/.test(m.label)) out.push(m);
+  }
+  return out;
+}
+
 // One symbol question -> one node. "Type.Method" resolves through the receiver. A bare
 // name that several nodes carry (Overview: 12 in orch_tui) prefers non-test files, then
 // the subsystems the order expects, then the old deterministic tie-break — the plain
@@ -236,6 +248,15 @@ function matchesSubsystem(subsystemPath, expected) {
   return expected.some((e) => low.includes(String(e).toLowerCase()));
 }
 
+// Expected subsystems, kept only where at least one code node's package directory
+// matches (234c539: the decomposition named worker/task/probing, none of them a package
+// in orch_tui, and the filter cut the real hits rather than turning itself off). Run
+// once, early in buildPackage, so every consumer (resolveEntries, resolveSymbol via
+// affected, deviation, applyCochange) sees the same validated list.
+function validSubsystems(graph, subsystems) {
+  return (subsystems || []).filter((s) => graph.codeNodes.some((n) => matchesSubsystem(subsystemOf(n.source_file), [s])));
+}
+
 function deviation(aendernItems, wahrItems, subsystems) {
   const feedback = [];
   const hints = [];
@@ -323,7 +344,10 @@ function extractSymbolsBatch(repo, commit, file, names) {
   const result = Object.create(null);
   if (!langKey || !names.length) return result;
   let content;
-  try { content = execFileSync("git", ["-C", repo, "show", `${commit}:${file}`], { encoding: "utf8", maxBuffer: 1 << 28 }); }
+  // stderr: ignore — a file the graph names but the commit predates ("fatal: path ...
+  // exists on disk, but not in ...") is the expected case caught right below, not an error.
+  try { content = execFileSync("git", ["-C", repo, "show", `${commit}:${file}`],
+    { encoding: "utf8", maxBuffer: 1 << 28, stdio: ["pipe", "pipe", "ignore"] }); }
   catch { return result; } // file didn't exist at this commit
   const wanted = new Set(names);
   const lines = content.split("\n");
@@ -447,7 +471,7 @@ function declarationsTouchedByDiff(repo, baseCommit, diffText, { includeTestFile
   for (const [file, hunks] of parseDiffHunks(diffText)) {
     if (!includeTestFiles && isTestFile(file)) continue;
     let content;
-    try { content = execFileSync("git", ["-C", repo, "show", `${baseCommit}:${file}`], { encoding: "utf8", maxBuffer: 1 << 28 }); }
+    try { content = execFileSync("git", ["-C", repo, "show", `${baseCommit}:${file}`], { encoding: "utf8", maxBuffer: 1 << 28, stdio: ["pipe", "pipe", "ignore"] }); }
     catch { continue; } // file did not exist at baseCommit (new file) -> nothing to attribute
     const langKey = langFor(file);
     if (!langKey) continue;
@@ -546,6 +570,7 @@ function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12
   tuning = { ...TUNING, ...tuning };
   const sha = execFileSync("git", ["-C", repo, "rev-parse", commit], { encoding: "utf8" }).trim();
   const graph = loadGraph(repo);
+  questions = { ...questions, subsystems: validSubsystems(graph, questions.subsystems) };
 
   const termHints = [];
   const entryNodes = withReceivers(graph, resolveEntries(graph, questions.symbols, questions.terms, questions.subsystems, tuning, termHints));
@@ -555,13 +580,31 @@ function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12
   // Symbols the order names as affected, not as change targets, go in with their
   // signature (first real run: 6 of 9 aendern entries were only ever read).
   const aendernIds = new Set(entryNodes.map((n) => n.id));
-  const affected = [...(questions.affected || [])
+  const affectedFromQuestions = (questions.affected || [])
     .filter((s) => typeof s === "string" && s.trim())
-    .map((s) => resolveSymbol(graph, s.trim(), questions.subsystems)), ...termHints]
-    .filter((n, i, all) => n && !aendernIds.has(n.id) && all.findIndex((m) => m && m.id === n.id) === i);
+    .map((s) => resolveSymbol(graph, s.trim(), questions.subsystems))
+    .filter((n) => n && !aendernIds.has(n.id));
+  const affected = [...affectedFromQuestions, ...termHints]
+    .filter((n, i, all) => n && all.findIndex((m) => m && m.id === n.id) === i);
   const affectedIds = new Set(affected.map((n) => n.id));
   wahrscheinlich = [...affected.map(toItem), ...wahrscheinlich.filter((i) => !affectedIds.has(i.id))];
   pruefen = pruefen.filter((i) => !affectedIds.has(i.id));
+
+  // A type named only in `affected` (order calls it relevant, not a change target) gets
+  // its own methods pulled in as pruefen pointers — the same type<->method edge
+  // withReceivers already follows the other way for aendern (26b081b: the order named
+  // the Model TYPE as affected but never its actually-changed Update() method; the graph
+  // already carries that edge). Not termHints: a fuzzy term match is not the order
+  // naming a type, and pulling every hinted type's methods in risked much wider scope.
+  const placedIds = new Set([...aendernIds, ...affectedIds, ...wahrscheinlich.map((i) => i.id), ...pruefen.map((i) => i.id)]);
+  for (const t of affectedFromQuestions) {
+    if (/\(\)$/.test(t.label)) continue; // types only
+    for (const m of methodsOf(graph, t)) {
+      if (placedIds.has(m.id)) continue;
+      placedIds.add(m.id);
+      pruefen.push(toItem(m));
+    }
+  }
 
   const ctorIds = new Set(constructorsOf(graph, entryNodes).map((n) => n.id));
   wahrscheinlich = [...[...ctorIds].map((id) => ({ ...toItem(graph.nodesById.get(id)), full: true })),
@@ -593,10 +636,12 @@ function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12
   if (overBudget()) {
     if (pkg.vault && pkg.vault.length) pkg.vault = [];
     if (overBudget()) pkg.tiers.pruefen = [];
-    if (overBudget()) {
-      for (const it of pkg.tiers.wahrscheinlich) { delete it.signature; delete it.code; }
-      if (overBudget()) pkg.tiers.wahrscheinlich = [];
-    }
+    // Strip content, never the tier itself: once aendern alone (never cut) is already
+    // over budget, wiping wahrscheinlich's now-bare pointers cannot reach the cap either
+    // — it only throws away real neighbours for nothing (75cb3d8: SpawnBatch, a depth-1
+    // caller of SpawnWithOpts, was cut this way though the package stayed over budget
+    // regardless, since SpawnWithOpts + its Router receiver alone already exceeded it).
+    if (overBudget()) for (const it of pkg.tiers.wahrscheinlich) { delete it.signature; delete it.code; }
   }
 
   // Only aendern/wahrscheinlich carry content the worker was already handed; pruefen is a

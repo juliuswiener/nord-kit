@@ -1,0 +1,261 @@
+{
+ "note": "Messreihe 2, 10 orch_tui-Commits: Auftrag (vor dem Commit formuliert, Haiku) und festgehaltene Sonnet-Zerlegung (Prompt nord-core 1.62.0). Vault: backlog/nord/zerlegung-verfehlt-ein-viertel-der-geaenderten-symbole.",
+ "commits": {
+  "94cab77": {
+   "auftrag": "**Arbeitsauftrag: Blockierung unter a.mu bei Schreibvorgängen**\n\n**Problem:**\nDeliver und Interrupt koordinieren Schreibaufrufe mit writeMu, während a.mu gehalten wird. Blockiert ein Schreibvorgang (stdin voll), stagniert die Operation mit gehaltener Daten-Lock. Reader (Snapshot, Idle, LastResult, readLoop) benötigen a.mu und können nicht zugreifen.\n\n**Folgen:**\nEine blockierte Worker friert Fleet-Anzeige bis 30s ein. Gemessene Verzögerungen: Router.Overview() ~12s, Agent.Snapshot() ~3s.\n\n**Geforderte Eigenschaft:**\nSchreibaufrufe landen in ihrer Aufrufreihenfolge auf Worker-stdin. Reihenfolge entscheidet sich unter a.mu. Blockieren darf a.mu nicht halten.\n\nErwartete Subsysteme: pipes, agent",
+   "questions": {
+    "symbols": [
+     "Deliver",
+     "Interrupt"
+    ],
+    "affected": [
+     "Snapshot",
+     "Idle",
+     "LastResult",
+     "readLoop",
+     "Overview"
+    ],
+    "terms": [
+     "write loop",
+     "write queue",
+     "write order"
+    ],
+    "subsystems": [
+     "pipes",
+     "agent"
+    ]
+   }
+  },
+  "5415121": {
+   "auftrag": "**Arbeitsauftrag: Race Condition in Agent.Snapshot**\n\nDas Problem: Agent.Snapshot gibt Pointers zu Items aus dem Transcript zurück. Diese Items werden parallel von clearProvisional, applyWorkflow und tool pairing geschrieben, während Aufrufer (TUI, PWA, RPC, export, Overview) ungesichert lesen. Der Race Detector zeigt DATA RACE auf WorkflowState-Feldern.\n\nGefordert: Snapshot muss Daten bereitstellen, auf die Aufrufer sicher ohne Locks zugreifen können. Felder, die geschrieben werden (Provisional, Workflow), müssen isoliert sein. Unveränderte Felder (ToolInput, Raw, Result_, System, RateLimit) können geteilt bleiben.\n\nErwartete Subsysteme: protocol, agent, internal/render.",
+   "questions": {
+    "symbols": [
+     "Agent.Snapshot",
+     "WorkflowState"
+    ],
+    "affected": [
+     "TUI",
+     "PWA",
+     "RPC",
+     "export",
+     "Overview",
+     "clearProvisional",
+     "applyWorkflow"
+    ],
+    "terms": [
+     "tool pairing",
+     "transcript item",
+     "Provisional",
+     "Workflow",
+     "ToolInput",
+     "Raw",
+     "Result_",
+     "System",
+     "RateLimit"
+    ],
+    "subsystems": [
+     "protocol",
+     "agent",
+     "internal/render"
+    ]
+   }
+  },
+  "75cb3d8": {
+   "auftrag": "**Problem:** Ein Test für Concurrent Spawning wird übersprungen und verdeckt einen echten Fehler. Members eines Batches werden sequenziell gestartet, weil `SpawnWithOpts` bei awaitSessionID blockiert.\n\n**Folgen:** Das Zeitfenster des ersten Members schließt, bevor das nächste gestartet wird. Die Queue-Skalierung meldet falschen Alarm (1 von 4), was contract.go's Vertrag verletzt.\n\n**Geforderte Eigenschaft:**\n- Members eines Batches müssen gleichzeitig gestartet werden\n- Test prüft Contract-Timestamps statt Wall-Clock\n- Concurrent Entry ist sicher\n\nErwartete Subsysteme: router, contract",
+   "questions": {
+    "symbols": [
+     "SpawnWithOpts",
+     "awaitSessionID"
+    ],
+    "affected": [
+     "contract.go"
+    ],
+    "terms": [
+     "concurrent spawning",
+     "batch",
+     "members",
+     "queue scaling",
+     "contract timestamps",
+     "wall-clock",
+     "concurrent entry"
+    ],
+    "subsystems": [
+     "router",
+     "contract"
+    ]
+   }
+  },
+  "26b081b": {
+   "auftrag": "Model.pollEvery wird in Production nie gesetzt, bleibt bei null/0. Das bewirkt extrem schnelles Polling: tea.Tick(0) wird jede Event-Loop-Turn ausgelöst. Der erforderliche Code existiert zweimal – einmal für Usage- und einmal für Class-Models-Poll – weshalb Duplikate auseinanderdriften können. Kein Test überprüft die echte Cadence des ausgelieferten Binaries.\n\nImplementiere eine zentrale Resolution nicht-positiver Werte auf einen sinnvollen Standard. Eliminiere die Code-Duplikation. Tests müssen überprüfen: (1) dass die Resolution selbst funktioniert (mit positivem Kontrolfall), (2) dass null nie beim Ticker ankommt, (3) dass beide Poll-Stellen die gleiche Resolutions-Stelle nutzen.\n\nErwartete Subsysteme: internal/tui",
+   "questions": {
+    "symbols": [
+     "pollEvery"
+    ],
+    "affected": [
+     "tea.Tick",
+     "Model"
+    ],
+    "terms": [
+     "poll every",
+     "usage poll",
+     "class models poll",
+     "resolve poll every",
+     "default poll interval",
+     "non-positive",
+     "poll interval"
+    ],
+    "subsystems": [
+     "internal/tui"
+    ]
+   }
+  },
+  "2a63b3e": {
+   "auftrag": "Während eines Stops werden der Worktree und alle losen Änderungen gelöscht, obwohl der Branch zum Review bleiben soll. Workers können das Gate erreichen ohne zu committen — das Gate misst nur den Working Tree. Ein respawnter Worker — besonders nach mehrfacher Eskalation — findet seinen Tree leer und arbeitet mit falscher Vorstellung davon, welche Dateien existieren.\n\nGefordert: Lose Änderungen bleiben verfügbar. Ein respawnter Worker findet seinen vorherigen Tree wieder.\n\nErwartete Subsysteme: router",
+   "questions": {
+    "symbols": [],
+    "affected": [
+     "Worker",
+     "Gate"
+    ],
+    "terms": [
+     "worktree remove",
+     "loose changes",
+     "uncommitted changes",
+     "working tree",
+     "respawn",
+     "escalation",
+     "branch review",
+     "stop"
+    ],
+    "subsystems": [
+     "router"
+    ]
+   }
+  },
+  "c65ae13": {
+   "auftrag": "Das TreeHash-System von 'gate' fingerprinted derzeit nur den Status-Buchstaben eines Pfads, nicht seinen Inhalt. Konsequenz: Wird eine bereits als dirty registrierte Datei verändert, bleibt der Hash identisch. Betroffen sind unverfolgter und bereits geänderter Dateien, während neue Dateien und Commits den Hash noch beeinflussen. Die TreeHash muss reagieren, wenn sich der tatsächliche Inhalt beobachteter Pfade ändert. Gefordert: Das Fingerprinting muss alle Dateien, deren Status das System auflistet, nach ihrem echten Inhalt bewerten und damit Änderungen in bereits registrierten Dateien verlässlich detektieren.\n\nErwartete Subsysteme: gate.",
+   "questions": {
+    "symbols": [
+     "TreeHash"
+    ],
+    "affected": [
+     "dirty",
+     "untracked",
+     "modified",
+     "new files",
+     "commits"
+    ],
+    "terms": [
+     "tree hash",
+     "status letter",
+     "file content",
+     "fingerprint",
+     "path status",
+     "content hash",
+     "hash content"
+    ],
+    "subsystems": [
+     "gate"
+    ]
+   }
+  },
+  "82551fe": {
+   "auftrag": "# Arbeitsauftrag: Automatischer Arbeitsbaum für schreibende Worker\n\nEin schreibender Worker kann standardmäßig im gemeinsamen Checkout arbeiten. Dies führte am 14.09.2026 dazu, dass ein Worker den Baum aller Worker beschädigte, das Gate für alle rot wurde und ein zweiter Worker unzusammenhängende Fehler erhielt. Die Anweisung „arbeite in wt/<name>\" wurde nicht durchgesetzt.\n\nGefordert: Ein Worker, der schreiben darf, erhält automatisch seinen eigenen Arbeitsbaum, statt im gemeinsamen Checkout zu arbeiten. Die Erzwingung muss an der Spawn-Kontrollstelle sitzen — vier interaktive Entry Points (TUI /spawn, PWA POST /tasks, spawn_batch, cron) können keinen Baum benennen. Außerhalb eines Git Repos sollte die Regel nicht greifen.\n\nErwartete Subsysteme: router",
+   "questions": {
+    "symbols": [],
+    "affected": [
+     "/spawn",
+     "/tasks",
+     "spawn_batch",
+     "cron",
+     "Gate"
+    ],
+    "terms": [
+     "spawn control",
+     "auto worktree",
+     "shared checkout",
+     "write access",
+     "git repo"
+    ],
+    "subsystems": [
+     "router"
+    ]
+   }
+  },
+  "234c539": {
+   "auftrag": "Während completeTask einen Build und Test-Suite über einen Worker-Tree ausführt, können Edits in denselben Tree eindringen und falsche Verdikt erzeugen. runProbesForScope erkennt Inkonsistenzen durch before/after Hashes und verwirft sie – dabei verlieren wir vier Minuten Rechenzeit pro Fall.\n\nEs ist erforderlich, dass der Tree während der Messung-Phase gegen Edits geschützt ist. Das Verdikt soll den tatsächlich gemessenen Code reflektieren. Achtung: Nur der Tree wird geschützt – der Worker selbst nicht. Reads, Shell-Zugriff und Operationen außerhalb des Trees (Vault, /tmp, Scratch-Verzeichnis) müssen erlaubt bleiben.\n\nErwartete Subsysteme: worker, task, probing.",
+   "questions": {
+    "symbols": [
+     "completeTask",
+     "runProbesForScope"
+    ],
+    "affected": [
+     "Verdikt"
+    ],
+    "terms": [
+     "worker tree",
+     "before hash",
+     "after hash",
+     "build",
+     "test suite",
+     "tree lock",
+     "tree protect",
+     "edit guard",
+     "scratch dir",
+     "vault",
+     "tmp"
+    ],
+    "subsystems": [
+     "worker",
+     "task",
+     "probing"
+    ]
+   }
+  },
+  "ab92a97": {
+   "auftrag": "Die Idle-Nudge-Benachrichtigung meldet Worker als arbeitslos. Loganalyse zeigt: von 281 Meldungen waren nur ~0 korrekt – stattdessen 74,7% mit ausstehenden Reports beschäftigt, 25,3% bereits nach Handoff fertig.\n\nFolgen: Worker, die arbeiten oder fertig sind, erhalten falsche Befehle an den Instructor.\n\nDie korrekte Unterscheidung (fertig / Report ausstehend / nie gestartet) ist bereits verfügbar, erreicht aber AgentOverview nicht.\n\nGefordert: Bestimme den tatsächlichen Status des letzten Turns für jeden Worker und nutze ihn zur korrekten Idle-Nudge-Entscheidung statt einer generischen Annahme.\n\nErwartete Subsysteme: router, app.",
+   "questions": {
+    "symbols": [
+     "AgentOverview"
+    ],
+    "affected": [
+     "Worker",
+     "Instructor"
+    ],
+    "terms": [
+     "idle nudge",
+     "last turn",
+     "turn status",
+     "report pending",
+     "handoff",
+     "never started",
+     "worker status"
+    ],
+    "subsystems": [
+     "router",
+     "app"
+    ]
+   }
+  },
+  "34bf1f9": {
+   "auftrag": "**Arbeitsauftrag: Preset-Eskalationsinformation typ-sicher formalisieren**\n\nEin Preset kann aktuell nicht zwischen „keine Eskalation möglich\" und „eskaliert zu sich selbst\" unterscheiden — nur eine Konvention trennt diese Fälle. Der Escalation Ladder kann darum nicht zuverlässig überprüfen, ob ein Ascent vorhanden ist.\n\nFormalisiere die Eskalationsinformation im Preset-Typ selbst, so dass diese Unterscheidung zur Compile-Zeit überprüfbar ist. Model und Effort bleiben unverändert.\n\nErwartete Subsysteme: preset.",
+   "questions": {
+    "symbols": [
+     "Preset"
+    ],
+    "affected": [
+     "EscalationLadder"
+    ],
+    "terms": [
+     "escalation ladder",
+     "ascent",
+     "escalate",
+     "preset"
+    ],
+    "subsystems": [
+     "preset"
+    ]
+   }
+  }
+ }
+}

@@ -57,7 +57,10 @@ function cmpCandidate(a, b) {
 // Package knobs, measured against each other (vault: Messreihe 2). The defaults are the
 // settings the second worker series runs with.
 const TUNING = {
-  maxPerTerm: 2,          // search-term hits per term
+  // Messreihe 2 sweep (10 orch_tui commits, recall of the really changed symbols):
+  // Sonnet decomposition + 5 hits per term + subsystem filter: package recall 0.72,
+  // aendern precision 0.53; Haiku + 2 per term: 0.56 / 0.41.
+  maxPerTerm: 5,          // search-term hits per term
   termsInSubsystem: true, // term hits only inside questions.subsystems
   wahrFull: false,        // wahrscheinlich carries full code instead of signatures
   pruefen: true,          // emit the pruefen tier at all
@@ -670,7 +673,7 @@ function computeMetrics(repo, pkg, reads, diffText) {
 
 // ---- decompose: cheap-model call, turns an auftrag into graph questions ---
 
-function decompose(auftrag) {
+function decompose(auftrag, { model = "sonnet" } = {}) {
   // --bare and no tools: in the full harness Haiku sees CLAUDE.md and hooks and
   // answers with a clarifying question instead of JSON (measured 2026-09-24).
   // symbols vs affected: the first real run put every function the order MENTIONED
@@ -685,7 +688,7 @@ function decompose(auftrag) {
   const list = { type: "array", items: { type: "string" } };
   const schema = { type: "object", properties: { symbols: list, affected: list, terms: list, subsystems: list },
     required: ["symbols", "affected", "terms", "subsystems"] };
-  const r = spawnSync("claude", ["-p", `Auftrag: ${auftrag}`, "--model", "haiku", "--bare",
+  const r = spawnSync("claude", ["-p", `Auftrag: ${auftrag}`, "--model", model, "--bare",
     "--tools", "", "--system-prompt", system, "--json-schema", JSON.stringify(schema),
     "--output-format", "json"], { encoding: "utf8", maxBuffer: 1 << 26 });
   if (r.status !== 0) throw new Error("decompose failed: " + (r.stderr || "").slice(0, 300));

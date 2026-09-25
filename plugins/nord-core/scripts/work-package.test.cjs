@@ -105,12 +105,12 @@ const SECTIONS = {
     const q = { symbols: ["Deliver"], terms: ["write"], subsystems: ["agent"] };
     const termHits = (pkg) => pkg.tiers.aendern.filter((i) => /write/i.test(i.symbol));
     const def = wp.buildPackage({ repo: REPO, questions: q });
-    check("tuning: defaults are subsystem-only terms, 2 per term",
-      wp.TUNING.maxPerTerm === 2 && wp.TUNING.termsInSubsystem === true);
+    check("tuning: defaults are subsystem-only terms, 5 per term",
+      wp.TUNING.maxPerTerm === 5 && wp.TUNING.termsInSubsystem === true);
     check("tuning: term hits stay inside the expected subsystem",
       termHits(def).length > 0 && termHits(def).every((i) => i.file.startsWith("internal/agent/")),
       JSON.stringify(termHits(def).map((i) => i.file)));
-    check("tuning: at most maxPerTerm hits per term", termHits(def).length <= 2, String(termHits(def).length));
+    check("tuning: at most maxPerTerm hits per term", termHits(def).length <= wp.TUNING.maxPerTerm, String(termHits(def).length));
     const wide = wp.buildPackage({ repo: REPO, questions: q, tuning: { termsInSubsystem: false, maxPerTerm: 5 } });
     check("tuning: termsInSubsystem=false reaches outside", termHits(wide).some((i) => !i.file.startsWith("internal/agent/")),
       JSON.stringify(termHits(wide).map((i) => i.file)));

@@ -48,6 +48,17 @@ function cmpCandidate(a, b) {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
+// Package knobs, measured against each other (vault: Messreihe 2). The defaults are the
+// settings the second worker series runs with.
+const TUNING = {
+  maxPerTerm: 2,          // search-term hits per term
+  termsInSubsystem: true, // term hits only inside questions.subsystems
+  wahrFull: false,        // wahrscheinlich carries full code instead of signatures
+  pruefen: true,          // emit the pruefen tier at all
+  ccMinConfidence: 0.3,   // AP12 neighbour thresholds
+  ccMinCount: 2,
+};
+
 // ---- graph ------------------------------------------------------------
 
 function loadGraph(repo) {
@@ -100,7 +111,7 @@ function resolveSymbol(graph, sym, subsystems) {
   return pool.slice().sort(cmpCandidate)[0];
 }
 
-function resolveEntries(graph, symbols, terms, subsystems) {
+function resolveEntries(graph, symbols, terms, subsystems, tuning = TUNING) {
   const picked = new Map(); // id -> node
   for (const sym of symbols || []) {
     if (typeof sym !== "string" || !sym.trim()) continue;
@@ -111,10 +122,14 @@ function resolveEntries(graph, symbols, terms, subsystems) {
     if (typeof term !== "string" || !term.trim()) continue; // empty term -> silently dropped
     const t = term.toLowerCase();
     // Tests never enter aendern through a search term ("deadlock" hit TestTroubleNoDeadlock).
+    // Terms answer inside the expected subsystems only (first series: a term pulled
+    // encoding/json.RawMessage and a file name into aendern, 20-36 entries).
+    const inScope = (n) => !tuning.termsInSubsystem || !(subsystems || []).length
+      || matchesSubsystem(subsystemOf(n.source_file), subsystems);
     const candidates = graph.codeNodes.filter((n) => !isTestFile(n.source_file)
-      && bareLabel(n.label).toLowerCase().includes(t));
+      && bareLabel(n.label).toLowerCase().includes(t) && inScope(n));
     candidates.sort(cmpCandidate);
-    for (const c of candidates.slice(0, 5)) picked.set(c.id, c);
+    for (const c of candidates.slice(0, tuning.maxPerTerm)) picked.set(c.id, c);
   }
   return [...picked.values()];
 }
@@ -460,7 +475,7 @@ function constructorsOf(graph, entryNodes) {
 // together in git history but carries no edge in graph.json is exactly what the static
 // graph misses. Read-only here — cochange.json is built/updated separately by
 // cochange.cjs, never from inside a dispatch.
-function applyCochange(repo, graph, entryNodes, tiers) {
+function applyCochange(repo, graph, entryNodes, tiers, tuning = TUNING) {
   const ccPath = path.join(repo, "graphify-out", "cochange.json");
   if (!fs.existsSync(ccPath)) return [];
   let overlay;
@@ -470,7 +485,8 @@ function applyCochange(repo, graph, entryNodes, tiers) {
   const placedIds = new Set([...tiers.aendern, ...tiers.wahrscheinlich, ...tiers.pruefen].map((i) => i.id));
   const hints = [];
   for (const entry of entryNodes) {
-    const neigh = cc.neighbours(overlay, entry.id, {}).filter((n) => n.level === "symbol" && n.confidence >= 0.3 && n.count >= 2);
+    const neigh = cc.neighbours(overlay, entry.id, {}).filter((n) => n.level === "symbol"
+      && n.confidence >= tuning.ccMinConfidence && n.count >= tuning.ccMinCount);
     for (const n of neigh) {
       const node = graph.nodesById.get(n.id);
       if (!node || node.file_type !== "code" || isTestFile(node.source_file)) continue;
@@ -488,11 +504,12 @@ function applyCochange(repo, graph, entryNodes, tiers) {
   return hints;
 }
 
-function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12000, cochange = true }) {
+function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12000, cochange = true, tuning = {} }) {
+  tuning = { ...TUNING, ...tuning };
   const sha = execFileSync("git", ["-C", repo, "rev-parse", commit], { encoding: "utf8" }).trim();
   const graph = loadGraph(repo);
 
-  const entryNodes = withReceivers(graph, resolveEntries(graph, questions.symbols, questions.terms, questions.subsystems));
+  const entryNodes = withReceivers(graph, resolveEntries(graph, questions.symbols, questions.terms, questions.subsystems, tuning));
   const aendern = entryNodes.map(toItem);
   let { wahrscheinlich, pruefen } = neighbourTiers(graph, entryNodes);
 
@@ -512,7 +529,9 @@ function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12
     ...wahrscheinlich.filter((i) => !ctorIds.has(i.id))];
   pruefen = pruefen.filter((i) => !ctorIds.has(i.id));
 
-  const ccHints = cochange ? applyCochange(repo, graph, entryNodes, { aendern, wahrscheinlich, pruefen }) : [];
+  const ccHints = cochange ? applyCochange(repo, graph, entryNodes, { aendern, wahrscheinlich, pruefen }, tuning) : [];
+  if (tuning.wahrFull) for (const it of wahrscheinlich) it.full = true;
+  if (!tuning.pruefen) pruefen.length = 0;
 
   extractCodeForItems(repo, sha, aendern, wahrscheinlich);
   const { feedback, hints: devHints } = deviation(aendern, wahrscheinlich, questions.subsystems);
@@ -671,7 +690,8 @@ function cliDispatch(args, cochange) {
     ? JSON.parse(fs.readFileSync(args.questions, "utf8"))
     : decompose(args._[0] || "");
 
-  const pkg = buildPackage({ repo, commit, questions, budgetTokens, cochange });
+  const tuning = args.tuning ? JSON.parse(args.tuning) : {};
+  const pkg = buildPackage({ repo, commit, questions, budgetTokens, cochange, tuning });
   const run = `run-${Date.now()}`;
   const runDir = path.join(out, run);
   fs.mkdirSync(runDir, { recursive: true });
@@ -719,7 +739,7 @@ function main() {
 }
 
 module.exports = {
-  loadGraph, buildPackage, renderMarkdown, changedSymbols, extractSymbol, decompose,
+  TUNING, loadGraph, buildPackage, renderMarkdown, changedSymbols, extractSymbol, decompose,
   astGrepDeclarations, langFor, isTestFile, bareLabel, subsystemOf,
 };
 

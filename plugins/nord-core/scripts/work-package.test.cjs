@@ -100,6 +100,31 @@ const SECTIONS = {
       git("show", `${sha}:${deliver.file}`).includes(deliver.code));
   },
 
+  // Knobs for the second series: each must change the package, and the defaults must hold.
+  tuning() {
+    const q = { symbols: ["Deliver"], terms: ["write"], subsystems: ["agent"] };
+    const termHits = (pkg) => pkg.tiers.aendern.filter((i) => /write/i.test(i.symbol));
+    const def = wp.buildPackage({ repo: REPO, questions: q });
+    check("tuning: defaults are subsystem-only terms, 2 per term",
+      wp.TUNING.maxPerTerm === 2 && wp.TUNING.termsInSubsystem === true);
+    check("tuning: term hits stay inside the expected subsystem",
+      termHits(def).length > 0 && termHits(def).every((i) => i.file.startsWith("internal/agent/")),
+      JSON.stringify(termHits(def).map((i) => i.file)));
+    check("tuning: at most maxPerTerm hits per term", termHits(def).length <= 2, String(termHits(def).length));
+    const wide = wp.buildPackage({ repo: REPO, questions: q, tuning: { termsInSubsystem: false, maxPerTerm: 5 } });
+    check("tuning: termsInSubsystem=false reaches outside", termHits(wide).some((i) => !i.file.startsWith("internal/agent/")),
+      JSON.stringify(termHits(wide).map((i) => i.file)));
+    const full = wp.buildPackage({ repo: REPO, questions: q, budgetTokens: 1e9, tuning: { wahrFull: true } });
+    check("tuning: wahrFull gives wahrscheinlich full code",
+      full.tiers.wahrscheinlich.filter((i) => i.code).length > def.tiers.wahrscheinlich.filter((i) => i.code).length);
+    const nop = wp.buildPackage({ repo: REPO, questions: q, tuning: { pruefen: false } });
+    check("tuning: pruefen=false empties the tier", nop.tiers.pruefen.length === 0 && def.tiers.pruefen.length > 0);
+    const cc = (pkg) => pkg.tiers.pruefen.filter((i) => i.via === "cochange").length;
+    const loose = wp.buildPackage({ repo: REPO, questions: q, budgetTokens: 1e9, tuning: { ccMinConfidence: 0.15, ccMinCount: 1 } });
+    const strict = wp.buildPackage({ repo: REPO, questions: q, budgetTokens: 1e9 });
+    check("tuning: looser AP12 thresholds admit more neighbours", cc(loose) > cc(strict), `${cc(loose)} vs ${cc(strict)}`);
+  },
+
   // The Read guard refuses a ranged read wholly inside these spans (Befund 1).
   bereiche() {
     const pkg = wp.buildPackage({ repo: REPO, questions: { symbols: ["Deliver"], terms: [], subsystems: ["agent"] } });

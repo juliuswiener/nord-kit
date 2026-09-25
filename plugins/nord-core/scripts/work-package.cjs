@@ -737,7 +737,7 @@ function parseArgs(argv) {
   return out;
 }
 
-function cliDispatch(args, cochange, vault) {
+function cliDispatch(args, cochange, vault, activate = true) {
   const repo = args.repo;
   const commit = args.commit || "HEAD";
   const out = args.out || path.join(repo, ".nord", "work-package");
@@ -754,7 +754,9 @@ function cliDispatch(args, cochange, vault) {
   fs.mkdirSync(runDir, { recursive: true });
   fs.writeFileSync(path.join(runDir, "package.json"), JSON.stringify(pkg, null, 2));
   fs.writeFileSync(path.join(runDir, "package.md"), renderMarkdown(pkg));
-  fs.writeFileSync(path.join(out, "active"), run + "\n");
+  // --no-activate: the implementer-start hook writes the run for the audit but does not
+  // arm the Read guard, which is repo-wide and would hit the instructor's reads too.
+  if (activate) fs.writeFileSync(path.join(out, "active"), run + "\n");
   console.log(run);
 }
 
@@ -790,8 +792,11 @@ function main() {
   const vaultAt = rest.indexOf("--vault");
   const vault = vaultAt !== -1;
   if (vaultAt !== -1) rest.splice(vaultAt, 1);
+  const noActivateAt = rest.indexOf("--no-activate");
+  const activate = noActivateAt === -1;
+  if (noActivateAt !== -1) rest.splice(noActivateAt, 1);
   const args = parseArgs(rest);
-  if (cmd === "dispatch") return cliDispatch(args, cochange, vault);
+  if (cmd === "dispatch") return cliDispatch(args, cochange, vault, activate);
   if (cmd === "check") return cliCheck(args);
   if (cmd === "decompose") return console.log(JSON.stringify(decompose(args._[0] || "")));
   console.error("usage: work-package.cjs dispatch|check|decompose ...");

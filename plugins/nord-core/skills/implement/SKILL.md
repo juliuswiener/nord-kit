@@ -99,6 +99,10 @@ Repeat until the gate is green or a stop condition fires:
 
 1. **Spawn** an `implementer` subagent with the goal, the exact gate command, the FULL
    output of the latest failing run, and the reflection buffer. One increment per spawn.
+   In a repo with `graphify-out/graph.json` the `work-package-dispatch` hook appends a
+   work package (the places to change, their code, their neighbours) to the prompt —
+   state the intent and the expected packages in plain words, the hook finds the code.
+   `[kein-arbeitspaket]` in the prompt skips it.
 2. **Run the gate yourself**, capturing exit code and output. The gate is the only
    verdict — ignore what the worker claims about its own work.
 3. **Green (exit 0)** → A2.

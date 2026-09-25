@@ -20,8 +20,8 @@
 // Fail-OPEN: any parse/IO error -> allow. Never brick the Skill tool.
 //
 // Scope: only skills bundled by foreign plugins that duplicate a nord keeper or
-// are off-topic. nord's own skills + kept claude-mem skills (mem-search,
-// smart-explore, how-it-works, learn-codebase) are NOT listed.
+// are off-topic. mem-search, smart-explore, how-it-works and learn-codebase were
+// subtracted from the claude-mem fork in 644302e8 (2026-09-06); nothing to deny.
 
 "use strict";
 
@@ -44,12 +44,9 @@ const DENY = {
   // actually ships: 19 skills, 12 denied, 4 named as deliberately kept in the
   // header — and these three accounted for by neither. Unused, so denied.
   //
-  // UPDATE 05.09.2026: the four "deliberately kept" are kept no longer. mem-search,
-  // smart-explore, how-it-works and learn-codebase now sit in permissions.deny, so all
-  // 19 of claude-mem's skills are blocked and none is reachable. Note what that does
-  // NOT buy: a denied skill still ships its description into the cached prefix — only
-  // the invocation is refused — so the plugin still costs 19 descriptions per session.
-  // It stays enabled for its MCP server and its seven hooks, which is the whole reason.
+  // UPDATE 06.09.2026 (commit 644302e8, "subtract … skills"): mem-search,
+  // smart-explore, how-it-works and learn-codebase are gone from the claude-mem
+  // fork itself, not merely blocked — nothing left here to deny.
   "cloud-sync":     "unused; memory sync is not part of this setup",
   "mode-creator":   "unused; modes are configured directly",
   "what-the":       "off-topic grab-bag skill",

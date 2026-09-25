@@ -456,7 +456,39 @@ function constructorsOf(graph, entryNodes) {
   return [...out.values()];
 }
 
-function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12000 }) {
+// Co-change neighbours (AP12) for the aendern tier: a symbol pair that reliably changes
+// together in git history but carries no edge in graph.json is exactly what the static
+// graph misses. Read-only here — cochange.json is built/updated separately by
+// cochange.cjs, never from inside a dispatch.
+function applyCochange(repo, graph, entryNodes, tiers) {
+  const ccPath = path.join(repo, "graphify-out", "cochange.json");
+  if (!fs.existsSync(ccPath)) return [];
+  let overlay;
+  try { overlay = JSON.parse(fs.readFileSync(ccPath, "utf8")); } catch { return []; }
+
+  const cc = require("./cochange.cjs");
+  const placedIds = new Set([...tiers.aendern, ...tiers.wahrscheinlich, ...tiers.pruefen].map((i) => i.id));
+  const hints = [];
+  for (const entry of entryNodes) {
+    const neigh = cc.neighbours(overlay, entry.id, {}).filter((n) => n.level === "symbol" && n.confidence >= 0.3 && n.count >= 2);
+    for (const n of neigh) {
+      const node = graph.nodesById.get(n.id);
+      if (!node || node.file_type !== "code" || isTestFile(node.source_file)) continue;
+      // Both ends already in aendern: the worker changes both anyway, a hint says nothing.
+      if (entryNodes.some((e) => e.id === n.id)) continue;
+      if (!n.structural) {
+        hints.push(`Co-Change ohne Strukturkante: ${entry.label} <-> ${node.label} `
+          + `(confidence ${n.confidence.toFixed(2)}, count ${n.count})`);
+      }
+      if (placedIds.has(n.id)) continue;
+      placedIds.add(n.id);
+      tiers.pruefen.push({ ...toItem(node), via: "cochange" });
+    }
+  }
+  return hints;
+}
+
+function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12000, cochange = true }) {
   const sha = execFileSync("git", ["-C", repo, "rev-parse", commit], { encoding: "utf8" }).trim();
   const graph = loadGraph(repo);
 
@@ -480,8 +512,11 @@ function buildPackage({ repo, commit = "HEAD", questions = {}, budgetTokens = 12
     ...wahrscheinlich.filter((i) => !ctorIds.has(i.id))];
   pruefen = pruefen.filter((i) => !ctorIds.has(i.id));
 
+  const ccHints = cochange ? applyCochange(repo, graph, entryNodes, { aendern, wahrscheinlich, pruefen }) : [];
+
   extractCodeForItems(repo, sha, aendern, wahrscheinlich);
-  const { feedback, hints } = deviation(aendern, wahrscheinlich, questions.subsystems);
+  const { feedback, hints: devHints } = deviation(aendern, wahrscheinlich, questions.subsystems);
+  const hints = [...devHints, ...ccHints];
 
   const pkg = { commit: sha, graphCommit: graph.builtAtCommit, tiers: { aendern, wahrscheinlich, pruefen }, feedback, hints, files: {} };
 
@@ -627,7 +662,7 @@ function parseArgs(argv) {
   return out;
 }
 
-function cliDispatch(args) {
+function cliDispatch(args, cochange) {
   const repo = args.repo;
   const commit = args.commit || "HEAD";
   const out = args.out || path.join(repo, ".nord", "work-package");
@@ -636,7 +671,7 @@ function cliDispatch(args) {
     ? JSON.parse(fs.readFileSync(args.questions, "utf8"))
     : decompose(args._[0] || "");
 
-  const pkg = buildPackage({ repo, commit, questions, budgetTokens });
+  const pkg = buildPackage({ repo, commit, questions, budgetTokens, cochange });
   const run = `run-${Date.now()}`;
   const runDir = path.join(out, run);
   fs.mkdirSync(runDir, { recursive: true });
@@ -672,14 +707,20 @@ function cliCheck(args) {
 
 function main() {
   const [, , cmd, ...rest] = process.argv;
+  const noCochangeAt = rest.indexOf("--no-cochange");
+  const cochange = noCochangeAt === -1;
+  if (noCochangeAt !== -1) rest.splice(noCochangeAt, 1);
   const args = parseArgs(rest);
-  if (cmd === "dispatch") return cliDispatch(args);
+  if (cmd === "dispatch") return cliDispatch(args, cochange);
   if (cmd === "check") return cliCheck(args);
   if (cmd === "decompose") return console.log(JSON.stringify(decompose(args._[0] || "")));
   console.error("usage: work-package.cjs dispatch|check|decompose ...");
   process.exit(1);
 }
 
-module.exports = { loadGraph, buildPackage, renderMarkdown, changedSymbols, extractSymbol, decompose };
+module.exports = {
+  loadGraph, buildPackage, renderMarkdown, changedSymbols, extractSymbol, decompose,
+  astGrepDeclarations, langFor, isTestFile, bareLabel, subsystemOf,
+};
 
 if (require.main === module) main();

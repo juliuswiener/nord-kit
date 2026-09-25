@@ -22,6 +22,11 @@ const { vaultContext } = require("./vault-context.cjs");
 
 const bareLabel = (label) => String(label).replace(/^\./, "").replace(/\(\)$/, "");
 
+// A code node the package can place: one with a file. taxgraph's graph carries code
+// nodes with source_file null (ELSTER Kennzahlen) or "" (pytest decorators); null
+// crashed subsystemOf/langFor, "" became an entry with no file.
+const isCode = (n) => !!n && n.file_type === "code" && typeof n.source_file === "string" && n.source_file !== "";
+
 function isTestFile(relpath) {
   return /_test\.go$/.test(relpath)
     || /\.(test|spec)\.[cm]?[jt]sx?$/.test(relpath)
@@ -69,7 +74,7 @@ function loadGraph(repo) {
   const codeNodes = [];
   for (const n of data.nodes) {
     nodesById.set(n.id, n);
-    if (n.file_type === "code") codeNodes.push(n);
+    if (isCode(n)) codeNodes.push(n);
   }
   const adjacency = new Map(); // id -> [{other, relation, confidence, out, loc}]
   const addEdge = (from, other, relation, confidence, out, loc) => {
@@ -145,7 +150,7 @@ function withReceivers(graph, entryNodes) {
   const out = new Map(entryNodes.map((n) => [n.id, n]));
   for (const n of entryNodes) {
     const owner = receiverOf(graph, n);
-    if (owner && owner.file_type === "code") out.set(owner.id, owner);
+    if (isCode(owner)) out.set(owner.id, owner);
   }
   return [...out.values()];
 }
@@ -177,7 +182,7 @@ function neighbourTiers(graph, entryNodes) {
   const entryIds = new Set(entryNodes.map((n) => n.id));
   const isEligible = (id) => {
     const n = graph.nodesById.get(id);
-    return n && n.file_type === "code" && !isTestFile(n.source_file) && !entryIds.has(id);
+    return isCode(n) && !isTestFile(n.source_file) && !entryIds.has(id);
   };
 
   const depth1 = neighboursOf(graph, [...entryIds], STRUCT_RELATIONS);
@@ -284,7 +289,9 @@ function astGrepDeclarations(content, langKey) {
 // per file for speed). Returns {name: text}; missing names are simply absent.
 function extractSymbolsBatch(repo, commit, file, names) {
   const langKey = langFor(file);
-  const result = {};
+  // No prototype: a symbol named constructor or toString would otherwise find Object's
+  // own function here and travel on as "code" (JS classes in orch_tui's remote UI).
+  const result = Object.create(null);
   if (!langKey || !names.length) return result;
   let content;
   try { content = execFileSync("git", ["-C", repo, "show", `${commit}:${file}`], { encoding: "utf8", maxBuffer: 1 << 28 }); }
@@ -340,7 +347,7 @@ function extractCodeForItems(repo, commit, aendernItems, wahrItems) {
     if (extracted.get(it.file)?.[name] || /\(\)$/.test(it.symbol)) continue;
     const home = typeHome(repo, commit, it.file, name);
     if (!home) continue;
-    if (!extracted.has(home)) extracted.set(home, {});
+    if (!extracted.has(home)) extracted.set(home, Object.create(null));
     Object.assign(extracted.get(home), extractSymbolsBatch(repo, commit, home, [name]));
     if (extracted.get(home)[name]) it.file = home;
   }
@@ -463,7 +470,7 @@ function constructorsOf(graph, entryNodes) {
     for (const e of graph.adjacency.get(t.id) || []) {
       if (e.relation !== "references" || e.out) continue;
       const f = graph.nodesById.get(e.other);
-      if (!f || f.file_type !== "code" || isTestFile(f.source_file) || f.label.startsWith(".")) continue;
+      if (!isCode(f) || isTestFile(f.source_file) || f.label.startsWith(".")) continue;
       if (e.loc !== f.source_location) continue;
       if (subsystemOf(f.source_file) !== subsystemOf(t.source_file)) continue;
       out.set(f.id, f);
@@ -490,7 +497,7 @@ function applyCochange(repo, graph, entryNodes, tiers, tuning = TUNING) {
       && n.confidence >= tuning.ccMinConfidence && n.count >= tuning.ccMinCount);
     for (const n of neigh) {
       const node = graph.nodesById.get(n.id);
-      if (!node || node.file_type !== "code" || isTestFile(node.source_file)) continue;
+      if (!isCode(node) || isTestFile(node.source_file)) continue;
       // Both ends already in aendern: the worker changes both anyway, a hint says nothing.
       if (entryNodes.some((e) => e.id === n.id)) continue;
       if (!n.structural) {

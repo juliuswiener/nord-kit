@@ -247,6 +247,47 @@ const SECTIONS = {
       JSON.stringify(m.aendernOhneAenderung));
     fs.rmSync(out, { recursive: true, force: true });
   },
+
+  // Graph data orch_tui does not have, so a throwaway repo carries it. taxgraph's graph
+  // holds code nodes with source_file null (20, ELSTER Kennzahlen) and "" (284); a JS
+  // class brings a neighbour named constructor. All three crashed or leaked into the
+  // package on 2026-09-25 (vault: audits/claude-mem-als-stoss, Lauf 5 und 7).
+  graphrand() {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), "wp-graphrand-"));
+    const g = (...a) => execFileSync("git", ["-C", repo, ...a], { encoding: "utf8" });
+    fs.mkdirSync(path.join(repo, "web"));
+    fs.writeFileSync(path.join(repo, "web/store.js"),
+      "class Store {\n  constructor() { this.q = []; }\n  pending() { return this.q.length; }\n}\n");
+    g("init", "-q");
+    g("add", "web/store.js");
+    g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "store");
+    const node = (id, label, file, line) => ({ id, label, file_type: "code", source_file: file, source_location: `L${line}` });
+    const edge = (source, target, relation) => ({ source, target, relation, confidence: "EXTRACTED", source_location: "L3" });
+    fs.mkdirSync(path.join(repo, "graphify-out"));
+    fs.writeFileSync(path.join(repo, "graphify-out/graph.json"), JSON.stringify({
+      built_at_commit: g("rev-parse", "HEAD").trim(),
+      nodes: [node("pending", ".pending()", "web/store.js", 3), node("ctor", ".constructor()", "web/store.js", 2),
+        node("kz_null", "E0800502 (Summe Gewerbe)", null, 1), node("kz_leer", "E0800503 (Summe Leer)", "", 1)],
+      links: [edge("pending", "ctor", "calls"), edge("pending", "kz_null", "references"), edge("pending", "kz_leer", "references")],
+    }));
+    const build = (questions) => {
+      try { return wp.buildPackage({ repo, questions, cochange: false }); } catch (e) { return { threw: e.message }; }
+    };
+    const noFileless = (pkg) => !pkg.threw && items(pkg).every((i) => typeof i.file === "string" && i.file);
+
+    const p = build({ symbols: ["pending"] });
+    check("graphrand: a neighbour named constructor does not crash", !p.threw, p.threw);
+    const ctor = p.threw ? null : items(p).find((i) => bare(i.symbol) === "constructor");
+    check("graphrand: constructor carries text, not Object's constructor",
+      ctor && [ctor.code, ctor.signature].every((t) => t === undefined || typeof t === "string"), JSON.stringify(ctor));
+    check("graphrand: neighbours without a file stay out", noFileless(p), JSON.stringify(p.threw || items(p).map((i) => i.file)));
+    for (const q of [{ symbols: ["E0800502 (Summe Gewerbe)"] }, { terms: ["E08005"] }, { symbols: ["E0800503 (Summe Leer)"] }]) {
+      const r = build(q);
+      check(`graphrand: ${JSON.stringify(q)} does not crash and yields no file-less entry`, noFileless(r),
+        JSON.stringify(r.threw || items(r).map((i) => i.file)));
+    }
+    fs.rmSync(repo, { recursive: true, force: true });
+  },
 };
 
 const only = process.argv[2];

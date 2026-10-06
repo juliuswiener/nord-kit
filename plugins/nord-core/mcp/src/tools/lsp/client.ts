@@ -361,6 +361,16 @@ export class LspClient {
   private documentVersions = new Map<string, number>();
   /** URIs the server has actually answered about. See diagnosticsAnswered(). */
   private diagnosticsAnsweredFor = new Set<string>();
+  /** rust-analyzer flycheck ($/progress tokens containing "flycheck") currently running. */
+  private flycheckActive = new Set<string>();
+  /** How many flychecks have begun, ever. A save is answered by a begin AFTER it. */
+  private flycheckBegins = 0;
+  private flycheckWaiters: Array<() => void> = [];
+  /** rustc diagnostics as of the last flycheck we triggered and saw finish, per URI. */
+  private rustcAtLastFlycheck = new Map<string, Diagnostic[]>();
+  /** When the last didSave left, and when the first publish after it arrived. */
+  private lastSaveAt = 0;
+  private firstPublishAfterSaveAt = 0;
   private workspaceRoot: string;
   private serverConfig: LspServerConfig;
   private devContainerContext: DevContainerContext | null;
@@ -620,7 +630,12 @@ export class LspClient {
     const error = request.method === 'client/registerCapability'
       ? { code: -32803, message: 'Dynamic capability registration is not supported' }
       : { code: -32601, message: 'Method not found' };
-    const response: JsonRpcErrorResponse = { jsonrpc: '2.0', id: request.id, error };
+    // Declared only for rust-analyzer (see initialize); it asks before it opens
+    // a progress token, and a refusal would silence the flycheck progress.
+    const response: JsonRpcErrorResponse | { jsonrpc: '2.0'; id: number | string; result: null } =
+      request.method === 'window/workDoneProgress/create'
+        ? { jsonrpc: '2.0', id: request.id, result: null }
+        : { jsonrpc: '2.0', id: request.id, error };
     const content = JSON.stringify(response);
     this.process?.stdin?.write(`Content-Length: ${Buffer.byteLength(content)}\r\n\r\n${content}`);
   }
@@ -634,6 +649,7 @@ export class LspClient {
       this.diagnostics.set(params.uri, params.diagnostics);
       this.diagnosticsUpdatedAt.set(params.uri, Date.now());
       this.diagnosticsSeq.set(params.uri, (this.diagnosticsSeq.get(params.uri) ?? 0) + 1);
+      if (this.lastSaveAt > 0 && this.firstPublishAfterSaveAt === 0) this.firstPublishAfterSaveAt = Date.now();
       // Wake any waiters registered via waitForDiagnostics()
       const waiters = this.diagnosticWaiters.get(params.uri);
       if (waiters && waiters.length > 0) {
@@ -659,6 +675,25 @@ export class LspClient {
       if (typeof params?.quiescent === 'boolean') {
         this.sawReadinessSignal = true;
         this.serverQuiescent = params.quiescent;
+      }
+      return;
+    }
+    // The flycheck (cargo check) on save reports itself as workDoneProgress.
+    // That is the end of rustc's work -- which the quiescent flag above is not:
+    // it describes the index, and says nothing about cargo check.
+    if (notification.method === '$/progress') {
+      const p = notification.params as { token?: unknown; value?: { kind?: string } } | undefined;
+      const token = String(p?.token ?? '');
+      if (token.includes('flycheck')) {
+        if (p?.value?.kind === 'begin') {
+          this.flycheckActive.add(token);
+          this.flycheckBegins++;
+        } else if (p?.value?.kind === 'end') {
+          this.flycheckActive.delete(token);
+        }
+        const wake = this.flycheckWaiters;
+        this.flycheckWaiters = [];
+        for (const w of wake) w();
       }
       return;
     }
@@ -872,6 +907,9 @@ export class LspClient {
           symbol: {},
           workspaceFolders: true
         },
+        // rust-analyzer reports its flycheck only to a client that says it can
+        // show progress. Other servers are left as they were.
+        ...(this.supportsFlycheck ? { window: { workDoneProgress: true } } : {}),
         // Opt in to rust-analyzer's readiness notification. Without this the
         // server sends nothing at all and a still-indexing answer is
         // indistinguishable from an empty one. Servers that don't know the
@@ -1253,6 +1291,109 @@ export class LspClient {
     });
     this.documentVersions.set(hostUri, version);
     return seenSeq;
+  }
+
+  /**
+   * Whether this server runs a compiler check on save (rust-analyzer: cargo
+   * check). Only then is didSave sent: servers without that concept (TypeScript,
+   * JSON, TOML) keep exactly the behaviour they had.
+   */
+  get supportsFlycheck(): boolean {
+    return this.serverConfig.command === 'rust-analyzer';
+  }
+
+  /**
+   * Tell the server the document was saved. rust-analyzer starts no flycheck
+   * without it, and E0425/E0599 are only ever rustc's. Pair with awaitFlycheck.
+   * Returns the begin counter to hand to awaitFlycheck.
+   */
+  saveDocument(filePath: string): number {
+    this.lastSaveAt = Date.now();
+    this.firstPublishAfterSaveAt = 0;
+    const begins = this.flycheckBegins;
+    this.notify('textDocument/didSave', { textDocument: { uri: this.toServerUri(fileUri(filePath)) } });
+    return begins;
+  }
+
+  /**
+   * Wait for the flycheck that answers the save: a `begin` after it, then every
+   * flycheck token closed, then the publish that carries its result (settle).
+   * Gives up early when no flycheck begins within `startGraceMs` (file outside any
+   * crate, checkOnSave off): waiting out the whole budget would only add delay to a
+   * miss. true = rustc's verdict is in the push cache.
+   *
+   * ponytail: a cancelled flycheck's `end` can close the token before the new
+   * flycheck's `begin` shows up in a burst of saves; one edit at a time is what a
+   * hook sends. A per-run id would need rust-analyzer's progress message to carry one.
+   */
+  async awaitFlycheck(
+    filePath: string, beginsAtSave: number, timeoutMs: number, startGraceMs: number
+  ): Promise<{ done: boolean; flycheckMs: number; firstPublishMs: number }> {
+    const started = this.lastSaveAt;
+    const deadline = Date.now() + timeoutMs;
+    let grace = Date.now() + startGraceMs;
+    let done = false;
+    let resent = false;
+    for (;;) {
+      const began = this.flycheckBegins > beginsAtSave;
+      if (began && this.flycheckActive.size === 0) { done = true; break; }
+      // A server still loading its workspace has not started any flycheck YET
+      // (measured: a cold rust-analyzer begins it only after the load), so the
+      // start grace counts from the moment it is ready, not from the save.
+      if (!began && this.indexState !== 'ready') grace = Date.now() + startGraceMs;
+      const limit = began ? deadline : Math.min(deadline, grace);
+      // Capped at 100 ms: readiness changes arrive as serverStatus, not as progress.
+      const left = Math.min(limit - Date.now(), 100);
+      if (limit - Date.now() <= 0) {
+        // A save that reaches rust-analyzer while it is still loading its workspace
+        // is dropped (measured: no flycheck ever began for it). Once the server is
+        // ready and nothing began, send it once more.
+        if (!began && !resent && this.indexState === 'ready' && deadline > Date.now()) {
+          resent = true;
+          this.saveDocument(filePath);
+          grace = Date.now() + startGraceMs;
+          continue;
+        }
+        break;
+      }
+      await new Promise<void>((resolve) => {
+        const t = setTimeout(resolve, left);
+        this.flycheckWaiters.push(() => { clearTimeout(t); resolve(); });
+      });
+    }
+    const endedAt = Date.now();
+    if (done) {
+      // The publish with rustc's result trails the progress `end` slightly.
+      const uri = fileUri(filePath);
+      for (;;) {
+        const quietFor = Date.now() - Math.max(endedAt, this.diagnosticsUpdatedAt.get(uri) ?? 0);
+        const left = Math.min(DIAGNOSTICS_SETTLE_MS - quietFor, deadline - Date.now());
+        if (left <= 0) break;
+        await sleep(left);
+      }
+      this.rustcAtLastFlycheck.set(uri, this.rustcDiagnostics(filePath));
+    }
+    return {
+      done,
+      flycheckMs: endedAt - started,
+      firstPublishMs: this.firstPublishAfterSaveAt ? this.firstPublishAfterSaveAt - started : -1,
+    };
+  }
+
+  /** What rustc said about the file, out of the push cache. */
+  rustcDiagnostics(filePath: string): Diagnostic[] {
+    return (this.diagnostics.get(fileUri(filePath)) ?? []).filter((d) => d.source === 'rustc');
+  }
+
+  /**
+   * rustc's verdict on the file as of the last flycheck THIS client saw finish,
+   * or null when it has none. cargo check reads the file from disk, which at hook
+   * time already holds the post-edit text, so the pre-edit text itself can never
+   * be checked without writing it to disk (which this never does); the verdict of
+   * the previous edit's flycheck is the closest honest baseline.
+   */
+  rustcBaseline(filePath: string): Diagnostic[] | null {
+    return this.rustcAtLastFlycheck.get(fileUri(filePath)) ?? null;
   }
 
   /**

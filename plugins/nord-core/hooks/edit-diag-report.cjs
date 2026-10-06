@@ -71,6 +71,11 @@ const DEBUG = process.env.NORD_EDIT_DIAG_DEBUG === "1";
 // honest "not checked" costs nothing and says the same thing. Raise it when
 // reliability matters more than latency (measured: rust-analyzer needs seconds
 // on a cold crate, and answers empty until then).
+// How long to wait for rust-analyzer's flycheck (cargo check) after the save the
+// plugin sends it. rustc's errors (E0425, E0599 ...) exist only after it; on
+// expiry the hook says "not checked" instead of "no new errors". Rust only: other
+// languages never send a save and ignore this.
+const FLYCHECK_MS = positiveInt(process.env.NORD_EDIT_DIAG_FLYCHECK_MS, 4000);
 const WAIT_READY_MS = positiveInt(process.env.NORD_EDIT_DIAG_WAIT_READY_MS, 0);
 
 function positiveInt(v, dflt) {
@@ -94,11 +99,33 @@ function slotFor(file) {
 
 // Identity of a diagnostic for set-difference purposes: everything that
 // describes WHAT is wrong, and nothing that describes WHERE.
+//
+// Rust is the exception: rust-analyzer and rustc word the same error differently
+// ("cannot find value" vs "no such value"), so for those two sources the CODE is
+// the identity (E0425 ...) and the text is not. Limit: swapping one E0425 for a
+// different E0425 in the same file leaves the count unchanged and is not seen.
+const isRust = d => (d.source === "rustc" || d.source === "rust-analyzer") && d.code !== undefined && d.code !== null;
+
 function identity(d) {
+  if (isRust(d)) return ["rust", d.severity, d.code].join(" ");
   return [d.severity, d.code === undefined || d.code === null ? "" : d.code, d.source || "", d.message].join(" ");
 }
 
 const isError = d => d.severity === 1;
+
+// One message per (line, code) for Rust, the rustc one when both tools say it.
+// Everything else passes through untouched.
+function dedupe(list) {
+  const out = [];
+  const at = new Map();
+  for (const d of list) {
+    if (!isRust(d)) { out.push(d); continue; }
+    const k = (d.range && d.range.start ? d.range.start.line : -1) + " " + d.code;
+    if (!at.has(k)) { at.set(k, out.length); out.push(d); }
+    else if (d.source === "rustc" && out[at.get(k)].source !== "rustc") out[at.get(k)] = d;
+  }
+  return out;
+}
 
 function newErrors(before, after) {
   const remaining = new Map();
@@ -165,7 +192,7 @@ async function main() {
   if (beforeText === afterText) quit();   // nothing actually changed
 
   const t0 = Date.now();
-  const req = { file, beforeText, afterText, budgetMs: BUDGET_MS, waitReadyMs: WAIT_READY_MS };
+  const req = { file, beforeText, afterText, budgetMs: BUDGET_MS, waitReadyMs: WAIT_READY_MS, flycheckMs: FLYCHECK_MS };
 
   // Ask the MCP server first: it lives for the whole session and keeps its
   // language servers warm (vault: edit-diagnose-laeuft-ueber-den-warmen-mcp-server).
@@ -176,7 +203,7 @@ async function main() {
   let via = "socket";
   if (process.env.NORD_LSP_DAEMON !== "0") {
     try {
-      r = await lsp.requestEditDiagnostics(req, BUDGET_MS * 2 + WAIT_READY_MS + 5000);
+      r = await lsp.requestEditDiagnostics(req, BUDGET_MS * 2 + WAIT_READY_MS + FLYCHECK_MS + 5000);
     } catch { r = null; }
   }
   if (!r) {
@@ -189,7 +216,9 @@ async function main() {
       await lsp.disconnectAll().catch(() => {});
     }
   }
-  const { before, after, answered, indexState } = r;
+  const { before, after, answered, indexState, flycheck, rustcBaselineKnown, timing } = r;
+  const rustcUnchecked = flycheck === "timeout";
+  const rustcNote = `rustc (cargo check) did not finish within ${FLYCHECK_MS}ms`;
 
   // A publish having arrived is not enough. Measured: rust-analyzer publishes an
   // EMPTY set immediately on didOpen and only later replaces it with the real
@@ -201,21 +230,34 @@ async function main() {
   const ready = answered && indexState !== "indexing";
 
   const ms = Date.now() - t0;
-  const debug = DEBUG ? `\n[nord-edit-diag ${ms}ms via=${via} answered=${answered} index=${indexState} before=${before.length} after=${after.length}]` : "";
+  const debug = DEBUG ? `\n[nord-edit-diag ${ms}ms via=${via} answered=${answered} index=${indexState} before=${before.length} after=${after.length}${flycheck && flycheck !== "n/a" ? ` flycheck=${flycheck} didSave->flycheck-end=${timing.flycheckMs}ms didSave->first-publish=${timing.firstPublishMs}ms` : ""}]` : "";
 
   if (beforeText === null) {
-    const errs = after.filter(isError);
+    const errs = dedupe(after.filter(isError));
     if (!ready) say(`nord: not checked — ${serverConfig.name} did not answer about ${path.basename(file)} within ${BUDGET_MS}ms.${debug}`);
-    if (errs.length === 0) quit();
+    if (errs.length === 0) {
+      if (rustcUnchecked) say(`nord: not checked — ${rustcNote}.${debug}`);
+      quit();
+    }
     say(`nord: ${path.basename(file)} has ${errs.length} error(s); no pre-edit baseline was captured, so these may predate this edit.\n${render(file, errs).split("\n").slice(1).join("\n")}${debug}`);
   }
 
-  const fresh = newErrors(before, after);
-  if (fresh.length > 0) say(render(file, fresh) + debug);
+  const fresh = newErrors(dedupe(before.filter(isError)), dedupe(after.filter(isError)));
+  if (fresh.length > 0) {
+    // rustc ran against the disk text only; without an earlier verdict from this
+    // server session its errors may predate the edit.
+    const notes = [];
+    if (rustcBaselineKnown === false && fresh.some(d => d.source === "rustc")) notes.push("no rustc baseline in this server session; rustc errors may predate this edit");
+    if (rustcUnchecked) notes.push(`not checked — ${rustcNote}`);
+    say(render(file, fresh) + notes.map(n => `\n  (${n})`).join("") + debug);
+  }
 
   // Nothing new. Only claim that if the server actually looked.
   if (!ready) {
     say(`nord: not checked — ${serverConfig.name} did not answer about ${path.basename(file)} within ${BUDGET_MS}ms, so "no new errors" is not established.${debug}`);
+  }
+  if (rustcUnchecked) {
+    say(`nord: not checked — ${rustcNote}, so "no new errors" is not established for rustc errors.${debug}`);
   }
   if (DEBUG) say(`nord: no new errors.${debug}`);
   quit();

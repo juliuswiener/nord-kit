@@ -729,6 +729,16 @@ var LspClient = class _LspClient {
   documentVersions = /* @__PURE__ */ new Map();
   /** URIs the server has actually answered about. See diagnosticsAnswered(). */
   diagnosticsAnsweredFor = /* @__PURE__ */ new Set();
+  /** rust-analyzer flycheck ($/progress tokens containing "flycheck") currently running. */
+  flycheckActive = /* @__PURE__ */ new Set();
+  /** How many flychecks have begun, ever. A save is answered by a begin AFTER it. */
+  flycheckBegins = 0;
+  flycheckWaiters = [];
+  /** rustc diagnostics as of the last flycheck we triggered and saw finish, per URI. */
+  rustcAtLastFlycheck = /* @__PURE__ */ new Map();
+  /** When the last didSave left, and when the first publish after it arrived. */
+  lastSaveAt = 0;
+  firstPublishAfterSaveAt = 0;
   workspaceRoot;
   serverConfig;
   devContainerContext;
@@ -931,7 +941,7 @@ Install with: ${this.serverConfig.installHint}`
   /** Reply to unsupported server requests without claiming they succeeded. */
   handleServerRequest(request) {
     const error = request.method === "client/registerCapability" ? { code: -32803, message: "Dynamic capability registration is not supported" } : { code: -32601, message: "Method not found" };
-    const response = { jsonrpc: "2.0", id: request.id, error };
+    const response = request.method === "window/workDoneProgress/create" ? { jsonrpc: "2.0", id: request.id, result: null } : { jsonrpc: "2.0", id: request.id, error };
     const content = JSON.stringify(response);
     this.process?.stdin?.write(`Content-Length: ${Buffer.byteLength(content)}\r
 \r
@@ -946,6 +956,7 @@ ${content}`);
       this.diagnostics.set(params.uri, params.diagnostics);
       this.diagnosticsUpdatedAt.set(params.uri, Date.now());
       this.diagnosticsSeq.set(params.uri, (this.diagnosticsSeq.get(params.uri) ?? 0) + 1);
+      if (this.lastSaveAt > 0 && this.firstPublishAfterSaveAt === 0) this.firstPublishAfterSaveAt = Date.now();
       const waiters = this.diagnosticWaiters.get(params.uri);
       if (waiters && waiters.length > 0) {
         this.diagnosticWaiters.delete(params.uri);
@@ -958,6 +969,22 @@ ${content}`);
       if (typeof params?.quiescent === "boolean") {
         this.sawReadinessSignal = true;
         this.serverQuiescent = params.quiescent;
+      }
+      return;
+    }
+    if (notification.method === "$/progress") {
+      const p = notification.params;
+      const token = String(p?.token ?? "");
+      if (token.includes("flycheck")) {
+        if (p?.value?.kind === "begin") {
+          this.flycheckActive.add(token);
+          this.flycheckBegins++;
+        } else if (p?.value?.kind === "end") {
+          this.flycheckActive.delete(token);
+        }
+        const wake = this.flycheckWaiters;
+        this.flycheckWaiters = [];
+        for (const w of wake) w();
       }
       return;
     }
@@ -1135,6 +1162,9 @@ ${content}`;
           symbol: {},
           workspaceFolders: true
         },
+        // rust-analyzer reports its flycheck only to a client that says it can
+        // show progress. Other servers are left as they were.
+        ...this.supportsFlycheck ? { window: { workDoneProgress: true } } : {},
         // Opt in to rust-analyzer's readiness notification. Without this the
         // server sends nothing at all and a still-indexing answer is
         // indistinguishable from an empty one. Servers that don't know the
@@ -1447,6 +1477,100 @@ ${content}`;
     });
     this.documentVersions.set(hostUri, version);
     return seenSeq;
+  }
+  /**
+   * Whether this server runs a compiler check on save (rust-analyzer: cargo
+   * check). Only then is didSave sent: servers without that concept (TypeScript,
+   * JSON, TOML) keep exactly the behaviour they had.
+   */
+  get supportsFlycheck() {
+    return this.serverConfig.command === "rust-analyzer";
+  }
+  /**
+   * Tell the server the document was saved. rust-analyzer starts no flycheck
+   * without it, and E0425/E0599 are only ever rustc's. Pair with awaitFlycheck.
+   * Returns the begin counter to hand to awaitFlycheck.
+   */
+  saveDocument(filePath) {
+    this.lastSaveAt = Date.now();
+    this.firstPublishAfterSaveAt = 0;
+    const begins = this.flycheckBegins;
+    this.notify("textDocument/didSave", { textDocument: { uri: this.toServerUri(fileUri(filePath)) } });
+    return begins;
+  }
+  /**
+   * Wait for the flycheck that answers the save: a `begin` after it, then every
+   * flycheck token closed, then the publish that carries its result (settle).
+   * Gives up early when no flycheck begins within `startGraceMs` (file outside any
+   * crate, checkOnSave off): waiting out the whole budget would only add delay to a
+   * miss. true = rustc's verdict is in the push cache.
+   *
+   * ponytail: a cancelled flycheck's `end` can close the token before the new
+   * flycheck's `begin` shows up in a burst of saves; one edit at a time is what a
+   * hook sends. A per-run id would need rust-analyzer's progress message to carry one.
+   */
+  async awaitFlycheck(filePath, beginsAtSave, timeoutMs, startGraceMs) {
+    const started = this.lastSaveAt;
+    const deadline = Date.now() + timeoutMs;
+    let grace = Date.now() + startGraceMs;
+    let done = false;
+    let resent = false;
+    for (; ; ) {
+      const began = this.flycheckBegins > beginsAtSave;
+      if (began && this.flycheckActive.size === 0) {
+        done = true;
+        break;
+      }
+      if (!began && this.indexState !== "ready") grace = Date.now() + startGraceMs;
+      const limit = began ? deadline : Math.min(deadline, grace);
+      const left = Math.min(limit - Date.now(), 100);
+      if (limit - Date.now() <= 0) {
+        if (!began && !resent && this.indexState === "ready" && deadline > Date.now()) {
+          resent = true;
+          this.saveDocument(filePath);
+          grace = Date.now() + startGraceMs;
+          continue;
+        }
+        break;
+      }
+      await new Promise((resolve4) => {
+        const t = setTimeout(resolve4, left);
+        this.flycheckWaiters.push(() => {
+          clearTimeout(t);
+          resolve4();
+        });
+      });
+    }
+    const endedAt = Date.now();
+    if (done) {
+      const uri = fileUri(filePath);
+      for (; ; ) {
+        const quietFor = Date.now() - Math.max(endedAt, this.diagnosticsUpdatedAt.get(uri) ?? 0);
+        const left = Math.min(DIAGNOSTICS_SETTLE_MS - quietFor, deadline - Date.now());
+        if (left <= 0) break;
+        await sleep(left);
+      }
+      this.rustcAtLastFlycheck.set(uri, this.rustcDiagnostics(filePath));
+    }
+    return {
+      done,
+      flycheckMs: endedAt - started,
+      firstPublishMs: this.firstPublishAfterSaveAt ? this.firstPublishAfterSaveAt - started : -1
+    };
+  }
+  /** What rustc said about the file, out of the push cache. */
+  rustcDiagnostics(filePath) {
+    return (this.diagnostics.get(fileUri(filePath)) ?? []).filter((d) => d.source === "rustc");
+  }
+  /**
+   * rustc's verdict on the file as of the last flycheck THIS client saw finish,
+   * or null when it has none. cargo check reads the file from disk, which at hook
+   * time already holds the post-edit text, so the pre-edit text itself can never
+   * be checked without writing it to disk (which this never does); the verdict of
+   * the previous edit's flycheck is the closest honest baseline.
+   */
+  rustcBaseline(filePath) {
+    return this.rustcAtLastFlycheck.get(fileUri(filePath)) ?? null;
   }
   /**
    * Wait for the server to publish diagnostics for a file.
@@ -1899,6 +2023,7 @@ async function disconnectAll() {
 }
 
 // src/tools/lsp/edit-diagnostics.ts
+var FLYCHECK_START_GRACE_MS = 1500;
 async function editDiagnostics(req) {
   const { file, beforeText, afterText, budgetMs, waitReadyMs } = req;
   return lspClientManager.runWithClientLease(file, async (client) => {
@@ -1910,16 +2035,36 @@ async function editDiagnostics(req) {
     }
     let before = [];
     let after;
+    const flycheckMs = client.supportsFlycheck ? req.flycheckMs ?? 0 : 0;
+    let rustcBefore = null;
     if (beforeText === null) {
       await client.openDocument(file);
-      after = await client.collectDiagnostics(file, budgetMs);
     } else {
       const baseSeq = await client.openDocumentWithText(file, beforeText);
       before = await client.collectDiagnostics(file, budgetMs, baseSeq);
-      const sentAt = client.changeDocument(file, afterText);
-      after = await client.collectDiagnostics(file, budgetMs, sentAt);
+      rustcBefore = flycheckMs > 0 ? client.rustcBaseline(file) : null;
+      if (rustcBefore) before = before.concat(rustcBefore);
     }
-    return { before, after, answered: client.diagnosticsAnswered(file), indexState: client.indexState };
+    const sentAt = beforeText === null ? -1 : client.changeDocument(file, afterText);
+    const beginsAtSave = flycheckMs > 0 ? client.saveDocument(file) : 0;
+    after = await client.collectDiagnostics(file, budgetMs, sentAt);
+    let flycheck = "n/a";
+    let timing;
+    if (flycheckMs > 0) {
+      const f = await client.awaitFlycheck(file, beginsAtSave, flycheckMs, FLYCHECK_START_GRACE_MS);
+      flycheck = f.done ? "done" : "timeout";
+      timing = { flycheckMs: f.flycheckMs, firstPublishMs: f.firstPublishMs };
+      if (f.done) after = after.concat(client.rustcDiagnostics(file));
+    }
+    return {
+      before,
+      after,
+      answered: client.diagnosticsAnswered(file),
+      indexState: client.indexState,
+      flycheck,
+      rustcBaselineKnown: flycheckMs > 0 && beforeText !== null ? rustcBefore !== null : void 0,
+      timing
+    };
   });
 }
 

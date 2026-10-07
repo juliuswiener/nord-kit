@@ -30,8 +30,11 @@ Yours to run, not the worker's — a worker's context comes from its brief.
 
 ## Tool
 
-`†` runs in the main session only: it fans out through `Workflow` or subagents, and a worker
+`†` runs in the main session only.
+<!-- instructor-only -->
+It fans out through `Workflow` or subagents, and a worker
 is denied `Workflow` unconditionally and `Task`/`Agent` by every policy.
+<!-- /instructor-only -->
 
 | Task | Default | When other | Do NOT use |
 |---|---|---|---|
@@ -49,9 +52,11 @@ is denied `Workflow` unconditionally and `Task`/`Agent` by every policy.
 | **Abort a loop** | `abort` | — | deleting `.nord/state` by hand |
 | **Change or replace a tool** | `TOOLING.md` | — | editing `src/` only, trusting a green suite |
 
+<!-- instructor-only -->
 ## Not loaded
 
 `nord-web` (read-router, web-scrape, pdf-extract, visual-read) · `nord-dev` (python-debugger,
 rust-coder, dart/flutter) · `nord-ee` (kicad-analyze, spice-sim, digikey-search, bom-manager,
 ee-reference, emc-precheck) are off in `settings.json`. Reaching for one fails. Enable the
 plugin first.
+<!-- /instructor-only -->

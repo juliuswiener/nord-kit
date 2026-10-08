@@ -40,12 +40,14 @@ try {
 // This hook is itself pinned, so __dirname IS the session's version, and writing
 // it here is the only place that fact is available. nord-hud compares it against
 // what is installed now and says so when they differ.
+let source = '';
 try {
   // Only when stdin is a pipe. SessionStart delivers JSON there and closes it,
   // but a hand-run hook on a TTY would block until the 5s timeout kills it and
   // the routing context below would silently never be emitted.
   if (!process.stdin.isTTY) {
     const payload = JSON.parse(fs.readFileSync(0, 'utf8') || '{}');
+    source = payload.source || '';
     const sid = payload.session_id;
     if (sid && /^[\w.-]+$/.test(sid)) {
       const cfgDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
@@ -66,6 +68,12 @@ try {
     }
   }
 } catch (e) { /* non-fatal — a missing marker just means no staleness hint */ }
+
+// A fork starts from its parent's transcript, which already holds the router text
+// from the parent's own start. Measured 2026-10-08 (orch fork, Claude Code 2.1.293):
+// source is "fork" and the request carried the router twice, the second copy in
+// the worker variant (~5 KB). The fork's role card already says what it may not do.
+if (source === 'fork') process.exit(0);
 
 let routing = '';
 try {

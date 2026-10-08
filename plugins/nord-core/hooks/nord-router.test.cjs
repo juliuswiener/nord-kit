@@ -8,10 +8,10 @@ const { spawnSync } = require("child_process");
 
 const HOOK = path.resolve(process.argv[2] || path.join(__dirname, "nord-router.js"));
 
-function render(env) {
+function render(env, payload = {}) {
   const base = { ...process.env };
   delete base.ORCH_CAN_SPAWN;
-  const r = spawnSync("node", [HOOK], { env: { ...base, ...env }, encoding: "utf8", input: "{}" });
+  const r = spawnSync("node", [HOOK], { env: { ...base, ...env }, encoding: "utf8", input: JSON.stringify(payload) });
   if (r.status !== 0) throw new Error(`hook exit ${r.status}: ${r.stderr}`);
   return r.stdout;
 }
@@ -39,5 +39,11 @@ check("instructor: 'Yours to run' kept", instructor.includes("Yours to run"));
 check("instructor: dagger explained", instructor.includes("`†` runs in the main session only"));
 
 check("no marker text reaches either role", !worker.includes("instructor-only") && !instructor.includes("instructor-only"));
+
+// A fork replays its parent's transcript, which already holds the router: say nothing twice.
+check("fork start: no output", render({}, { source: "fork" }) === "");
+for (const source of ["startup", "resume", "clear", "compact"]) {
+  check(`${source} start: router emitted`, render({}, { source }).includes("NORD ROUTER ACTIVE"));
+}
 
 process.exit(failed ? 1 : 0);

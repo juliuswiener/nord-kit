@@ -55,8 +55,6 @@ is denied `Workflow` unconditionally and `Task`/`Agent` by every policy.
 <!-- instructor-only -->
 ## Not loaded
 
-`nord-web` (read-router, web-scrape, pdf-extract, visual-read) · `nord-dev` (python-debugger,
-rust-coder, dart/flutter) · `nord-ee` (kicad-analyze, spice-sim, digikey-search, bom-manager,
-ee-reference, emc-precheck) are off in `settings.json`. Reaching for one fails. Enable the
-plugin first.
+`nord-web`, `nord-dev` and `nord-ee` are off in `settings.json`. Their tools do not exist
+here. Enable the plugin first.
 <!-- /instructor-only -->

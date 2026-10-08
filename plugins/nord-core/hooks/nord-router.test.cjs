@@ -34,6 +34,7 @@ check("worker: dagger is still explained", worker.includes("`†` runs in the ma
 check("worker: table is still there", worker.includes("| **Implement**"));
 
 check("instructor: 'Not loaded' kept", instructor.includes("Not loaded"));
+check("instructor: names the off plugins, not their tools", instructor.includes("`nord-ee`") && !instructor.includes("kicad-analyze"));
 check("instructor: 'unconditionally' kept", instructor.includes("unconditionally"));
 check("instructor: 'Yours to run' kept", instructor.includes("Yours to run"));
 check("instructor: dagger explained", instructor.includes("`†` runs in the main session only"));

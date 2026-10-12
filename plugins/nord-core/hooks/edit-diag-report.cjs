@@ -3,12 +3,27 @@
 // dist/ and daemon lived in the retired nord-core development repo). dist/tools/lsp/
 // is now built from mcp/src by mcp/build.mjs, and the MCP server stands in for the
 // lost daemon. Vault: edit-diagnose-laeuft-ueber-den-warmen-mcp-server.
-// PostToolUse(Edit|Write|NotebookEdit) — report the errors THIS edit introduced.
+// PostToolBatch — report the errors a RESPONSE's edits (Edit|Write|NotebookEdit)
+// introduced, once, after the last of them.
 //
 // Edit verifies that old_string occurs exactly once. That is a string check,
 // not a code check: nothing confirms the file still compiles, and the next
 // build is where it surfaces. Measured in this workspace: Edit 12,035 calls,
 // Write 2,865, lsp_diagnostics 0 — nobody closes the loop by hand.
+//
+// ---------------------------------------------------------------------------
+// When it runs
+//
+// Once per response, on PostToolBatch, not per edit on PostToolUse. Measured
+// 2026-10-12 (CLI 2.1.296, three `claude -p` runs): the edits of one response run
+// one after another, each as soon as its block has streamed in, so when the first
+// edit's PostToolUse fires the later edits often do not exist yet (block 2
+// arrived 268 ms after it). Reported per edit, 58 % of the messages to orch
+// workers came in behind edits already sent, and 29 % named an error those edits
+// had fixed. PostToolBatch fires once after every call of the response, all of
+// them in tool_calls. Its matcher is ignored (it fired for a batch of Reads), so
+// the edits are picked out here. Per file, the stash of the response's FIRST edit
+// (edit-diag-capture.cjs keeps it) is compared with the disk after the LAST one.
 //
 // ---------------------------------------------------------------------------
 // How the before-picture is obtained
@@ -37,6 +52,10 @@
 // Silence means "checked, nothing new". When the server did not actually answer
 // -- the case a cold server produces -- this says so instead. A silent all-clear
 // from a server that never looked is the worst output this hook could give.
+// "Not checked" is said once per session and file (rust-analyzer said it 602
+// times in five days, 310 of them byte-identical), and it says that silence
+// about that file is no all-clear until the server answers. The first answer
+// after it says "checked again", so silence means "checked" from then on.
 //
 // Fail-OPEN and silent on every internal error: a diagnostics nicety must never
 // break the edit loop.
@@ -77,6 +96,18 @@ const DEBUG = process.env.NORD_EDIT_DIAG_DEBUG === "1";
 // languages never send a save and ignore this.
 const FLYCHECK_MS = positiveInt(process.env.NORD_EDIT_DIAG_FLYCHECK_MS, 4000);
 const WAIT_READY_MS = positiveInt(process.env.NORD_EDIT_DIAG_WAIT_READY_MS, 0);
+// The files of one response are diagnosed one after another, not in parallel:
+// two leases on one language-server client run interleaved (no lock in
+// runWithClientLease), two cold files of one language would each start a server,
+// and rust-analyzer's flycheck tracking (lastSaveAt, flycheckActive) is per
+// client, so two saves at once blur which cargo check ended. One Rust file costs
+// up to BUDGET_MS + FLYCHECK_MS (8 s) warm and a socket timeout plus an
+// in-process run cold (about 30 s). So the hook timeout in hooks.json is 150 s,
+// and past this limit the remaining files are "not checked" -- a hook killed by
+// its timeout would say nothing, and silence reads as "checked".
+const REPORT_MS = positiveInt(process.env.NORD_EDIT_DIAG_REPORT_MS, 90000);
+// Same value and rule as in edit-diag-capture.cjs.
+const SLOT_MAX_AGE_MS = 15 * 60 * 1000;
 
 function positiveInt(v, dflt) {
   const n = parseInt(v || "", 10);
@@ -87,15 +118,50 @@ function quit() { process.exit(0); }
 
 function say(text) {
   process.stdout.write(JSON.stringify({
-    hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: text },
+    hookSpecificOutput: { hookEventName: "PostToolBatch", additionalContext: text },
   }));
   process.exit(0);
 }
 
-function slotFor(file) {
-  const dir = path.join(os.tmpdir(), `nord-edit-diag-${process.getuid ? process.getuid() : 0}`);
+// Same layout as slotFor() in edit-diag-capture.cjs.
+function slotFor(input, file) {
+  const owner = [input.session_id || "nosession", input.agent_id].filter(Boolean).join("-").replace(/[^A-Za-z0-9_-]/g, "_");
+  const dir = path.join(os.tmpdir(), `nord-edit-diag-${process.getuid ? process.getuid() : 0}`, owner);
+  fs.mkdirSync(dir, { recursive: true });
   return path.join(dir, crypto.createHash("sha256").update(file).digest("hex").slice(0, 32) + ".json");
 }
+
+// Same rule as current() in edit-diag-capture.cjs: a stash from an earlier prompt
+// (its batch never reported) is no baseline for this one.
+function current(stash, input) {
+  return input.prompt_id ? stash.prompt_id === input.prompt_id : Date.now() - stash.at < SLOT_MAX_AGE_MS;
+}
+
+// Read and remove the stash; null when there is none or it is not this response's.
+function takeSlot(input, file) {
+  try {
+    const slot = slotFor(input, file);
+    const stash = JSON.parse(fs.readFileSync(slot, "utf8"));
+    fs.unlinkSync(slot);
+    return current(stash, input) ? stash : null;
+  } catch { return null; }
+}
+
+// "Not checked", once per (session, agent, file): the marker beside the stash
+// says it was said. null when it was.
+function unchecked(input, file, reason) {
+  const name = path.basename(file);
+  try { fs.writeFileSync(slotFor(input, file) + ".unchecked", "", { flag: "wx" }); } catch { return null; }
+  return `nord: not checked — ${reason}. Further edits to ${name} in this session stay unchecked until the server answers; silence about ${name} is not an all-clear.`;
+}
+
+// The server answered: true when "not checked" had been said, which now ends.
+function checkedAgain(input, file) {
+  try { fs.unlinkSync(slotFor(input, file) + ".unchecked"); return true; } catch { return false; }
+}
+
+const failed = (call) => /<tool_use_error>/.test(typeof call.tool_response === "string" ? call.tool_response : JSON.stringify(call.tool_response || ""));
+const pathOf = (call) => (call.tool_input || {}).file_path || (call.tool_input || {}).notebook_path;
 
 // Identity of a diagnostic for set-difference purposes: everything that
 // describes WHAT is wrong, and nothing that describes WHERE.
@@ -151,7 +217,7 @@ function render(file, list) {
     return `  ${rel}:${line}:${col}${code} ${d.message.split("\n")[0]}`;
   });
   const n = list.length;
-  return `nord: this edit introduced ${n} new ${n === 1 ? "error" : "errors"}\n${lines.join("\n")}`;
+  return `nord: this response's edits introduced ${n} new ${n === 1 ? "error" : "errors"}\n${lines.join("\n")}`;
 }
 
 async function main() {
@@ -159,11 +225,13 @@ async function main() {
   try {
     input = JSON.parse(fs.readFileSync(0, "utf8") || "{}");
   } catch { quit(); }
-  if (!input || !WATCHED.has(input.tool_name)) quit();
+  if (!input || input.hook_event_name !== "PostToolBatch") quit();
 
-  const ti = input.tool_input || {};
-  const file = ti.file_path || ti.notebook_path;
-  if (!file || typeof file !== "string") quit();
+  const edits = (input.tool_calls || []).filter(c => WATCHED.has(c.tool_name) && typeof pathOf(c) === "string");
+  const files = [...new Set(edits.map(pathOf))];
+  if (files.length === 0) quit();
+  // Taken before anything can end the hook early, so no stash outlives its batch.
+  const stashes = files.map(f => takeSlot(input, f));
 
   // dist/ ships alongside hooks/ in the plugin, so nord's real client is
   // reachable. Re-implementing server selection and workspace-root detection
@@ -172,24 +240,45 @@ async function main() {
   if (!fs.existsSync(dist)) quit();
   const lsp = require(dist);
 
+  const t0 = Date.now();
+  const state = { inProcess: false };
+  const out = [];
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const calls = edits.filter(c => pathOf(c) === files[i]);
+      // The first file is always diagnosed; see REPORT_MS.
+      const overTime = i > 0 && Date.now() - t0 >= REPORT_MS;
+      // Fail-open per file: one file's internal error must not drop the others' messages.
+      const text = await diagnose(lsp, input, files[i], stashes[i], calls, state, overTime).catch(() => null);
+      if (text) out.push(text);
+    }
+  } finally {
+    // A server this process started must not outlive it.
+    if (state.inProcess) await lsp.disconnectAll().catch(() => {});
+  }
+  if (out.length > 0) say(out.join("\n"));
+  quit();
+}
+
+// The message about one file of the batch, or null for silence.
+async function diagnose(lsp, input, file, stash, calls, state, overTime) {
+  const name = path.basename(file);
   const serverConfig = lsp.getServerForFile(file);
   // No server for this language, or the server is not installed. Say nothing:
   // an edit to a .md file should not produce output, and claiming "clean" for a
   // language nothing checked would be a lie.
-  if (!serverConfig || !lsp.commandExists(serverConfig.command)) quit();
+  if (!serverConfig || !lsp.commandExists(serverConfig.command)) return null;
 
-  let stash = null;
-  try {
-    const slot = slotFor(file);
-    stash = JSON.parse(fs.readFileSync(slot, "utf8"));
-    fs.unlinkSync(slot);
-  } catch { /* no baseline captured */ }
+  // A call rejected by input validation (old_string not found ...) fires no
+  // PreToolUse and changes nothing (measured); its file's old errors are not news.
+  if (!stash && calls.every(failed)) return null;
 
   let afterText;
-  try { afterText = fs.readFileSync(file, "utf8"); } catch { quit(); }
+  try { afterText = fs.readFileSync(file, "utf8"); } catch { return null; }
 
   const beforeText = stash ? stash.text : null;
-  if (beforeText === afterText) quit();   // nothing actually changed
+  if (beforeText === afterText) return null;   // nothing actually changed
+  if (overTime) return unchecked(input, file, `this report used up its ${REPORT_MS}ms before ${name}`);
 
   const t0 = Date.now();
   const req = { file, beforeText, afterText, budgetMs: BUDGET_MS, waitReadyMs: WAIT_READY_MS, flycheckMs: FLYCHECK_MS };
@@ -208,13 +297,10 @@ async function main() {
   }
   if (!r) {
     // Nobody answered. Do it here -- slow but correct, never a silent all-clear.
+    // The servers it starts stay up for the batch's other files; main() stops them.
     via = "in-process";
-    try {
-      r = await lsp.editDiagnostics(req);
-    } finally {
-      // A server this process started must not outlive it.
-      await lsp.disconnectAll().catch(() => {});
-    }
+    state.inProcess = true;
+    r = await lsp.editDiagnostics(req);
   }
   const { before, after, answered, indexState, flycheck, rustcBaselineKnown, timing } = r;
   const rustcUnchecked = flycheck === "timeout";
@@ -232,14 +318,20 @@ async function main() {
   const ms = Date.now() - t0;
   const debug = DEBUG ? `\n[nord-edit-diag ${ms}ms via=${via} answered=${answered} index=${indexState} before=${before.length} after=${after.length}${flycheck && flycheck !== "n/a" ? ` flycheck=${flycheck} didSave->flycheck-end=${timing.flycheckMs}ms didSave->first-publish=${timing.firstPublishMs}ms` : ""}]` : "";
 
+  const notAnswered = `${serverConfig.name} did not answer about ${name} within ${BUDGET_MS}ms`;
+  const withDebug = text => (text ? text + debug : null);
+  // Fully checked: the server answered and, for Rust, cargo check finished.
+  const checked = ready && !rustcUnchecked;
+  const again = checked && checkedAgain(input, file);
+
   if (beforeText === null) {
     const errs = dedupe(after.filter(isError));
-    if (!ready) say(`nord: not checked — ${serverConfig.name} did not answer about ${path.basename(file)} within ${BUDGET_MS}ms.${debug}`);
+    if (!ready) return withDebug(unchecked(input, file, notAnswered));
     if (errs.length === 0) {
-      if (rustcUnchecked) say(`nord: not checked — ${rustcNote}.${debug}`);
-      quit();
+      if (rustcUnchecked) return withDebug(unchecked(input, file, rustcNote));
+      return again ? `nord: ${name} is checked again — no new errors.${debug}` : null;
     }
-    say(`nord: ${path.basename(file)} has ${errs.length} error(s); no pre-edit baseline was captured, so these may predate this edit.\n${render(file, errs).split("\n").slice(1).join("\n")}${debug}`);
+    return `nord: ${name} has ${errs.length} error(s); no pre-edit baseline was captured, so these may predate this response's edits.\n${render(file, errs).split("\n").slice(1).join("\n")}${debug}`;
   }
 
   const fresh = newErrors(dedupe(before.filter(isError)), dedupe(after.filter(isError)));
@@ -249,18 +341,15 @@ async function main() {
     const notes = [];
     if (rustcBaselineKnown === false && fresh.some(d => d.source === "rustc")) notes.push("no rustc baseline in this server session; rustc errors may predate this edit");
     if (rustcUnchecked) notes.push(`not checked — ${rustcNote}`);
-    say(render(file, fresh) + notes.map(n => `\n  (${n})`).join("") + debug);
+    return render(file, fresh) + notes.map(n => `\n  (${n})`).join("") + debug;
   }
 
   // Nothing new. Only claim that if the server actually looked.
-  if (!ready) {
-    say(`nord: not checked — ${serverConfig.name} did not answer about ${path.basename(file)} within ${BUDGET_MS}ms, so "no new errors" is not established.${debug}`);
-  }
-  if (rustcUnchecked) {
-    say(`nord: not checked — ${rustcNote}, so "no new errors" is not established for rustc errors.${debug}`);
-  }
-  if (DEBUG) say(`nord: no new errors.${debug}`);
-  quit();
+  if (!ready) return withDebug(unchecked(input, file, notAnswered));
+  if (rustcUnchecked) return withDebug(unchecked(input, file, rustcNote));
+  if (again) return `nord: ${name} is checked again — no new errors.${debug}`;
+  if (DEBUG) return `nord: no new errors.${debug}`;
+  return null;
 }
 
 main().catch(() => process.exit(0));

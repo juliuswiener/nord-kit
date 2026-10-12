@@ -38,7 +38,11 @@ function project({ ownTypescript = true } = {}) {
 }
 
 function hook(script, event, file, env = ENV, tool = "Edit") {
-  const payload = { hook_event_name: event, tool_name: tool, tool_input: { file_path: file }, cwd: path.dirname(file) };
+  const call = { tool_name: tool, tool_input: { file_path: file } };
+  // The report runs on PostToolBatch, which carries every call of the response.
+  const payload = event === "PostToolBatch"
+    ? { hook_event_name: event, tool_calls: [{ ...call, tool_use_id: "t", tool_response: "ok" }], cwd: path.dirname(file) }
+    : { hook_event_name: event, ...call, cwd: path.dirname(file) };
   const r = spawnSync("node", [script], { input: JSON.stringify(payload), env, encoding: "utf8", timeout: 60000 });
   let ctx = "";
   try { ctx = JSON.parse(r.stdout).hookSpecificOutput.additionalContext; } catch { /* silent = no output */ }
@@ -49,7 +53,7 @@ function edit(file, before, after, env) {
   fs.writeFileSync(file, before);
   hook(CAPTURE, "PreToolUse", file, env);
   fs.writeFileSync(file, after);
-  return hook(REPORT, "PostToolUse", file, env);
+  return hook(REPORT, "PostToolBatch", file, env);
 }
 
 async function main() {
@@ -85,7 +89,7 @@ async function main() {
   hook(CAPTURE, "PreToolUse", f3);
   fs.writeFileSync(f3, 'export const w: number = "t";\n');
   const t0 = Date.now();
-  const out3 = hook(REPORT, "PostToolUse", f3);
+  const out3 = hook(REPORT, "PostToolBatch", f3);
   const warmMs = Date.now() - t0;
   check("socket answer reports the new error", /introduced 1 new error/.test(out3), `got: ${JSON.stringify(out3)}`);
   check("answer came over the socket", /via=socket/.test(out3), `got: ${JSON.stringify(out3)}`);
@@ -114,12 +118,12 @@ async function main() {
   const f6 = path.join(p5, "fresh.ts");
   hook(CAPTURE, "PreToolUse", f6, ENV, "Write");
   fs.writeFileSync(f6, 'export const n: number = "w";\n');
-  const out6 = hook(REPORT, "PostToolUse", f6, ENV, "Write");
+  const out6 = hook(REPORT, "PostToolBatch", f6, ENV, "Write");
   check("Write of a new file: its error is reported", /introduced 1 new error/.test(out6), `got: ${JSON.stringify(out6)}`);
   const f7 = path.join(p5, "fresh-clean.ts");
   hook(CAPTURE, "PreToolUse", f7, ENV, "Write");
   fs.writeFileSync(f7, "export const m = 1;\n");
-  const out7 = hook(REPORT, "PostToolUse", f7, ENV, "Write");
+  const out7 = hook(REPORT, "PostToolBatch", f7, ENV, "Write");
   check("Write of a clean new file stays quiet", !/introduced/.test(out7) && /no new errors/.test(out7), `got: ${JSON.stringify(out7)}`);
 
   server.kill();

@@ -111,6 +111,12 @@ fs.writeFileSync(file("s.json"), '{"a": 1}\n');
 response("p8a", [["s.json", BROKEN]], ENV, { batch: false });
 const r8 = response("p8b", [["s.json", '{"a": 7 "b": 2}\n']]);
 check("AK8 a slot from an earlier prompt is not the baseline", names(r8, "s.json").length === 0, show(r8));
+// The same where this response's only edit of the file was rejected, so no
+// PreToolUse replaced the old slot: the report itself must refuse it.
+fs.writeFileSync(file("q.json"), '{"a": 1}\n');
+response("p8c", [["q.json", BROKEN]], ENV, { batch: false });
+const r8b = response("p8d", [["q.json", null, "failed"]]);
+check("AK8 and a rejected edit does not pick up that old slot", names(r8b, "q.json").length === 0, show(r8b));
 
 // AK4: "not checked" once per session and file, saying that silence is no all-clear;
 // the first answer after it says the file is checked again, then silence again.

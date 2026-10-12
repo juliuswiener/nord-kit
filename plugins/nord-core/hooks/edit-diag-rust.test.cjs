@@ -86,7 +86,11 @@ function project() {
 function run(script, file, extra) {
   const env = { ...process.env, TMPDIR: TMP, PATH: BIN + path.delimiter + process.env.PATH,
     NORD_LSP_DAEMON: "0", NORD_EDIT_DIAG_DEBUG: "1", ...extra };
-  const payload = { hook_event_name: "x", tool_name: "Edit", tool_input: { file_path: file }, cwd: path.dirname(file) };
+  const call = { tool_name: "Edit", tool_input: { file_path: file } };
+  // The report runs on PostToolBatch, which carries every call of the response.
+  const payload = script === REPORT
+    ? { hook_event_name: "PostToolBatch", tool_calls: [{ ...call, tool_use_id: "t", tool_response: "ok" }], cwd: path.dirname(file) }
+    : { hook_event_name: "PreToolUse", ...call, cwd: path.dirname(file) };
   const r = spawnSync("node", [script], { input: JSON.stringify(payload), env, encoding: "utf8", timeout: 60000 });
   try { return JSON.parse(r.stdout).hookSpecificOutput.additionalContext; } catch { return ""; }
 }

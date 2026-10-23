@@ -10,6 +10,10 @@ Decomposes a codebase research goal into independent hypotheses, routes each to 
 
 **Scope: CODEBASE ONLY.** This skill investigates local source code via file reads, grep, bash, and git. It does NOT search the web. For web/ideation research use `plan --stage ideas`. For architectural audit with security/perf/CI lanes use `review --scope repo --deep`.
 
+Needs the Workflow tool in your tool list. That holds for a run, not for `status`, `list`, `report` or `cancel`.
+If the tool is not there, do not retry: say in your report that this mode could not run and why
+(in orch only the instructor and the qualifier hold Workflow).
+
 ---
 
 ## When to use vs alternatives

@@ -10,6 +10,9 @@ Invoking this skill IS opt-in to multi-agent orchestration. Run the Workflow too
 script below. First, inline, establish the review target (default: `git diff HEAD`; or the
 files/PR the user named) and pass it as `args.target`.
 
+Needs the Workflow tool in your tool list. If it is not there, do not retry: say in your report that
+this mode could not run and why (in orch only the instructor and the qualifier hold Workflow).
+
 Why this over a single reviewer: one model misses failure modes. Independent per-dimension
 reviewers catch more; adversarial verification kills plausible-but-wrong findings before they
 reach the user.

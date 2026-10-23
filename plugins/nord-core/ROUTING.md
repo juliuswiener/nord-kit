@@ -7,11 +7,12 @@ Where several tools overlap, pick the named one. Do not improvise among duplicat
 
 | The task is | Preset | Rights |
 |---|---|---|
-| judge code, change nothing | `reviewer` | read |
+| judge code, change nothing | `reviewer` | read + web |
 | answer from code + web | `researcher` | read + web |
 | make the change, run the tests | `implementer` | read + edit + shell |
 | reproduce and localise a failure | `debugger` | read + edit + shell |
-| a cheaper worker already failed | `expert` | read, frontier model, high effort |
+| qualify a ticket and plan its build | `qualifier` | read + edit + shell + Workflow (plan tournament); the vault stays yours |
+| a cheaper worker already failed | `expert` | read + web, frontier model, high effort |
 
 No row fits → the task is not sharp enough to hand over yet.
 
@@ -36,6 +37,12 @@ It fans out through `Workflow` or subagents, and a worker
 is denied `Workflow` unconditionally and `Task`/`Agent` by every policy.
 <!-- /instructor-only -->
 
+A row binds you only when your tool list holds what it needs. If it lacks one, skip the row, do not retry, and say so in your report.
+
+- Needs `Skill`: every skill row.
+- Needs a shell: `verify`, `interactive`, `bin/context`.
+- Needs `Workflow` (in orch only the instructor and the qualifier hold it): `plan` without a stage, `research`, `review --deep`, `cleanup --remove`.
+
 | Task | Default | When other | Do NOT use |
 |---|---|---|---|
 | **Plan** — what to build, and how | `plan` — the tournament, returns one plan | `--stage ideas` (idea board) · `--stage shortlist` (ranked, weak ones killed) · `--stage spec` (one question per round until requirements are pinned) · `--deep` (Planner→Architect→Critic after the tournament) | make-plan, ralplan, superpowers brainstorming |
@@ -43,7 +50,7 @@ is denied `Workflow` unconditionally and `Task`/`Agent` by every policy.
 | **Review** — a change, a codebase, or a plan | `review` — one pass over the diff | `--scope repo` (whole tree) · `--scope plan` (before anyone builds it) · `--lens security\|a11y\|claims` · `--deep` (parallel specialists, every finding adversarially verified) | `/code-review`, `/security-review` (denied — same job, three entry points), elite-code-reviewer, trusting a green suite, believing the docs |
 | **Cleanup** | `cleanup` — **no default**, say which | `--remove` (dead code, verified safe first) · `--move files\|modules` (relocate) · `/simplify` (quick) | ai-slop-cleaner |
 | **Diagnose** — why does it behave this way | `diagnose` — competing hypotheses, ending at the one probe that settles it | the `debugger` agent when you can already reproduce and localise it | systematic-debugging · applying the fix from here (that is `implement`) |
-| **Research** | `research` — this repo, local only | `--web` (docs, APIs, specs) · native WebSearch/WebFetch as fallback | research, autoresearch |
+| **Research** | `research` — this repo, local only | `--web` (docs, APIs, specs) · native WebSearch/WebFetch as fallback | other plugins' research skills, autoresearch |
 | **Orient in a repo** | `orient` — ranks symbols by PageRank, no build, runs anywhere | `smart_outline` (one file) · `graphify` (what depends on what; needs a built graph) · `deepinit` † (writes AGENTS.md) | `learn-codebase` — reads every file in full · reading files just to orient |
 | **Start work on a vault entry** | `~/00_projects/vault/bin/context <slug>` — the ticket, the rules that can fire here, the files, their neighbourhood and tests, the decisions governing those paths, recent commits, open claims, blockers | `--budget N` to cut from the bottom · `--json` | grepping the vault for related notes — the decisions that govern these paths are not linked from the entry, so search does not find them |
 | **Verify** | `verify` | — | claiming done without evidence |

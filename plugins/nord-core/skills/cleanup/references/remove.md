@@ -10,6 +10,9 @@ Invoking this skill IS opt-in to multi-agent orchestration. Run the Workflow too
 script below. Default scope: recently changed files / the path the user named — pass as
 `args.target`.
 
+Needs the Workflow tool in your tool list. If it is not there, do not retry: say in your report that
+this mode could not run and why (in orch only the instructor and the qualifier hold Workflow).
+
 This is REPORT-FIRST: the workflow returns a verified deletion plan. Present it, then apply
 removals only after the user confirms (or if they said "apply"/"--fix"). Never delete on a
 candidate that wasn't marked `safeToRemove`.

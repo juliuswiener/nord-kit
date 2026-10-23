@@ -10,6 +10,9 @@ argument-hint: "[--stage ideas|shortlist|spec] [--deep] <task>"
 Invoking this skill IS opt-in to multi-agent orchestration. Run the Workflow tool with the
 script below. Pass the task as `args.task` (fall back to the conversation).
 
+Needs the Workflow tool in your tool list. If it is not there, do not retry: say in your report that
+this mode could not run and why (in orch only the instructor and the qualifier hold Workflow).
+
 **When NOT to use:** for a tightly-scoped refactor in a rich/active repo (dirty working tree,
 many recently-touched files), the free multi-lens exploration tends to drift onto the most
 salient local artifact instead of your task — prefer `plan --deep` (sequential, focused) or direct

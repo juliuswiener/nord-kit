@@ -25,6 +25,9 @@ The audit surfaces *what will hurt*, not *what could be prettier*. Findings have
 
 ## Running it
 
+Needs the Workflow tool in your tool list. If it is not there, do not retry: say in your report that
+this mode could not run and why (in orch only the instructor and the qualifier hold Workflow).
+
 You MUST invoke the bundled Workflow script with **absolute paths** and **args as a JSON object** (not a string):
 
 ```

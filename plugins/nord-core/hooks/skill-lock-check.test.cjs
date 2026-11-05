@@ -205,6 +205,16 @@ SECTIONS.robust = function () {
   fs.rmSync(d, { recursive: true });
   t("a locked skill whose folder is gone -> one line with 'fehlt' and the hint at remove", run({ home }), { line: true, re: /demo.*fehlt.*remove|fehlt.*remove.*demo/ });
 
+  // the helper library itself is missing or corrupt (a botched update): still silent and exit 0
+  for (const [label, lib] of [["missing", null], ["corrupt", "this is not javascript {{{"]]) {
+    const box = path.join(ROOT, `box-${label}`);
+    fs.mkdirSync(path.join(box, "hooks"), { recursive: true });
+    fs.copyFileSync(path.join(__dirname, "skill-lock-check.cjs"), path.join(box, "hooks", "skill-lock-check.cjs"));
+    if (lib) put(box, "scripts/skill-lock.cjs", lib);
+    const r = spawnSync(process.execPath, [path.join(box, "hooks", "skill-lock-check.cjs")], { input: "{}", encoding: "utf8", env: baseEnv(home) });
+    check(`robust: the helper library ${label} -> silent, exit 0`, r.status === 0 && r.stdout === "", JSON.stringify([r.status, r.stdout, (r.stderr || "").slice(0, 80)]));
+  }
+
   if (IS_ROOT) { console.log("skip robust: unreadable files (running as root reads mode-000 files)"); return; }
   const h2 = fx(), d2 = mkSkill(h2, "demo");
   lock(h2, d2);
@@ -218,8 +228,11 @@ SECTIONS.robust = function () {
 
 // AK16 — bounded run time: timeout <= 5 s in hooks.json, a time budget inside, 30 skills x 20 files fit.
 SECTIONS.laufzeit = function () {
+  // Conditional on the registration: build step 5 must go green before step 6 writes hooks.json, and
+  // `ausloeser` is the section that fails while the entry is missing (and checks the timeout again).
   const { h } = registry();
-  check("laufzeit: the timeout registered in hooks.json is <= 5 s", !!h && typeof h.timeout === "number" && h.timeout <= 5, JSON.stringify(h));
+  if (h) check("laufzeit: the timeout registered in hooks.json is <= 5 s", typeof h.timeout === "number" && h.timeout <= 5, JSON.stringify(h));
+  else console.log("skip laufzeit: timeout in hooks.json (hook not registered yet; ausloeser fails until it is)");
   const L = require(LIB_FILE);
   const home = fx(), lockObj = { version: 1, skills: {} };
   let last;

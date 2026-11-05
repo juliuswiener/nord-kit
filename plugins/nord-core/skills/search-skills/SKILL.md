@@ -34,8 +34,12 @@ at <https://skills.sh/>.
    - the repo — under 100 stars means read the SKILL.md before installing anything
 5. **Present** name, what it does, install count, source, the exact install command and
    the skills.sh link. The user chooses.
-6. **Install only on an explicit yes.** Then say it activates at the next session start,
-   not in this one.
+6. **Install only on an explicit yes.** Run `npx skills add <owner/repo@skill> -g -y`, then lock what landed:
+   `node "${CLAUDE_PLUGIN_ROOT}/scripts/skill-lock.cjs" write ~/.claude/skills/<skill> --source "skills.sh:<owner/repo@skill>"`
+   and read it back with
+   `node "${CLAUDE_PLUGIN_ROOT}/scripts/skill-lock.cjs" verify ~/.claude/skills/<skill>` (both must exit 0).
+   The CLI usually leaves `~/.claude/skills/<skill>` as a symlink to a shared copy; the helper follows that
+   link and writes the lock beside `skills/`. Then say it activates at the next session start, not in this one.
 
 ## When nothing fits
 

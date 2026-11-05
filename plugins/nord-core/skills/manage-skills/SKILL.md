@@ -65,11 +65,20 @@ duplicating them here would mean maintaining both.
 Confirm with the resolved path before deleting anything, and delete through the file
 tools rather than `rm` — `guard-rm.py` blocks deletions it cannot resolve.
 
+If the skill is locked (an entry in `nord-skill-lock.json`, beside its `skills/` folder), drop the entry too:
+`node "${CLAUDE_PLUGIN_ROOT}/scripts/skill-lock.cjs" remove <slug>` (add `--project` for a project skill).
+Without it the session-start check reports the missing folder as a deviation every time.
+
+### edit
+
+After changing a locked skill, lock it again, or the next session start reports your own edit as a change:
+`node "${CLAUDE_PLUGIN_ROOT}/scripts/skill-lock.cjs" write <skill-dir> --source "<source>"` — pass the `source` the entry already has in `nord-skill-lock.json`.
+
 ### sync
 
 Show the diff between the two copies before writing. Never overwrite the destination
 silently; a project skill and a user skill with the same slug are a precedence question,
-not a duplicate.
+not a duplicate. If the destination is a locked skill, lock it again with the `write` command under `edit`.
 
 ## Errors
 

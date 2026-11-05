@@ -22,8 +22,11 @@ tools are absent, say so and stop — do not fabricate results.
 4. **Install** — choose scope deliberately:
    - project → `.claude/skills/{slug}/` · global → `~/.claude/skills/{slug}/`
    - If `{slug}/` already exists, confirm overwrite — never clobber silently.
+   - **Show before writing:** print the path and the full content of every file that is not Markdown (`*.md`) and of everything under `scripts/`, then wait for the user's explicit "ja" (or "yes"). No answer, no write.
    - Write `SKILL.md` + every accompanying file to the chosen dir.
+   - Lock it: `node "${CLAUDE_PLUGIN_ROOT}/scripts/skill-lock.cjs" write <skill-dir> --source "prompts.chat:<id>"` (`<skill-dir>` = the dir just written; must exit 0). The lock records a hash per file, so a later change is reported at session start.
 5. **Verify** — read back `SKILL.md`, confirm frontmatter intact, state what it does + when it triggers.
+   Then `node "${CLAUDE_PLUGIN_ROOT}/scripts/skill-lock.cjs" verify <skill-dir>` must exit 0.
    Skills load at session start → tell the user to restart for it to activate.
 
 ## Example

@@ -9,7 +9,8 @@
 //
 // Mutation seds for the AK8 check (run against a COPY, never the real file; see the entry):
 //   SED_M1 ='s/if (now.hash !== entry.hash)/if (now.hash === entry.hash)/'   verifyEntry compares inverted
-//   SED_M1B='s/\[n, files\[n\]\]/[files[n]]/'                                 hashSkillDir drops the path
+//   SED_M1B='s/sha(JSON.stringify(pairs))/sha(JSON.stringify(pairs.map((p) => p.slice(1))))/'
+//                                                                              hashSkillDir drops the path from the total
 
 const fs = require("fs");
 const os = require("os");
@@ -281,6 +282,10 @@ SECTIONS.schreiben = function () {
   refused("remove with slug '../alpha'", cli(["remove", "../alpha"], { home }));
   refused("remove with slug 'a/b'", cli(["remove", "a/b"], { home }));
   refused("remove of a slug that is not locked", cli(["remove", "nope"], { home }));
+  const stray = path.join(home, "elsewhere", "stray");
+  put(stray, "SKILL.md", "---\nname: stray\n---\n");
+  refused("a skill folder outside any skills/ folder (the hook would never read that lock)", cli(["write", stray, "--source", "t"], { home }));
+  check("schreiben: ...and no stray lock file appeared next to it", !fs.existsSync(path.join(home, "nord-skill-lock.json")));
   check("schreiben: no .tmp leftovers beside the lock", fs.readdirSync(path.dirname(lf)).sort().join() === "nord-skill-lock.json,skills", fs.readdirSync(path.dirname(lf)).join());
 
   const rm = cli(["remove", "beta"], { home });

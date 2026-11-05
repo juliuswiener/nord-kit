@@ -75,6 +75,15 @@
             "statusMessage": "Loading nord router..."
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/skill-lock-check.cjs",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [

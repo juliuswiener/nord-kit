@@ -17,7 +17,7 @@ require a secret to travel through your context, stop and hand the whole command
 
 | # | when | what happens |
 |---|---|---|
-| **0** | the command is `sudo <something>` **and** a GUI is present | `sudo -A` with a password dialog. **No terminal, no tmux**, and stdout/stderr come back to you normally |
+| **0** | the command is `sudo <something>` **and** a GUI is present | `sudo -A` with a password dialog that names the reason and the command. **No terminal, no tmux**, and stdout/stderr come back to you normally |
 | 1 | `$TMUX` is set — you are inside the user's tmux | split a pane in their current window |
 | 2 | `$HERDR_PANE_ID` is set | a herdr pane |
 | 3 | a tmux server is running, you are outside it | new window in the first session, and say which |
@@ -34,15 +34,19 @@ This is the canonical answer to "no TTY, needs a sudo password", and for the com
 100-line capture limit, and the exit code and full output arrive the ordinary way.
 
 ```sh
-# One stable helper at a literal path, created if absent. It holds NO secret — only the
-# call that asks for one — so there is nothing to clean up and nothing to delete.
+# One stable helper at a literal path, copied over every time (a plugin update takes effect).
+# It holds NO secret — only the call that asks for one — so there is nothing to clean up.
 mkdir -p ~/.cache/nord
-printf '#!/bin/sh\nzenity --password --title="sudo password for Claude Code" 2>/dev/null\n' \
-  > ~/.cache/nord/askpass.sh
+cp "${CLAUDE_PLUGIN_ROOT}/scripts/askpass.sh" ~/.cache/nord/askpass.sh
 chmod 700 ~/.cache/nord/askpass.sh
 
-SUDO_ASKPASS=~/.cache/nord/askpass.sh sudo -A <cmd>
+NORD_SUDO_WHY='<one sentence, German, why this command is needed>' SUDO_ASKPASS=~/.cache/nord/askpass.sh sudo -A <cmd>
 ```
+
+**`NORD_SUDO_WHY` is mandatory:** one concrete sentence, German, no secrets, no `'` in it. The
+dialog shows it as "Wofür:" above "Befehl:", the command sudo really received — read from
+`/proc`, not from you, so do not repeat the command in the reason. Without a reason the
+dialog says "NICHT ANGEGEBEN" and Julius approves a command blind.
 
 **Why a fixed path and not `mktemp` plus cleanup.** The obvious version ends in
 `rm -f "$ASKPASS"`, and this device's `guard-rm.py` refuses that — a deletion whose target
@@ -50,10 +54,11 @@ is a runtime variable cannot be checked against the protected list, and unknown 
 That rule has stopped two real accidents here, so the skill bends around it rather than the
 other way. Measured 2026-09-05, while testing this very procedure.
 
-`zenity --password` writes the typed password on stdout, `sudo -A` reads it there, and
-neither ever touches your context. Alternatives if `zenity` is absent, same contract:
-`ssh-askpass`, `ksshaskpass`, `lxqt-openssh-askpass`. `systemd-ask-password` also works
-but prompts on the console, not in a window — check it is visible before relying on it.
+`askpass.sh` writes the typed password on stdout, `sudo -A` reads it there, and neither ever
+touches your context. If it cannot read the command line it opens no dialog and exits 1. If
+`zenity` is absent, `ssh-askpass`, `ksshaskpass` or `lxqt-openssh-askpass` take its place — they
+show neither reason nor command, so state both to the user first. `systemd-ask-password` also
+works but prompts on the console, not in a window — check it is visible before relying on it.
 
 **Rung 0 covers sudo and nothing else.** An ssh passphrase, an installer asking `y/n`, or
 a TUI needs a real terminal — go to rung 1.

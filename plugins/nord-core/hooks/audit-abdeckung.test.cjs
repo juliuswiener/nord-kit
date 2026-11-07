@@ -215,6 +215,74 @@ const brief = (r) => (r ? `${r.state}${r.reason ? ` (${r.reason})` : ""}` : "(no
       [JSON.stringify(alone.rows.map((r) => `${r.lane}:${r.state}`))]);
   } else kase("U7", "buildCoverage is total", false, ["(no ledger block)"]);
 
+  // ---- V*: a batch verifier that leaves findings without a verdict (ticket "ein-toter-batch-verifizierer-laesst-in-review-deep-alle-befunde-ungeprueft-stehen") ----
+  // Policy stays: a missing verdict keeps the finding (losing a real finding is worse than one stray nit). The gap is NAMED instead:
+  // `coverage.rows[].unverified` lists the ids the verifier owed a verdict and did not give, and the report head (written by the script) says so.
+  {
+    const vf = (id, severity = "high", extra = {}) => ({ id, title: `t ${id}`, severity, category: "security", file: "a.js", lines: "1", description: "d", impact: "i", recommendation: "r", effort: "small", ...extra });
+    const vd = (findingId, isReal = true) => ({ findingId, isReal, reasoning: "r" });
+    // `verifier`: what the agent labelled verify:security answers (a value, or a function that may throw). Every other lane is clean.
+    async function vgo(findings, verifier, args = {}) {
+      const calls = [];
+      const agent = async (prompt, opts) => {
+        calls.push(opts.label);
+        if (opts.label === "vitals") return VITALS;
+        if (opts.label === "find:security") return { lane: "security", summary: "security checked", findings, skipped: [] };
+        if (opts.label.startsWith("find:")) return okLane(opts.label.slice(5));
+        if (opts.label === "verify:security") return typeof verifier === "function" ? verifier() : verifier;
+        if (opts.label === "blast-radius") return { hotspots: [] };
+        if (opts.label === "synthesis") return { summary_markdown: "# Audit Summary" };
+        throw new Error(`unexpected agent label ${opts.label}`);
+      };
+      const r = await runScript(SRC, { path: "/no/such/repo", ...args }, agent);
+      const srow = (r.out.coverage?.rows || []).find((x) => x.lane === "security");
+      const head = (r.out.report?.summary_markdown || "").split("# Audit Summary")[0]; // the script's block, before the model's text
+      return { ...r, calls, srow, head, headLine: head.split("\n").find((l) => /^- security/.test(l)) || "",
+        named: [...(srow?.unverified || [])].sort(), kept: r.out.findings.map((f) => f.id).sort(), verifyCalls: calls.filter((c) => c.startsWith("verify:")).length };
+    }
+    const two = [vf("f1", "high"), vf("f2", "critical")];
+    const mixed = [vf("tool1", "high", { toolVerified: true, toolEvidence: "npm audit -> CVE" }), vf("m1", "medium"), vf("f1", "high"), vf("f2", "critical")];
+
+    const v0 = await vgo(two, { verdicts: [vd("f1", false), vd("f2")] });
+    kase("V0", "control: a verifier that answers (f1 refuted, f2 confirmed) drops f1, keeps f2, and nothing is named unverified",
+      v0.verifyCalls === 1 && v0.kept.join() === "f2" && v0.named.length === 0 && v0.headLine === "" && v0.srow?.state === "covered",
+      [`verify calls=${v0.verifyCalls} kept=${v0.kept} named=${v0.named} headLine=${JSON.stringify(v0.headLine)}`]);
+    const v1 = await vgo(two, null);
+    kase("V1", "a batch verifier that returns null: both findings stay and the security row names f1 and f2 as unverified",
+      v1.kept.join() === "f1,f2" && v1.named.join() === "f1,f2",
+      [`kept=${v1.kept}  row.unverified=${JSON.stringify(v1.srow?.unverified)} (today a finding kept for lack of a verdict looks like a confirmed one)`]);
+    const v2 = await vgo(two, { verdicts: [] });
+    kase("V2", "a batch verifier that returns verdicts: [] is the same: both stay, both are named",
+      v2.kept.join() === "f1,f2" && v2.named.join() === "f1,f2", [`kept=${v2.kept}  row.unverified=${JSON.stringify(v2.srow?.unverified)}`]);
+    const v3 = await vgo(two, { verdicts: [vd("f1")] });
+    kase("V3", "a verdict for f1 only: f2 is named, f1 is not, both stay",
+      v3.kept.join() === "f1,f2" && v3.named.join() === "f2", [`kept=${v3.kept}  row.unverified=${JSON.stringify(v3.srow?.unverified)}`]);
+    kase("V4", "the report head, written by the script, names the lane and both ids and says unverified; the model's text follows it",
+      /security/.test(v1.headLine) && /f1/.test(v1.headLine) && /f2/.test(v1.headLine) && /unverified/i.test(v1.headLine) && (v1.out.report?.summary_markdown || "").includes("# Audit Summary"),
+      [`head block: ${JSON.stringify(v1.head.slice(0, 260))}`]);
+    const v5 = await vgo(mixed, null);
+    kase("V5", "only findings the verifier was owed are named: a tool fact and a medium finding pass without it and are not named",
+      v5.named.join() === "f1,f2" && v5.kept.join() === "f1,f2,m1,tool1", [`named=${v5.named} kept=${v5.kept}`]);
+    const v6 = await vgo(mixed, null, { verifyIntensity: "lite" });
+    kase("V6", "lite: only the critical finding is owed a verdict, so only it is named; the high one passes by design",
+      v6.named.join() === "f2" && v6.kept.join() === "f1,f2,m1,tool1", [`named=${v6.named} kept=${v6.kept}`]);
+    const noOwed = [await vgo([vf("m1", "medium"), vf("l1", "low")], null), await vgo(mixed, null, { verifyIntensity: "off" })];
+    kase("V7", "control: no verdict owed (standard with medium and low only; verifyIntensity off) means no verifier call and nothing named",
+      noOwed.every((x) => x.verifyCalls === 0 && x.named.length === 0 && x.headLine === ""),
+      [`verifier calls=${noOwed.map((x) => x.verifyCalls)} named=${noOwed.map((x) => x.named.length)} headLines=${JSON.stringify(noOwed.map((x) => x.headLine))}`]);
+    kase("V8", "control: a dead verifier is a gap in the findings, not in the lane: the row stays covered, the run complete, nothing thrown, the report returned",
+      v1.srow?.state === "covered" && v1.out.coverage?.complete === true && v1.out.coverage.errors.length === 0 && v1.out.report !== null,
+      [`security=${brief(v1.srow)} complete=${v1.out.coverage?.complete} errors=${JSON.stringify(v1.out.coverage?.errors)}`]);
+    kase("V9", "the Coverage log line shows the gap before the report is read",
+      v1.logs.some((l) => /^Coverage:/.test(l) && /unverified/i.test(l)), [`logs=${JSON.stringify(v1.logs.slice(-2))}`]);
+    const vdoc = fs.readFileSync(path.join(ROOT, "skills/review/references/repo-deep.md"), "utf8").split("\n");
+    const vlimit = vdoc.find((l) => /^- \*\*The coverage table/.test(l)) || "";
+    const vout = vdoc.find((l) => /findings\.json/.test(l) && /coverage/.test(l)) || "";
+    kase("V10", "repo-deep.md says what the code does: a finding the verifier left without a verdict stays, unverified, and the table names it",
+      /verdict/i.test(vlimit) && /unverified/i.test(vlimit) && /unverified/i.test(vout),
+      [`limitations bullet: ${JSON.stringify(vlimit.slice(0, 200))}`, `findings.json step: ${JSON.stringify(vout.slice(0, 200))}`]);
+  }
+
   // ---- the guard: the text that promises the table must not promise more than the table is ----
   const doc = fs.readFileSync(path.join(ROOT, "skills/review/references/repo-deep.md"), "utf8");
   kase("D1", "repo-deep.md tells the caller to write `coverage` into findings.json and says the table checks form, not truth",

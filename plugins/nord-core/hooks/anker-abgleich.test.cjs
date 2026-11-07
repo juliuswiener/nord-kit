@@ -9,6 +9,8 @@
 // A*/S* run the REAL script text with a stub agent(); T* read the REAL text that makes the claim.
 // L* are the same for the a11y lane (skills/review/references/lens-a11y.md): its toolVerified bypass needs toolEvidence too,
 // while the caller's args.toolFindings (a tool run before the workflow) stay a legitimate source of the flag.
+// W* read the words the scripts hand to the agents and to the progress display (schema descriptions, prompts, meta, a verdict
+// label): they say what the code does. A flag or an outcome an agent sets is a report; it counts only with its command.
 //
 // ponytail: T* match phrases; a rewording that says the same untruth differently passes (as F1/G1 in
 // rollen-abgleich.test.cjs). Upgrade path: a mechanical anchor check run by the caller (not by the script).
@@ -29,30 +31,35 @@ const lane = (id, extra = {}) => ({
   description: "d", impact: "i", recommendation: "r", effort: "small", ...extra,
 });
 // One lane returns `findings`; the verifier answers isReal=`approve` for every finding it is shown.
-async function auditRun(findings, approve) {
+// `extraArgs` override the args; `seen` keeps what the agents were told (labels, a lane's prompt and schema, the synthesis prompt).
+async function auditRun(findings, approve, extraArgs = {}) {
   const shown = []; // ids the verifier was asked about
+  const seen = { labels: [] };
   const agent = async (prompt, opts) => {
+    seen.labels.push(opts.label);
     if (opts.label === "vitals") return { archetype: "library", languages: [{ name: "JavaScript", loc: 1, pct: 100 }], loc: 1, demographics: { contributors_90d: 1 } };
-    if (opts.label.startsWith("find:")) return { lane: "security", summary: "s", findings };
+    if (opts.label.startsWith("find:")) { seen.lanePrompt = prompt; seen.laneSchema = opts.schema; return { lane: "security", summary: "s", findings }; }
     if (opts.label.startsWith("verify:")) {
       const ids = findings.map((f) => f.id).filter((id) => prompt.includes(`"id": "${id}"`));
       shown.push(...ids);
       return { verdicts: ids.map((findingId) => ({ findingId, isReal: approve, reasoning: "r" })) };
     }
+    if (opts.label === "synthesis") seen.synthPrompt = prompt;
     return {}; // blast-radius, synthesis
   };
-  const { out } = await runScript(AUDIT, { path: "/no/such/repo", lanes: ["security"] }, agent);
-  return { shown, kept: out.findings.map((f) => f.id) };
+  const { out } = await runScript(AUDIT, { path: "/no/such/repo", lanes: ["security"], ...extraArgs }, agent);
+  return { shown, kept: out.findings.map((f) => f.id), seen };
 }
 
 // ---- diff-deep: the first ```javascript block of skills/review/references/diff-deep.md ----
 const DIFF = (/```javascript\n([\s\S]*?)\n```/.exec(read("skills/review/references/diff-deep.md")) || [, ""])[1];
 // One reviewer reports one finding at a place that does not exist; the verifier answers `verdict`.
-async function diffRun(verdict) {
+// `seen` (optional) keeps the verifier's prompt and schema.
+async function diffRun(verdict, seen = {}) {
   const agent = async (prompt, opts) => {
     if (opts.label === "review:correctness") return { findings: [{ file: "no/such/file.js", line: 99999, severity: "high", confidence: "high", title: "t", detail: "d" }] };
     if (opts.label.startsWith("review:")) return { findings: [] };
-    if (opts.label.startsWith("verify:")) return verdict;
+    if (opts.label.startsWith("verify:")) { seen.prompt = prompt; seen.schema = opts.schema; return verdict; }
     return {};
   };
   return (await runScript(DIFF, { target: "x" }, agent)).out.count; // 1 = the finding stands
@@ -74,9 +81,9 @@ async function a11yRun(lane, approve, args = { target: "x" }) {
     if (opts.label.startsWith("verify:")) { const m = /Finding: "([^"]*)" @/.exec(prompt); if (m) shown.push(m[1]); return { isReal: approve, reason: "r", checked: "na" }; }
     return {};
   };
-  if (!A11Y) return { shown, kept: [], seen }; // no script block found: the cases fail by assertion, L0 names the cause
+  if (!A11Y) return { shown, kept: [], seen, verdicts: [] }; // no script block found: the cases fail by assertion, L0 names the cause
   const { out } = await runScript(A11Y, args, agent);
-  return { shown, kept: out.findings.map((f) => f.title), seen };
+  return { shown, kept: out.findings.map((f) => f.title), seen, verdicts: out.findings.map((f) => f.verdict) };
 }
 
 let red = 0;
@@ -93,6 +100,8 @@ const section = (text, from, to) => {
 };
 const flat = (s) => s.replace(/\s+/g, " ").trim(); // a pinned phrase may wrap across lines in the text
 const around = (s, re) => { const m = re.exec(flat(s)); return m ? "..." + flat(s).slice(Math.max(0, m.index - 50), m.index + m[0].length + 50) + "..." : "(no match)"; };
+// the `export const meta = {...}` literal of a script (it ends at the first `}` in column 0), or null
+const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(src); return m ? Function(`return (${m[1]})`)() : null; };
 
 (async () => {
   // A parser that finds nothing makes every case below pass for the wrong reason: prove the harness reaches the
@@ -203,6 +212,75 @@ const around = (s, re) => { const m = re.exec(flat(s)); return m ? "..." + flat(
   kase("L7", "lens-a11y/tooling.md: args.toolFindings are said to bypass verify with their tool line in toolEvidence, not on the flag alone",
     gateIntro !== "" && gateIntro.includes("toolEvidence") && !/get `toolVerified:true` and bypass adversarial verify/.test(gateIntro),
     [gateIntro === "" ? "gate intro not found" : `says: ${around(gateIntro, /args\.toolFindings[^)]*\)/)}; toolEvidence named: ${gateIntro.includes("toolEvidence")}`]);
+
+  // ---- W0..W9: the words the scripts hand to the agents and to the progress display ----
+  // One run of audit.workflow.js shows what the lanes and the synthesis are told: a high finding (verified), a medium one (passes
+  // the threshold unverified) and a tool finding with its command (skips the verifier); the verifier approves what it is shown.
+  const wa = await auditRun([lane("w-high"), lane("w-med", { severity: "medium" }), lane("w-tool", { toolVerified: true, toolEvidence: "npm audit -> CVE-2024-1 high in lodash@4.17.20" })], true);
+  const wProps = (wa.seen.laneSchema && wa.seen.laneSchema.properties.findings.items.properties) || {};
+  const wFlag = flat((wProps.toolVerified && wProps.toolVerified.description) || "");
+  const wEvid = flat((wProps.toolEvidence && wProps.toolEvidence.description) || "");
+  const wDiff = {};
+  if (DIFF) await diffRun({ isReal: true, reason: "r", reproduced: "na" }, wDiff);
+  const wDiffProps = (wDiff.schema && wDiff.schema.properties) || {};
+  const wMeta = metaOf(A11Y);
+  const wVerify = (wMeta && wMeta.phases.find((p) => p.title === "Verify")) || null;
+  const wSkip = await a11yRun(() => [plain("w-skip", { toolVerified: true, toolEvidence: TOOL_LINE })], false);
+  const wCore = (await auditRun([], true, { lanes: undefined })).seen.labels.filter((l) => l.startsWith("find:")).length;
+  kase("W0", "the places the W cases read are reached: audit lane prompt + schema + synthesis prompt, diff-deep verifier prompt + schema, a11y meta + skipped verdict, core lane count",
+    !!wa.seen.lanePrompt && !!wFlag && !!wa.seen.synthPrompt && !!wDiff.prompt && !!wDiffProps.reproduced && !!wDiffProps.reproCmd && !!wVerify && wSkip.verdicts.length === 1 && wCore > 0,
+    [`lane prompt: ${!!wa.seen.lanePrompt}, toolVerified description: ${!!wFlag}, synthesis prompt: ${!!wa.seen.synthPrompt}, diff-deep prompt: ${!!wDiff.prompt}, reproduced/reproCmd schema: ${!!wDiffProps.reproduced}/${!!wDiffProps.reproCmd}, a11y Verify phase: ${!!wVerify}, a11y skipped verdicts: ${wSkip.verdicts.length}, core lanes started: ${wCore}`]);
+
+  kase("W1", "audit.workflow.js schema: toolVerified is not described as a fact that bypasses the verifier, and the description names toolEvidence as the condition",
+    wFlag !== "" && !/\bfacts?\b/i.test(wFlag) && wFlag.includes("toolEvidence"),
+    [`toolVerified says: ${around(wFlag, /\bfacts?\b/i)} ; toolEvidence named there: ${wFlag.includes("toolEvidence")}`]);
+
+  const wLane = flat(wa.seen.lanePrompt || "");
+  const wUncond = wLane.split(/(?<=[.!?])\s+/).filter((s) => /adversarial/i.test(s) && /\bbypass|\bskips?\b/i.test(s) && !s.includes("toolEvidence"));
+  kase("W2", "audit.workflow.js lane prompt (tool-gate bullet): a tool finding is not called a FACT, and the sentence that says it skips adversarial verification names toolEvidence",
+    wLane !== "" && !/\bFACT\b/.test(wLane) && wUncond.length === 0,
+    [`sentence without toolEvidence: ${wUncond.map((s) => `"${s}"`).join(" ") || "(none)"} ; says FACT: ${/\bFACT\b/.test(wLane)}`]);
+
+  const wInputs = (/^- \d+ .*findings across.*$/m.exec(wa.seen.synthPrompt || "") || ["(no Inputs line)"])[0];
+  const wNever = wa.kept.filter((id) => !wa.shown.includes(id)); // in the report, never shown to the verifier
+  // the count may not be called "verified", unless the line says not all of them are
+  const wCalled = /\d+\s+verified\b/i.test(wInputs) || (/\bverified\b/i.test(wInputs) && !/\bnot all\b[^.;]*\bverified\b|\bunverified\b/i.test(wInputs));
+  kase("W3", "audit.workflow.js synthesis prompt: the findings count is not called verified when findings in it never reached the verifier",
+    wNever.length > 0 && wInputs !== "(no Inputs line)" && !wCalled,
+    [`Inputs line: ${wInputs} ; kept but never shown to the verifier: ${wNever.join(", ") || "(none)"}`]);
+
+  const wRepro = flat((wDiffProps.reproduced && wDiffProps.reproduced.description) || "");
+  const wLabel = /deterministic(ally)?\s+(REAL|NOT real)/i;
+  kase("W4", "diff-deep.md schema: reproduced=confirmed/refuted is not labelled deterministic, and its description names reproCmd as what makes the report count",
+    wRepro !== "" && !wLabel.test(wRepro) && wRepro.includes("reproCmd"),
+    [`reproduced says: ${around(wRepro, wLabel)} ; reproCmd named there: ${wRepro.includes("reproCmd")}`]);
+
+  const wVerPrompt = flat(wDiff.prompt || "");
+  const wSaysCount = /\b(without|missing|empty|blank|omit\w*)\b[^.]*\breproCmd\b|\breproCmd\b[^.]*\b(without it|only with|counts only|required|empty|missing|blank|absent|omitted)\b/i.test(wVerPrompt);
+  kase("W5", "diff-deep.md verifier prompt: the outcomes are not labelled 'deterministically REAL / NOT real', and the prompt says the report counts only with reproCmd",
+    wVerPrompt !== "" && !/deterministically (REAL|NOT real)/i.test(wVerPrompt) && wSaysCount,
+    [`labels: ${(wVerPrompt.match(/deterministically (REAL|NOT real)/gi) || []).join(" | ") || "(none)"} ; says what happens without reproCmd: ${wSaysCount}`]);
+
+  const wDetail = (wVerify && wVerify.detail) || "";
+  kase("W6", "lens-a11y.md meta: the Verify phase does not say tool-verified findings bypass, and names toolEvidence as the condition",
+    wDetail !== "" && wDetail.includes("toolEvidence"), [`Verify phase says: ${wDetail || "(not found)"}`]);
+
+  const wReason = (wSkip.verdicts[0] && wSkip.verdicts[0].reason) || "";
+  kase("W7", "lens-a11y.md: the verdict of a finding that skipped the verifier does not say it was verified",
+    wSkip.kept.includes("w-skip") && wReason !== "" && !/verified/i.test(wReason), [`kept: ${wSkip.kept.join(", ") || "(nothing)"} ; verdict.reason: ${JSON.stringify(wReason)}`]);
+
+  const wAuditMeta = metaOf(AUDIT);
+  const wHead = flat(AUDIT.slice(0, Math.max(0, AUDIT.indexOf("export const meta"))) + " " + JSON.stringify(wAuditMeta));
+  const wCounts = [...wHead.matchAll(/\b(\d+)(\+)?\s+(?:(?:core|parallel|specialist)\s+)*lanes\b/gi)].map((m) => ({ text: m[0], n: +m[1], plus: !!m[2] }));
+  const wWrong = wCounts.filter((c) => (c.plus ? c.n > wCore : c.n !== wCore)); // "12+" is true for 13 lanes, "12" is not
+  kase("W8", "audit.workflow.js header comment and meta state the number of core lanes the registry has",
+    wAuditMeta !== null && wCore > 0 && wWrong.length === 0,
+    [`registry starts ${wCore} core lanes ; the text says: ${wCounts.map((c) => `"${c.text}"`).join(" | ") || "(no count)"} ; wrong: ${wWrong.map((c) => `"${c.text}"`).join(" | ") || "(none)"}`]);
+
+  // W9: control. Text that is already true must stay: the toolEvidence description names the command, the diff-deep verifier is told to put its command in reproCmd.
+  kase("W9", "control: audit.workflow.js toolEvidence is described as the command run, and the diff-deep verifier is still told to put the exact command in reproCmd",
+    /\bcommand\b/i.test(wEvid) && wVerPrompt.includes("command in reproCmd"),
+    [`toolEvidence says: ${wEvid || "(missing)"} ; diff-deep prompt names "command in reproCmd": ${wVerPrompt.includes("command in reproCmd")}`]);
 
   console.log(`${total} cases, ${red} red`);
   process.exit(red ? 1 : 0);

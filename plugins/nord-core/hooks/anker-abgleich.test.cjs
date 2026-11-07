@@ -7,6 +7,8 @@
 // over what the agents report. So it cannot check an anchor against a file, and a flag an agent sets
 // (toolVerified, reproduced) is a report. What a script CAN do is refuse a report that names no command.
 // A*/S* run the REAL script text with a stub agent(); T* read the REAL text that makes the claim.
+// L* are the same for the a11y lane (skills/review/references/lens-a11y.md): its toolVerified bypass needs toolEvidence too,
+// while the caller's args.toolFindings (a tool run before the workflow) stay a legitimate source of the flag.
 //
 // ponytail: T* match phrases; a rewording that says the same untruth differently passes (as F1/G1 in
 // rollen-abgleich.test.cjs). Upgrade path: a mechanical anchor check run by the caller (not by the script).
@@ -54,6 +56,27 @@ async function diffRun(verdict) {
     return {};
   };
   return (await runScript(DIFF, { target: "x" }, agent)).out.count; // 1 = the finding stands
+}
+
+// ---- lens-a11y: the first ```javascript block of skills/review/references/lens-a11y.md ----
+// Ticket "die-a11y-bahn-ueberspringt-den-verifizierer-mit-einem-selbst-gesetzten-flag-ohne-befehl" (cases L*).
+const A11Y = (/```javascript\n([\s\S]*?)\n```/.exec(read("skills/review/references/lens-a11y.md")) || [, ""])[1];
+const TOOL_LINE = 'axe color-contrast: a.btn #767676 on #ffffff = 4.54:1 (needs 4.5)'; // one line of the caller's tool-gate output
+const base = { detail: "d", where: "a.btn", severity: "high", confidence: "high" };
+// The "perceivable" lane answers `lane(prompt)` (a function of the lane prompt, so a case can see what the caller's
+// toolFindings put into it); the seven other lanes find nothing. The verifier answers isReal=`approve`, checked "na".
+async function a11yRun(lane, approve, args = { target: "x" }) {
+  const shown = []; // titles the verifier was asked about
+  const seen = {}; // the "perceivable" lane's prompt and schema, for the form cases
+  const agent = async (prompt, opts) => {
+    if (opts.label === "review:perceivable") { seen.prompt = prompt; seen.schema = opts.schema; return { findings: lane(prompt) }; }
+    if (opts.label.startsWith("review:")) return { findings: [] };
+    if (opts.label.startsWith("verify:")) { const m = /Finding: "([^"]*)" @/.exec(prompt); if (m) shown.push(m[1]); return { isReal: approve, reason: "r", checked: "na" }; }
+    return {};
+  };
+  if (!A11Y) return { shown, kept: [], seen }; // no script block found: the cases fail by assertion, L0 names the cause
+  const { out } = await runScript(A11Y, args, agent);
+  return { shown, kept: out.findings.map((f) => f.title), seen };
 }
 
 let red = 0;
@@ -129,6 +152,57 @@ const around = (s, re) => { const m = re.exec(flat(s)); return m ? "..." + flat(
   kase("T4", "review/references/repo-deep.md does not call a lane's toolVerified a fact, and names toolEvidence as what lets it skip the verifier",
     prov !== "" && !/a fact, not a vote|deterministic source/i.test(flat(prov)) && flat(prov).includes("toolEvidence"),
     [prov === "" ? "section not found" : `says: ${around(prov, /a fact, not a vote|deterministic source/i)} ; toolEvidence named: ${flat(prov).includes("toolEvidence")}`]);
+
+  // ---- L0..L3: lens-a11y.md — toolVerified skips the verifier only when the lane names the tool run it rests on ----
+  const plain = (title, extra = {}) => ({ title, ...base, ...extra });
+  const l0no = await a11yRun(() => [plain("plain")], false);
+  const l0yes = await a11yRun(() => [plain("plain")], true);
+  kase("L0", "lens-a11y.md script runs under the harness: a plain finding reaches the verifier and the verifier's isReal decides",
+    A11Y.includes("pipeline(") && l0no.shown.join() === "plain" && l0no.kept.length === 0 && l0yes.kept.join() === "plain",
+    [`script block found: ${A11Y !== ""}; refuting verifier: saw ${l0no.shown.join() || "(nothing)"}, kept ${l0no.kept.join() || "(nothing)"}; approving verifier: kept ${l0yes.kept.join() || "(nothing)"}`]);
+
+  const l1 = await a11yRun(() => [
+    plain("flag-absent", { toolVerified: true }),
+    plain("flag-null", { toolVerified: true, toolEvidence: null }),
+    plain("flag-blank", { toolVerified: true, toolEvidence: "   " }),
+    plain("evidence-no-flag", { toolVerified: false, toolEvidence: TOOL_LINE }),
+  ], false);
+  kase("L1", "lens-a11y.md: toolVerified=true with no toolEvidence still goes to the verifier (and so does toolEvidence without the flag)",
+    ["flag-absent", "flag-null", "flag-blank", "evidence-no-flag"].every((t) => l1.shown.includes(t)),
+    [`verifier saw: ${l1.shown.join(", ") || "(nothing)"}; kept: ${l1.kept.join(", ") || "(nothing)"}`]);
+
+  const l2 = await a11yRun(() => [plain("flag-cmd", { toolVerified: true, toolEvidence: 'npx wcag-contrast-cli "#767676" "#ffffff" -> 4.54:1' })], false);
+  kase("L2", "lens-a11y.md: toolVerified=true with a tool run in toolEvidence still skips the verifier (the lane ran the tool itself)",
+    !l2.shown.includes("flag-cmd") && l2.kept.includes("flag-cmd"), [`verifier saw: ${l2.shown.join(", ") || "(nothing)"}; kept: ${l2.kept.join(", ") || "(nothing)"}`]);
+
+  const l3 = await a11yRun((p) => (p.includes(TOOL_LINE) ? [plain("from-axe", { toolVerified: true, toolEvidence: TOOL_LINE })] : []), false,
+    { target: "x", toolFindings: `${TOOL_LINE}\naxe image-alt: img.hero has no alt` });
+  const l3prompt = l3.seen.prompt || "";
+  kase("L3", "lens-a11y.md: the caller's args.toolFindings reach the lane, and a finding that quotes its tool line in toolEvidence skips the verifier",
+    l3prompt.includes(TOOL_LINE) && !l3.shown.includes("from-axe") && l3.kept.includes("from-axe"),
+    [`lane prompt carries the tool line: ${l3prompt.includes(TOOL_LINE)}; verifier saw: ${l3.shown.join(", ") || "(nothing)"}; kept: ${l3.kept.join(", ") || "(nothing)"}`]);
+
+  // ---- L4..L5: what the lane is told — the schema and the prompt it gets ----
+  const props = (l3.seen.schema && l3.seen.schema.properties.findings.items.properties) || {};
+  const flagDesc = flat((props.toolVerified && props.toolVerified.description) || "");
+  kase("L4", "lens-a11y.md schema: the lane can report toolEvidence (a string), and toolVerified is not described as a fact that bypasses verify",
+    !!props.toolEvidence && [].concat(props.toolEvidence.type).includes("string") && !/a fact/i.test(flagDesc) && flagDesc.includes("toolEvidence"),
+    [`toolEvidence field: ${props.toolEvidence ? JSON.stringify(props.toolEvidence.type) : "(missing)"}; toolVerified says: ${around(flagDesc, /a fact/i)}; toolEvidence named there: ${flagDesc.includes("toolEvidence")}`]);
+  kase("L5", "lens-a11y.md lane prompt tells the lane to put the tool-gate line (or the command it ran) in toolEvidence",
+    l3prompt.includes("toolEvidence"), [`prompt says: ${around(l3prompt, /tool-gate output[^:]*:/)}; toolEvidence named: ${l3prompt.includes("toolEvidence")}`]);
+
+  // ---- L6..L7: the prose around the script ----
+  const a11yMd = read("skills/review/references/lens-a11y.md");
+  const bullet = flat(section(a11yMd, "- Any failure either tier reports", "- Only what neither tier"));
+  const conf = flat(section(a11yMd, "## Confidence + provenance", "## Final output"));
+  kase("L6", "lens-a11y.md prose: a tool finding bypasses verify with its toolEvidence (not on the flag alone), and `high` is not 'toolVerified - a fact'",
+    bullet !== "" && conf !== "" && !/These \*\*bypass\*\* adversarial verify\./.test(bullet) && bullet.includes("toolEvidence") && !/a fact/i.test(conf) && conf.includes("toolEvidence"),
+    [bullet === "" || conf === "" ? "section not found" : `tier bullet: bypass sentence unconditional: ${/These \*\*bypass\*\* adversarial verify\./.test(bullet)}, toolEvidence named: ${bullet.includes("toolEvidence")}; confidence rule says: ${around(conf, /a fact/i)}, toolEvidence named: ${conf.includes("toolEvidence")}`]);
+
+  const gateIntro = flat(section(read("skills/review/references/lens-a11y/tooling.md"), "Run at least one machine checker", "## Get a rendered page first"));
+  kase("L7", "lens-a11y/tooling.md: args.toolFindings are said to bypass verify with their tool line in toolEvidence, not on the flag alone",
+    gateIntro !== "" && gateIntro.includes("toolEvidence") && !/get `toolVerified:true` and bypass adversarial verify/.test(gateIntro),
+    [gateIntro === "" ? "gate intro not found" : `says: ${around(gateIntro, /args\.toolFindings[^)]*\)/)}; toolEvidence named: ${gateIntro.includes("toolEvidence")}`]);
 
   console.log(`${total} cases, ${red} red`);
   process.exit(red ? 1 : 0);

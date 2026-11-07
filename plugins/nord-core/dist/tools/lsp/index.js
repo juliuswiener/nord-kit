@@ -2186,7 +2186,7 @@ function startDiagSocket() {
         try {
           reply = await editDiagnostics(JSON.parse(buf.slice(0, nl)));
         } catch (e) {
-          reply = { error: e instanceof Error ? e.message : String(e) };
+          reply = e instanceof LspPoolFullError ? { refused: e.message } : { error: e instanceof Error ? e.message : String(e) };
         }
         conn.end(JSON.stringify(reply) + "\n");
       });
@@ -2239,6 +2239,10 @@ function ask(path, req, timeoutMs) {
       if (nl < 0) return;
       try {
         const r = JSON.parse(buf.slice(0, nl));
+        if (r && typeof r.refused === "string") {
+          finish({ before: [], after: [], answered: false, indexState: "unknown", refused: r.refused });
+          return;
+        }
         finish(r && Array.isArray(r.after) ? r : null);
       } catch {
         finish(null);

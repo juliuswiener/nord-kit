@@ -302,6 +302,10 @@ async function diagnose(lsp, input, file, stash, calls, state, overTime) {
     state.inProcess = true;
     r = await lsp.editDiagnostics(req);
   }
+  // Refused: the MCP server is at NORD_LSP_MAX_SERVERS and every server of this
+  // kind is busy. Say so. Another socket or a run in this process would start one
+  // more language server, which is what the limit is there to prevent.
+  if (r.refused) return unchecked(input, file, r.refused);
   const { before, after, answered, indexState, flycheck, rustcBaselineKnown, timing } = r;
   const rustcUnchecked = flycheck === "timeout";
   const rustcNote = `rustc (cargo check) did not finish within ${FLYCHECK_MS}ms`;

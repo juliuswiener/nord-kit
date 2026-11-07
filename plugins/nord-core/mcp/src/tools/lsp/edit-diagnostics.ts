@@ -41,6 +41,14 @@ export interface EditDiagnosticsResult {
   rustcBaselineKnown?: boolean;
   /** Milliseconds from didSave: to the end of the flycheck, and to the first publish. */
   timing?: { flycheckMs: number; firstPublishMs: number };
+  /**
+   * Set by the MCP server when it turned the request away: every language server
+   * of this kind is busy and the pool is at NORD_LSP_MAX_SERVERS. The text names
+   * the limit; `before`/`after` are empty. The caller says "not checked" and asks
+   * nobody else, because another socket or its own process would start one more
+   * server -- the thing the refusal prevents.
+   */
+  refused?: string;
 }
 
 // Longest wait for a flycheck to BEGIN after a save. Beyond that none is coming

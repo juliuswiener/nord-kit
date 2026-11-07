@@ -11,13 +11,16 @@
  * ponytail: the first socket that answers wins, no load spreading; add it if
  * several sessions ever queue up behind one server.
  *
- * Wire format: one JSON line in, one JSON line out, then close.
+ * Wire format: one JSON line in, one JSON line out, then close. The line out is
+ * the result, { refused: <text> } when the pool is full and every server of the
+ * kind is busy (LspPoolFullError), or { error: <text> } for anything else.
  */
 
 import { createServer, createConnection } from 'net';
 import { chmodSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { LspPoolFullError } from './client.js';
 import { editDiagnostics } from './edit-diagnostics.js';
 import type { EditDiagnosticsRequest, EditDiagnosticsResult } from './edit-diagnostics.js';
 
@@ -44,7 +47,9 @@ export function startDiagSocket(): void {
         try {
           reply = await editDiagnostics(JSON.parse(buf.slice(0, nl)) as EditDiagnosticsRequest);
         } catch (e) {
-          reply = { error: e instanceof Error ? e.message : String(e) };
+          reply = e instanceof LspPoolFullError
+            ? { refused: e.message }
+            : { error: e instanceof Error ? e.message : String(e) };
         }
         conn.end(JSON.stringify(reply) + '\n');
       });
@@ -86,6 +91,10 @@ function ask(path: string, req: EditDiagnosticsRequest, timeoutMs: number): Prom
       if (nl < 0) return;
       try {
         const r = JSON.parse(buf.slice(0, nl));
+        if (r && typeof r.refused === 'string') {
+          finish({ before: [], after: [], answered: false, indexState: 'unknown', refused: r.refused });
+          return;
+        }
         finish(r && Array.isArray(r.after) ? r as EditDiagnosticsResult : null);
       } catch { finish(null); }
     });
@@ -96,7 +105,9 @@ function ask(path: string, req: EditDiagnosticsRequest, timeoutMs: number): Prom
 
 /**
  * Ask a live MCP server. null = nobody answered; the caller computes in-process.
- * Sockets of dead processes are removed on the way.
+ * Sockets of dead processes are removed on the way. A refusal (result.refused) is
+ * an answer: it ends the search, because the next socket or an in-process run
+ * would start one more language server.
  */
 export async function requestEditDiagnostics(
   req: EditDiagnosticsRequest,

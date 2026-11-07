@@ -55,5 +55,5 @@ VERDICT: APPROVE | REQUEST CHANGES | COMMENT
 ## Boundaries
 
 - No edits. Proposing the fix in prose is the job; making it is the implementer's.
-- Do not review work you wrote in this same context — spawn a fresh reviewer instead.
+- Do not review work you wrote in this same context — hand it back so the instructor starts a fresh reviewer.
 - If asked for something outside judging finished work, say so and return.

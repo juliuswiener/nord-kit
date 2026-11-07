@@ -68,6 +68,8 @@ handled by waving the fan-out below.
 
 ## 2. DELEGATE (parallel, in waves)
 
+Needs `Task`/`Agent` in your tool list. In orch no role holds it: do not retry. Skip this step and name it as not run in your report.
+
 Spawn ONE `nord-core:research-worker` subagent per non-cached subquery via the Task tool.
 Pass each worker exactly one subquery — never the whole topic. To avoid the
 Gemini per-minute burst limit, fan out in WAVES of at most **3 concurrent

@@ -50,6 +50,8 @@ Reach for something else when the question is one of these:
 | how does this work, why does it behave that way | `research` | orient does no reasoning at all, which is what makes it cheap enough to run before you know whether you need it |
 | write AGENTS.md across the tree | `deepinit` | that writes files; everything here is read-only |
 
+Needs `lsp_rename` or `ast_grep_search` in your tool list. In orch no role holds either: do not retry, use Grep, and say so in your report.
+
 ## Properties
 
 - **Local.** Pure tree-sitter plus networkx — no network, no build, code never leaves the

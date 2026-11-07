@@ -8,6 +8,8 @@ Read this only when `--deep` is set. The default tournament path does not use an
 
 **Trigger**: pass `--deep` flag.
 
+Needs `Task`/`Agent` (steps 2 and 3) and `AskUserQuestion` (steps 4 and 7) in your tool list. In orch no role holds them: do not retry. Skip a step that spawns and name it as not run in your report. Put a question and your recommended option in the report (or `send` it to @main); at step 4 go on with the best version, at step 7 the plan stays `pending approval` until the human says go.
+
 **Steps** (run after synthesis returns `final`):
 
 1. **Planner** receives the tournament `final` plan as its starting draft. Planner MUST produce a compact **RALPLAN-DR summary** alongside the revised plan containing:

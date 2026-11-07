@@ -21,7 +21,7 @@ Roles exclude each other; skills add up. Anything that RESTRICTS is a role, neve
 ## Memory
 
 `mem-search` prior work before non-trivial planning or execution; note key decisions after.
-Yours to run, not the worker's — a worker's context comes from its brief.
+Run it yourself before you hand work over. A worker may look things up too, but its context comes from its brief.
 
 ## Delegation — every spawn
 
@@ -33,14 +33,14 @@ Yours to run, not the worker's — a worker's context comes from its brief.
 
 `†` runs in the main session only.
 <!-- instructor-only -->
-It fans out through `Workflow` or subagents, and a worker
-is denied `Workflow` unconditionally and `Task`/`Agent` by every policy.
+It fans out through `Workflow` or subagents. A worker is denied `Workflow`
+unless its preset is `qualifier`, and `Task`/`Agent` by every policy.
 <!-- /instructor-only -->
 
 A row binds you only when your tool list holds what it needs. If it lacks one, skip the row, do not retry, and say so in your report.
 
 - Needs `Skill`: every skill row.
-- Needs a shell: `verify`, `interactive`, `bin/context`.
+- Needs a shell: `verify`, `interactive`, `orient`, `bin/context`.
 - Needs `Workflow` (in orch only the instructor and the qualifier hold it): `plan` without a stage, `research`, `review --deep`, `cleanup --remove`.
 
 | Task | Default | When other | Do NOT use |

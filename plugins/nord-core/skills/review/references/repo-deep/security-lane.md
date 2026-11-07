@@ -4,6 +4,8 @@ The security lane's full mandate. Read when running or tuning Lane 5 (the actual
 
 **Read-only guard:** MUST NOT call Write or Edit; read and report only.
 
+Needs `ast_grep_search` in your tool list. In orch no role holds it: do not retry, use Grep, and say so in your report.
+
 1. **Git-history secrets scan** — `git log -p --since="2 years ago" | grep -iE 'api[_-]?key|password|secret|token'` to surface secrets committed then later removed. Complements current-code grep. (Extend `--since` to full history for compliance/acquisition audits.)
 2. **Current-code secrets grep** — `grep -rniE 'api[_-]?key|password|secret|token'` across source files (exclude `node_modules`, `.git`, test fixtures).
 3. **Structural injection patterns** — use `ast_grep_search` for multi-line and template-literal patterns that regex grep misses: `exec($CMD + $INPUT)`, `query($SQL + $INPUT)`, `innerHTML = $X`. Grep catches simple string patterns; AST grep catches structural composition across line boundaries.

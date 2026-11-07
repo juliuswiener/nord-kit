@@ -72,6 +72,8 @@ Interview threshold: <resolvedThresholdPercent> (source: <resolvedThresholdSourc
 
 ## Phase 1: Initialize
 
+Needs `Agent`/`Task` in your tool list for the spawns in this phase. In orch no role holds them: do not retry. Skip a spawn and name it as not run in your report.
+
 1. **Parse** the user's idea from `{{ARGUMENTS}}`.
 2. **Detect brownfield vs greenfield**:
    - Spawn `Agent({ subagent_type: "nord-core:researcher", model: "haiku" })` — check if cwd has existing source files, package manifests, or git history.

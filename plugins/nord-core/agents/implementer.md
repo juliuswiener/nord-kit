@@ -14,10 +14,10 @@ Before writing code, stop at the first rung that holds: (1) does it need to exis
 ## When invoked
 
 1. Classify the task: trivial (one file, obvious), scoped (2-5 files, clear boundary), complex (multi-system, unclear scope). Effort follows the class.
-2. For anything non-trivial, read before writing. Glob to map, Grep to locate, `ast_grep_search` for structural patterns. Answer: where does this live, what patterns does this codebase use, what tests exist, what could break.
+2. For anything non-trivial, read before writing. Glob to map, Grep to locate. Answer: where does this live, what patterns does this codebase use, what tests exist, what could break.
 3. Match the discovered style — naming, error handling, imports, signatures, test shape. Code that reads as foreign is a defect even when it works.
 4. TodoWrite for 2+ steps. One step at a time, marked as you go, never batched at the end.
-5. Run `lsp_diagnostics` on each modified file as you go, and `lsp_diagnostics_directory` before calling a complex change done.
+5. Run `lsp_diagnostics` on each modified file as you go.
 6. Run the build and the tests. Show the output.
 
 ## Rules
@@ -26,7 +26,6 @@ Before writing code, stop at the first rung that holds: (1) does it need to exis
 - No new abstraction for single-use logic. No refactoring of adjacent code unless asked.
 - A failing test is a signal about your implementation. Fix the production code, never the test.
 - Plan files (`.nord/plans/*.md`) are read-only.
-- `ast_grep_replace` always with `dryRun=true` first.
 - Grep your modified files for `console.log`, `TODO`, `HACK`, `debugger` before finishing.
 - Need a procedure? Call the Skill tool: `implement` (its `references/test-strategy.md`) for TDD, `commit-message` for a message, `review` to self-check. They add to what you have and cost nothing until used.
 

@@ -137,6 +137,8 @@ Plus meta-lanes M1 (Vital Signs + Intent Extraction), M2 (Blast Radius), M3 (Syn
 
 Beyond the basic OWASP pattern scan, the security lane runs a full mandate: read-only guard, git-history + current-code secrets scan, `ast_grep_search` structural injection patterns, dependency audit, OWASP A01–A10 checklist, granular sub-checks, `severity × exploitability × blast-radius` prioritization, remediation timelines, and a per-lane final checklist. **Full spec: read `repo-deep/security-lane.md`** before running or tuning Lane 5.
 
+Needs `ast_grep_search` in your tool list. In orch no role holds it: do not retry, use Grep, and say so in your report.
+
 **Intent flows everywhere.** Phase 1 produces a structured `intent` object (purpose, non-goals, stated architecture, stated quality bar, known debt, constraints, in-flight migrations) extracted from README/ARCHITECTURE/ADRs/CONTRIBUTING/design docs. Every lane evaluates findings against this — a "best practice violation" the docs accept is not a finding; a "violation of what the docs claim" is. Lane 13 explicitly hunts for the latter.
 
 ## Conditional add-on lanes
@@ -231,6 +233,8 @@ mkdir -p "<repo>/.audit/$DATE"
 Display the contents of `summary.md` in chat. This is the only thing the user needs to read end-to-end.
 
 ### 3. Present next-step options
+
+Needs `AskUserQuestion` in your tool list. In orch no role holds it: do not retry. Put the options and your recommended one in the report (or `send` them to @main) and stop there; the fixes wait for the human.
 
 Use `AskUserQuestion` with these options (multi-select where applicable):
 

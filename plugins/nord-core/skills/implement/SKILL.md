@@ -29,7 +29,8 @@ than one story, and it never changes what a gate is or when the frontier steps i
 
 > **Who may run which.** `--from task` is the only cell a worker may drive — Part A needs
 > nothing beyond one subagent spawn and a shell. Every multi-story form fans out through
-> `Workflow` or several concurrent spawns, and a worker is denied both unconditionally, so
+> `Workflow` or several concurrent spawns, and a worker is denied `Workflow` unless its
+> preset is `qualifier`, and `Task`/`Agent` by every policy, so
 > `--from goal`, `--from plan` and `--parallel` are main-session only. **If you are a
 > worker, Part B is not yours — report back rather than starting it.**
 
@@ -37,6 +38,8 @@ INPUT: `$ARGUMENTS` — `<goal>  [gate: <command>]  [--from task|goal|plan] [--p
 
 The subagent spawn tool is `Agent` in current Claude Code and `Task` in older builds;
 "spawn" below means whichever this session has.
+
+Needs `Agent` or `Task` in your tool list. In orch no role holds either: do not retry. Do the story yourself in this context and say in your report that nothing was spawned.
 
 ---
 

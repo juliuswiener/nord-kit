@@ -29,16 +29,16 @@ const instructor = render({ ORCH_CAN_SPAWN: "1" });
 
 // The worker reads no rule or catalogue it cannot act on...
 check("worker: no 'Not loaded' section", !worker.includes("Not loaded"));
-check("worker: no 'unconditionally' (Workflow/Task denial)", !worker.includes("unconditionally"));
-check("worker: no 'Yours to run' memory rule", !worker.includes("Yours to run"));
+check("worker: no 'unless its preset is `qualifier`' (Workflow/Task denial)", !worker.includes("unless its preset is `qualifier`"));
+check("worker: no 'Run it yourself' memory rule", !worker.includes("Run it yourself before you hand work over"));
 // ...but still learns what the dagger in its table means.
 check("worker: dagger is still explained", worker.includes("`†` runs in the main session only"));
 check("worker: table is still there", worker.includes("| **Implement**"));
 
 check("instructor: 'Not loaded' kept", instructor.includes("Not loaded"));
 check("instructor: names the off plugins, not their tools", instructor.includes("`nord-ee`") && !instructor.includes("kicad-analyze"));
-check("instructor: 'unconditionally' kept", instructor.includes("unconditionally"));
-check("instructor: 'Yours to run' kept", instructor.includes("Yours to run"));
+check("instructor: 'unless its preset is `qualifier`' kept", instructor.includes("unless its preset is `qualifier`"));
+check("instructor: 'Run it yourself' kept", instructor.includes("Run it yourself before you hand work over"));
 check("instructor: dagger explained", instructor.includes("`†` runs in the main session only"));
 
 check("no marker text reaches either role", !worker.includes("instructor-only") && !instructor.includes("instructor-only"));

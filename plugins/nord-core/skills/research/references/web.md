@@ -58,6 +58,8 @@ Given a query, decompose into 2-5 independent search facets:
 
 Each facet agent runs a two-stage protocol. The split is load-bearing: a specialist told only "research X" answers from memory (0 fetches, fabricated URLs/numbers). Separating FIND from FETCH and demanding a verbatim quote per source forces real reads — empirically the difference between 0 and dozens of real fetches.
 
+Needs `Task`/`Agent` in your tool list. In orch no role holds it: do not retry. Skip the fan-out and name it as not run in your report.
+
 Fire independent facets in parallel via Task:
 
 ```

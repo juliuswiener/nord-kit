@@ -686,11 +686,12 @@ const blank = (v) => typeof v !== 'string' || v.trim() === ''
 
 const buildCoverage = (defs, outcomes, notRun) => {
   return defs.map(({ key, kind }) => {
-    if (!outcomes.has(key)) return { lane: key, kind, state: 'not_run', reason: notRun(key), summary: '', skipped: [] }
+    if (!outcomes.has(key)) return { lane: key, kind, state: 'not_run', reason: notRun(key), summary: '', skipped: [], unverified: [] }
     const res = outcomes.get(key)?.result
-    if (!res || typeof res !== 'object') return { lane: key, kind, state: 'no_result', reason: 'the lane agent returned null or a stage threw', summary: '', skipped: [] }
+    if (!res || typeof res !== 'object') return { lane: key, kind, state: 'no_result', reason: 'the lane agent returned null or a stage threw', summary: '', skipped: [], unverified: [] }
     const skipped = [].concat(res.skipped ?? []) // a bare string still counts as one skipped entry
-    return { lane: key, kind, state: skipped.length ? 'partial' : 'covered', reason: '', summary: res.summary, skipped }
+    const unverified = outcomes.get(key).unverified ?? [] // ids of findings a batch verifier owed a verdict and did not give; the state does not change
+    return { lane: key, kind, state: skipped.length ? 'partial' : 'covered', reason: '', summary: res.summary, skipped, unverified }
   })
 }
 
@@ -719,7 +720,8 @@ const coverageOf = ({ core, conditional, active, results, notRun }) => {
   const errors = checkCoverage(rows, defs.map((d) => d.key))
   const counts = Object.fromEntries(LEDGER_STATES.map((s) => [s, rows.filter((r) => r.state === s).length]))
   const complete = errors.length === 0 && rows.every((r) => r.kind !== 'core' || r.state === 'covered' || r.state === 'partial')
-  const headline = `${LEDGER_STATES.map((s) => `${s} ${counts[s]}`).join(' · ')} → ${complete ? 'all core lanes ran' : 'INCOMPLETE'}`
+  const unverified = rows.reduce((n, r) => n + r.unverified.length, 0)
+  const headline = `${LEDGER_STATES.map((s) => `${s} ${counts[s]}`).join(' · ')} → ${complete ? 'all core lanes ran' : 'INCOMPLETE'}${unverified ? ` · ${unverified} finding(s) kept without a verifier verdict (unverified)` : ''}`
   return { complete, counts, rows, errors, headline }
 }
 
@@ -727,8 +729,8 @@ const coverageMarkdown = (c) => {
   return [
     '## Coverage (a form check of the run, not proof of what a lane read)',
     `${c.rows.length} lanes: ${c.headline}`,
-    ...c.rows.filter((r) => r.state !== 'covered' && !(r.kind === 'conditional' && r.state === 'not_run'))
-      .map((r) => `- ${r.lane} (${r.kind}): ${r.state} — ${r.reason || r.skipped.join('; ')}`),
+    ...c.rows.filter((r) => (r.state !== 'covered' && !(r.kind === 'conditional' && r.state === 'not_run')) || r.unverified?.length)
+      .map((r) => `- ${r.lane} (${r.kind}): ${r.state} — ${[r.reason || r.skipped.join('; '), r.unverified?.length ? `verifier left no verdict for ${r.unverified.join(', ')}: kept in the report, unverified` : ''].filter(Boolean).join('; ')}`),
     ...c.errors.map((e) => `- FORM ERROR ${e}`),
     '',
   ].join('\n')
@@ -968,6 +970,9 @@ const laneResults = await pipeline(
       agentType: 'nord-core:reviewer',
     })
     const byId = new Map((batch?.verdicts ?? []).map(v => [v.findingId, v]))
+    // Owed a verdict and got none (null, verdicts: [], or no entry for this id): the finding stays (below), the ledger names it.
+    // ponytail: only the lane row carries the ids; a checked:'unverified' field on the finding itself is the upgrade path, only on request.
+    const unverified = toVerify.filter(f => !byId.has(f.id)).map(f => f.id)
     const surviving = toVerify.filter(f => {
       const v = byId.get(f.id)
       // Drop only on an explicit refutation. A missing verdict (verifier omission)
@@ -975,7 +980,7 @@ const laneResults = await pipeline(
       // surviving into the human-reviewed report.
       return v ? v.isReal !== false : true
     })
-    return { lane, result, verified: [...surviving, ...passThrough] }
+    return { lane, result, verified: [...surviving, ...passThrough], unverified }
   }
 )
 

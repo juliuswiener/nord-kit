@@ -203,6 +203,7 @@ async function main() {
   }
 
   // AK3: ein Arbeitsbaum, ein Server -- auch bei gleichzeitigen Anfragen (sonst entkommt ein Server der Zaehlung).
+  // Und keiner entkommt dem Beenden: nicht nach einem gescheiterten Verbindungsaufbau, nicht mitten im Aufbau.
   if (want("ak3")) {
     const f = project();
     const code = `const fs = require("fs"); const l = require(${JSON.stringify(DIST)});
@@ -232,6 +233,31 @@ const req = { file: process.env.RACE_FILE, beforeText: "fn a() {}\\n", afterText
     const m2 = /FEHLER \[(.*)\] NACH_FEHLER_LEBEND (\d+)/.exec(r2.stdout || "");
     check("AK3 scheitert der Verbindungsaufbau, bleibt kein Sprachserver zurueck", !!m2 && /timed out/.test(m2[1]) && Number(m2[2]) === 0,
       `${m2 ? `Fehler [${m2[1]}], danach noch lebend ${m2[2]}` : "keine Ausgabe: " + JSON.stringify({ out: r2.stdout, err: (r2.stderr || "").slice(0, 300) })}`);
+    // Der Verbindungsaufbau laeuft noch (initialize antwortet erst nach 3 s), als der Pool beendet wird. Der Server steht dann
+    // nur in `connecting`, noch nicht in `clients`; beide Wege, den Pool zu beenden, muessen ihn trotzdem treffen: disconnectAll
+    // (Ende der Sitzung) und der Exit-/Signal-Handler forceKillAll. process.emit("SIGTERM") ruft ihn, ohne den Prozess zu beenden --
+    // der Fake bekommt also kein EOF auf stdin und kann nur durch den Pool selbst sterben. Gezaehlt werden nur die Server dieses Prozesses.
+    const connectingCode = (ende) => `const fs = require("fs"), path = require("path"); const l = require(${JSON.stringify(DIST)});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const mine = () => fs.readdirSync(process.env.FAKE_PIDDIR).filter((n) => { try {
+  if (JSON.parse(fs.readFileSync(path.join(process.env.FAKE_PIDDIR, n), "utf8")).ppid !== process.pid) return false;
+  const s = fs.readFileSync("/proc/" + n + "/stat", "utf8"); return s.slice(s.lastIndexOf(")") + 2, s.lastIndexOf(")") + 3) !== "Z"; } catch { return false; } }).length;
+const req = { file: process.env.RACE_FILE, beforeText: "fn a() {}\\n", afterText: "fn a() { }\\n", budgetMs: 500, waitReadyMs: 0, flycheckMs: 0 };
+(async () => {
+  const anfrage = l.editDiagnostics(req).then(() => "beantwortet", (e) => "abgelehnt: " + String(e && e.message).slice(0, 50));
+  for (let i = 0; i < 100 && mine() < 1; i++) await sleep(50);   // bis der Server gestartet ist; sein initialize steht noch aus
+  const vor = mine();
+  ${ende === "disconnectAll" ? "await l.disconnectAll();" : 'process.emit("SIGTERM");'}
+  for (let i = 0; i < 60 && mine() > 0; i++) await sleep(50);    // ein getoeteter Prozess verschwindet nicht im selben Augenblick
+  const nach = mine();
+  console.log("VOR " + vor + " NACH " + nach + " ANFRAGE [" + await Promise.race([anfrage, sleep(1500).then(() => "haengt")]) + "]"); process.exit(0); })();`;
+    for (const [ende, wer] of [["disconnectAll", "disconnectAll"], ["signal", "der Exit-/Signal-Handler (forceKillAll)"]]) {
+      const rc = spawnSync("node", ["-e", connectingCode(ende)], { env: baseEnv({ RACE_FILE: project(), FAKE_INIT_MS: "3000" }), encoding: "utf8", timeout: 30000 });
+      const mc = /VOR (\d+) NACH (\d+) ANFRAGE \[(.*)\]/.exec(rc.stdout || "");
+      const was = mc ? `vor dem Beenden ${mc[1]} Server, danach noch lebend ${mc[2]}, Anfrage [${mc[3]}]` : "keine Ausgabe: " + JSON.stringify({ out: rc.stdout, err: (rc.stderr || "").slice(0, 300) });
+      check(`AK3 Vorbedingung (${ende}): genau ein Server verbindet noch, als der Pool beendet wird`, !!mc && Number(mc[1]) === 1, was);
+      check(`AK3 ${wer} beendet auch einen Server, der noch verbindet; die wartende Anfrage endet mit Fehler`, !!mc && Number(mc[2]) === 0 && /^abgelehnt/.test(mc[3]), was);
+    }
   }
 
   // AK4: Leerlauf beendet den Server (NORD_LSP_IDLE_TIMEOUT_MS); ist heute schon gebaut, Mutation: evictClientIfIdle.

@@ -1,7 +1,8 @@
 # Deterministic a11y tool gate — commands
 
 Run at least one machine checker against a rendered page before the pipeline; feed its output into the
-workflow as `args.toolFindings` (those findings get `toolVerified:true` and bypass adversarial verify).
+workflow as `args.toolFindings` (a lane restates each finding with `toolVerified:true` and its tool line in
+`toolEvidence`; only those bypass adversarial verify, a flag without `toolEvidence` does not).
 Local-first, no account needed — all run via `npx` (Node) with a headless Chromium the tools fetch on
 first use. Pick by what's installed; **axe-core is the default** (best signal-to-noise).
 

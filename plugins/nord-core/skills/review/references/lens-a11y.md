@@ -38,8 +38,9 @@ like review --scope repo --deep's tool gate. Two tiers, both in `lens-a11y/tooli
   text-spacing (1.4.12), orientation (1.3.4), content-on-hover (1.4.13), status messages (4.1.3). These are
   interaction-verified, NOT coverage gaps — run them whenever the page is reachable.
 
-- Any failure either tier reports → finding with `toolVerified:true` + the exact tool/procedure + the
-  proving line. These **bypass** adversarial verify.
+- Any failure either tier reports → finding with `toolVerified:true` and the exact tool/procedure + the
+  proving line in `toolEvidence`. Only these skip adversarial verify: the workflow has no shell and does
+  not rerun the command, and a flag without `toolEvidence` goes to the verifier like any other finding.
 - Only what neither tier could exercise (no browser, source-only, SR-listening) → `coverage_gap`, related
   lens findings stay `toolVerified:false`. Absence of a run is NOT a pass.
 
@@ -77,7 +78,8 @@ const FINDINGS_SCHEMA = { type:'object', properties:{ findings:{ type:'array', i
   bitv:{type:'string', description:'BITV 2.0 / EN 301 549 clause if it maps, else empty'},
   severity:{type:'string', enum:['blocker','critical','high','medium','low']},
   confidence:{type:'string', enum:['high','medium','low']},
-  toolVerified:{type:'boolean', description:'true ONLY if this came from a real a11y tool run (axe/pa11y/Lighthouse/measured contrast) — a fact, bypasses verify'} },
+  toolVerified:{type:'boolean', description:'true ONLY if this came from a real a11y tool run (axe/pa11y/Lighthouse/measured contrast). With the tool line in toolEvidence it skips verify; without toolEvidence it is verified like any other finding'},
+  toolEvidence:{type:['string','null'], description:'When toolVerified: the tool-gate line this finding restates, or the exact command you ran + the output line that proves it (e.g. npx wcag-contrast-cli "#767676" "#ffffff" -> 4.54:1). Null otherwise'} },
   required:['title','detail','where','severity','confidence'] } } }, required:['findings'] }
 const VERDICT_SCHEMA = { type:'object', properties:{ isReal:{type:'boolean'}, reason:{type:'string'},
   checked:{type:'string', enum:['confirmed','refuted','na'], description:'confirmed = re-ran the tool / inspected the actual DOM-or-tile and it holds; refuted = it does not hold; na = judgement finding, fall back to adversarial refute'} },
@@ -85,10 +87,12 @@ const VERDICT_SCHEMA = { type:'object', properties:{ isReal:{type:'boolean'}, re
 
 const results = await pipeline(
   DIMENSIONS,
-  d => agent(`Review this web UI for ${d.key} issues.\nTARGET: ${target}\nA11y tool-gate output already collected (treat as ground truth, tag toolVerified:true, do not re-argue): ${toolFindings}\n${d.prompt}\nReport concrete findings with a precise location (selector / file:line / tile-path). Severity: blocker = fails a Level A criterion AND blocks a core citizen task; critical = Level A failure or task-blocking UX; high = Level AA failure; medium/low = lesser. No praise, no nits.`,
+  d => agent(`Review this web UI for ${d.key} issues.\nTARGET: ${target}\nA11y tool-gate output the caller already collected (a tool run, do not re-argue it): ${toolFindings}\nFor a finding that restates a line of it, tag toolVerified:true and copy that line into toolEvidence. If you ran a tool yourself, tag toolVerified:true and put the command and the output line that proves it into toolEvidence. A finding without toolEvidence is verified like any other.\n${d.prompt}\nReport concrete findings with a precise location (selector / file:line / tile-path). Severity: blocker = fails a Level A criterion AND blocks a core citizen task; critical = Level A failure or task-blocking UX; high = Level AA failure; medium/low = lesser. No praise, no nits.`,
         { label:`review:${d.key}`, phase:'Review', schema:FINDINGS_SCHEMA }),
   (review, d) => parallel(((review && review.findings) || []).map(f => () =>
-    (f.toolVerified
+    // ponytail: toolEvidence is taken as given - this script has no shell and cannot rerun the command, so an invented one still skips the verifier.
+    // ponytail: upgrade path = match toolEvidence against args.toolFindings before it counts.
+    (f.toolVerified === true && typeof f.toolEvidence === 'string' && f.toolEvidence.trim() !== ''
       ? Promise.resolve({ ...f, dimension:d.key, verdict:{ isReal:true, checked:'confirmed', reason:'tool-verified' } })
       : agent(`Verify this ${d.key} finding. If it is machine-checkable (contrast, alt/label presence, ARIA validity, lang, target size), RE-CHECK it against the actual page/DOM/tile — holds → checked="confirmed", does not → checked="refuted". If it is a judgement (usability, plain-language, visual, trust), set checked="na" and adversarially REFUTE it — default isReal=false if the impact is overstated or the citizen would not actually be blocked.\nFinding: "${f.title}" @ ${f.where}${f.wcagSC ? ' ['+f.wcagSC+']' : ''} — ${f.detail}`,
             { label:`verify:${d.key}`, phase:'Verify', schema:VERDICT_SCHEMA })
@@ -119,7 +123,8 @@ return { count: confirmed.length, findings: confirmed }
 3. **Never auto-fix.** Read-only review; hand fixes to the user or to `implement` after they pick.
 
 ## Confidence + provenance (anchored — A/B/C, see BEHAVIOUR.md)
-- **high** = `toolVerified` (axe/pa11y/Lighthouse/measured contrast — a fact) OR `checked:confirmed`
+- **high** = `toolVerified` with the tool run in `toolEvidence` (axe/pa11y/Lighthouse/measured contrast — the
+  caller or the lane reports the run; the workflow does not rerun it) OR `checked:confirmed`
   (re-inspected the actual DOM/tile). **medium** = judgement finding that survived adversarial refute.
   **low** → Open Questions, not asserted. Nothing is `high` on argument alone.
 - **coverage_gap ≠ pass:** a criterion you could not assess (source-only, image-only, tool absent) is

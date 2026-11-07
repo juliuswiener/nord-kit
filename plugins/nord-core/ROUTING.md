@@ -45,18 +45,18 @@ A row binds you only when your tool list holds what it needs. If it lacks one, s
 
 | Task | Default | When other | Do NOT use |
 |---|---|---|---|
-| **Plan** — what to build, and how | `plan` — the tournament, returns one plan | `--stage ideas` (idea board) · `--stage shortlist` (ranked, weak ones killed) · `--stage spec` (one question per round until requirements are pinned) · `--deep` (Planner→Architect→Critic after the tournament) | make-plan, ralplan, superpowers brainstorming |
-| **Implement** — anything behind a test/compiler/lint gate | `implement` — `--from task` (one story; **the only cell a worker may drive**) | `--from goal` (decompose, run until all green) · `--from plan` (split comes from a finished plan) · `+ --parallel` (disjoint stories concurrently) | self-verify loops, LLM-judge gates, do, executing-plans |
-| **Review** — a change, a codebase, or a plan | `review` — one pass over the diff | `--scope repo` (whole tree) · `--scope plan` (before anyone builds it) · `--lens security\|a11y\|claims` · `--deep` (parallel specialists, every finding adversarially verified) | `/code-review`, `/security-review` (denied — same job, three entry points), elite-code-reviewer, trusting a green suite, believing the docs |
-| **Cleanup** | `cleanup` — **no default**, say which | `--remove` (dead code, verified safe first) · `--move files\|modules` (relocate) · `/simplify` (quick) | ai-slop-cleaner |
-| **Diagnose** — why does it behave this way | `diagnose` — competing hypotheses, ending at the one probe that settles it | the `debugger` agent when you can already reproduce and localise it | systematic-debugging · applying the fix from here (that is `implement`) |
-| **Research** | `research` — this repo, local only | `--web` (docs, APIs, specs) · native WebSearch/WebFetch as fallback | other plugins' research skills, autoresearch |
-| **Orient in a repo** | `orient` — ranks symbols by PageRank, no build, runs anywhere | `smart_outline` (one file) · `graphify` (what depends on what; needs a built graph) · `deepinit` † (writes AGENTS.md) | `learn-codebase` — reads every file in full · reading files just to orient |
+| **Plan** — what to build, and how | `nord-core:plan` — the tournament, returns one plan | `--stage ideas` (idea board) · `--stage shortlist` (ranked, weak ones killed) · `--stage spec` (one question per round until requirements are pinned) · `--deep` (Planner→Architect→Critic after the tournament) | make-plan, ralplan, superpowers brainstorming |
+| **Implement** — anything behind a test/compiler/lint gate | `nord-core:implement` — `--from task` (one story; **the only cell a worker may drive**) | `--from goal` (decompose, run until all green) · `--from plan` (split comes from a finished plan) · `+ --parallel` (disjoint stories concurrently) | self-verify loops, LLM-judge gates, do, executing-plans |
+| **Review** — a change, a codebase, or a plan | `nord-core:review` — one pass over the diff | `--scope repo` (whole tree) · `--scope plan` (before anyone builds it) · `--lens security\|a11y\|claims` · `--deep` (parallel specialists, every finding adversarially verified) | `/code-review`, `/security-review` (denied — same job, three entry points), elite-code-reviewer, trusting a green suite, believing the docs |
+| **Cleanup** | `nord-core:cleanup` — **no default**, say which | `--remove` (dead code, verified safe first) · `--move files\|modules` (relocate) · `/simplify` (quick) | ai-slop-cleaner |
+| **Diagnose** — why does it behave this way | `nord-core:diagnose` — competing hypotheses, ending at the one probe that settles it | the `debugger` agent when you can already reproduce and localise it | systematic-debugging · applying the fix from here (that is `implement`) |
+| **Research** | `nord-core:research` — this repo, local only | `--web` (docs, APIs, specs) · native WebSearch/WebFetch as fallback | other plugins' research skills, autoresearch |
+| **Orient in a repo** | `nord-core:orient` — ranks symbols by PageRank, no build, runs anywhere | `smart_outline` (one file) · `graphify` (what depends on what; needs a built graph) · `deepinit` † (writes AGENTS.md) | `learn-codebase` — reads every file in full · reading files just to orient |
 | **Start work on a vault entry** | `~/00_projects/vault/bin/context <slug>` — the ticket, the rules that can fire here, the files, their neighbourhood and tests, the decisions governing those paths, recent commits, open claims, blockers | `--budget N` to cut from the bottom · `--json` | grepping the vault for related notes — the decisions that govern these paths are not linked from the entry, so search does not find them |
-| **Verify** | `verify` | — | claiming done without evidence |
-| **Commit message** | `commit-message` — writes it, does **not** commit | — | writing one ad hoc |
-| **Command needs a TTY** | `interactive` | — | asking the user to run it elsewhere |
-| **Abort a loop** | `abort` | — | deleting `.nord/state` by hand |
+| **Verify** | `nord-core:verify` | — | claiming done without evidence |
+| **Commit message** | `nord-core:commit-message` — writes it, does **not** commit | — | writing one ad hoc |
+| **Command needs a TTY** | `nord-core:interactive` | — | asking the user to run it elsewhere |
+| **Abort a loop** | `nord-core:abort` | — | deleting `.nord/state` by hand |
 | **Change or replace a tool** | `TOOLING.md` | — | editing `src/` only, trusting a green suite |
 
 <!-- instructor-only -->

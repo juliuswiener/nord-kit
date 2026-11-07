@@ -224,7 +224,7 @@ DATE=$(date -I)  # YYYY-MM-DD
 mkdir -p "<repo>/.audit/$DATE"
 ```
 
-- `findings.json` ← `JSON.stringify({ vitals, blast, findings, report, laneSummaries }, null, 2)`
+- `findings.json` ← `JSON.stringify({ vitals, blast, findings, report, laneSummaries, coverage }, null, 2)` — `coverage.rows` has one row per lane (13 core + 6 conditional), each in `covered`, `partial`, `not_run` or `no_result`; `coverage.complete` is false when a core lane left no result or was not asked, or when `coverage.errors` is not empty
 - `report.md` ← assemble from `report.{verdict, verdict_rationale, executive_summary, top_risks, clusters, quarter_plan, methodology_notes}` + a markdown table of every finding (id, severity, lane, file:lines, title)
 - `summary.md` ← `report.summary_markdown` verbatim
 
@@ -282,6 +282,7 @@ already wires, anchored:
 ## Honest limitations
 
 - **Sampling, not exhaustive.** Each lane has a finding cap (default 20) and reads excerpts, not entire trees. Large repos get represented, not surveyed.
+- **The coverage table checks form only.** It shows which lane ended in which state and that every `skipped` entry is non-blank. It cannot show what a lane really read or whether a `skipped` text is a true reason. `summary.md` opens with it, written by the script, not by the synthesis model.
 - **No runtime verification.** Findings are static-analysis-grade. The audit can flag "no health check endpoint" but won't probe a running service.
 - **Adversarial verification is necessary but not sufficient.** Skeptics can miss subtle real findings just as the original lane can produce false positives.
 - **Untested for codebases >500k LOC.** Token budget and synthesis quality degrade.

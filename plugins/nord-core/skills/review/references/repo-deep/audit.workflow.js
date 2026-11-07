@@ -674,6 +674,66 @@ const CONDITIONAL_LANES = {
   embedded: { key: 'embedded', label: 'Embedded / Real-Time', prompt: LANE_EMBEDDED },
 }
 
+// ─── ledger:begin — pure (no I/O, no globals; a Workflow script has no filesystem). The test cuts this block out by its markers. ───
+// One row per lane of the registry, each in exactly one state. It checks the FORM of the run, not what a lane really read.
+//   covered   the lane returned a summary and reported nothing skipped
+//   partial   the lane returned a summary and lists what it skipped (each entry names what and why)
+//   not_run   the lane was not started on purpose (args.lanes, or no trigger); `reason` says which
+//   no_result the lane was started and left nothing (agent returned null, or a stage threw); `reason` says so
+const LEDGER_STATES = ['covered', 'partial', 'not_run', 'no_result']
+const blank = (v) => typeof v !== 'string' || v.trim() === ''
+
+const buildCoverage = (defs, outcomes, notRun) => {
+  return defs.map(({ key, kind }) => {
+    if (!outcomes.has(key)) return { lane: key, kind, state: 'not_run', reason: notRun(key), summary: '', skipped: [] }
+    const res = outcomes.get(key)?.result
+    if (!res || typeof res !== 'object') return { lane: key, kind, state: 'no_result', reason: 'the lane agent returned null or a stage threw', summary: '', skipped: [] }
+    const skipped = [].concat(res.skipped ?? []) // a bare string still counts as one skipped entry
+    return { lane: key, kind, state: skipped.length ? 'partial' : 'covered', reason: '', summary: res.summary, skipped }
+  })
+}
+
+const checkCoverage = (rows, expected) => {
+  const errors = []
+  const seen = new Set()
+  for (const r of rows) {
+    if (seen.has(r.lane)) errors.push(`${r.lane}: duplicate row`)
+    seen.add(r.lane)
+    if (!expected.includes(r.lane)) errors.push(`${r.lane}: not a lane of the registry`)
+    if (!LEDGER_STATES.includes(r.state)) { errors.push(`${r.lane}: unknown state ${JSON.stringify(r.state)}`); continue }
+    const skipped = Array.isArray(r.skipped) ? r.skipped : []
+    if ((r.state === 'covered' || r.state === 'partial') && blank(r.summary)) errors.push(`${r.lane}: ${r.state} without a summary`)
+    if (r.state === 'covered' && skipped.length) errors.push(`${r.lane}: covered, but skipped is not empty`)
+    if (r.state === 'partial' && (!skipped.length || skipped.some(blank))) errors.push(`${r.lane}: partial needs a skipped entry, none blank`)
+    if ((r.state === 'not_run' || r.state === 'no_result') && blank(r.reason)) errors.push(`${r.lane}: ${r.state} without a reason`)
+  }
+  for (const k of expected) if (!seen.has(k)) errors.push(`${k}: no row`)
+  return errors
+}
+
+const coverageOf = ({ core, conditional, active, results, notRun }) => {
+  const defs = [...core.map((l) => ({ key: l.key, kind: 'core' })), ...Object.keys(conditional).map((key) => ({ key, kind: 'conditional' }))]
+  const got = new Map(results.filter(Boolean).map((o) => [o.lane?.key, o])) // by lane key: a dropped (null) item has none
+  const rows = buildCoverage(defs, new Map(active.map((l) => [l.key, got.get(l.key) ?? null])), notRun)
+  const errors = checkCoverage(rows, defs.map((d) => d.key))
+  const counts = Object.fromEntries(LEDGER_STATES.map((s) => [s, rows.filter((r) => r.state === s).length]))
+  const complete = errors.length === 0 && rows.every((r) => r.kind !== 'core' || r.state === 'covered' || r.state === 'partial')
+  const headline = `${LEDGER_STATES.map((s) => `${s} ${counts[s]}`).join(' · ')} → ${complete ? 'all core lanes ran' : 'INCOMPLETE'}`
+  return { complete, counts, rows, errors, headline }
+}
+
+const coverageMarkdown = (c) => {
+  return [
+    '## Coverage (a form check of the run, not proof of what a lane read)',
+    `${c.rows.length} lanes: ${c.headline}`,
+    ...c.rows.filter((r) => r.state !== 'covered' && !(r.kind === 'conditional' && r.state === 'not_run'))
+      .map((r) => `- ${r.lane} (${r.kind}): ${r.state} — ${r.reason || r.skipped.join('; ')}`),
+    ...c.errors.map((e) => `- FORM ERROR ${e}`),
+    '',
+  ].join('\n')
+}
+// ─── ledger:end ───
+
 // ─── PHASE 1: Vital Signs ──────────────────────────────────────────────────────
 
 phase('Vital Signs')
@@ -898,6 +958,13 @@ const laneResults = await pipeline(
   }
 )
 
+// Every lane of the registry ends in one named state — also the one that returned null, threw, or was never asked.
+const coverage = coverageOf({
+  core: CORE_LANES, conditional: CONDITIONAL_LANES, active: activeLanes, results: laneResults,
+  notRun: (key) => CORE_LANES.some((l) => l.key === key) ? 'not in args.lanes' : `conditional lane without a trigger (archetype ${vitals.archetype}, not in extraLanes)`,
+})
+log(`Coverage: ${coverage.headline}`)
+
 // ─── PHASE 4: Blast Radius (concurrent with parallel lanes — runs in its own phase) ─
 
 phase('Blast Radius')
@@ -1046,6 +1113,8 @@ Be concrete. Every claim must reference a finding ID. No "should be considered" 
 `
 
 const report = await agent(SYNTH_PROMPT, { schema: REPORT_SCHEMA, label: 'synthesis', phase: 'Synthesize' })
+// The table heads the summary without the synthesis model: it cannot leave a gap out.
+if (report) report.summary_markdown = `${coverageMarkdown(coverage)}\n${report.summary_markdown ?? ''}`
 
 // ─── Return ────────────────────────────────────────────────────────────────────
 
@@ -1054,6 +1123,7 @@ return {
   archetype: vitals.archetype,
   vitals,
   blast,
+  coverage,
   laneSummaries,
   findings: allFindings,
   report,

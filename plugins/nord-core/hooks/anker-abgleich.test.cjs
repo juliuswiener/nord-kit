@@ -17,18 +17,8 @@ const path = require("path");
 const ROOT = path.resolve(__dirname, "..");
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
 
-// ---- the harness: the Workflow tool's globals, as plain JS ----
-const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-async function run(src, args, agent) {
-  const body = src.replace(/^export const meta/m, "const meta");
-  const pipeline = (items, ...stages) => Promise.all(items.map(async (item, i) => {
-    let v = item;
-    for (const s of stages) v = await s(v, item, i);
-    return v;
-  }));
-  const parallel = (thunks) => Promise.all(thunks.map((t) => t()));
-  return new AsyncFunction("args", "agent", "pipeline", "parallel", "phase", "log", body)(args, agent, pipeline, parallel, () => {}, () => {});
-}
+// ---- the harness: the Workflow tool's globals, as plain JS (shared with audit-abdeckung.test.cjs) ----
+const { runScript } = require("./workflow-harness.cjs");
 
 // ---- repo-deep: skills/review/references/repo-deep/audit.workflow.js ----
 const AUDIT = read("skills/review/references/repo-deep/audit.workflow.js");
@@ -49,7 +39,7 @@ async function auditRun(findings, approve) {
     }
     return {}; // blast-radius, synthesis
   };
-  const out = await run(AUDIT, { path: "/no/such/repo", lanes: ["security"] }, agent);
+  const { out } = await runScript(AUDIT, { path: "/no/such/repo", lanes: ["security"] }, agent);
   return { shown, kept: out.findings.map((f) => f.id) };
 }
 
@@ -63,7 +53,7 @@ async function diffRun(verdict) {
     if (opts.label.startsWith("verify:")) return verdict;
     return {};
   };
-  return (await run(DIFF, { target: "x" }, agent)).count; // 1 = the finding stands
+  return (await runScript(DIFF, { target: "x" }, agent)).out.count; // 1 = the finding stands
 }
 
 let red = 0;

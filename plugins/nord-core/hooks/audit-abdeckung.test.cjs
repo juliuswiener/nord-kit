@@ -19,24 +19,8 @@ const ROOT = path.resolve(__dirname, "..");
 const SCRIPT = path.join(ROOT, "skills/review/references/repo-deep/audit.workflow.js");
 const SRC = fs.readFileSync(SCRIPT, "utf8");
 
-// ---- the harness: the Workflow tool's globals, as plain JS ----
-const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-const nullOnThrow = async (f) => { try { return await f(); } catch { return null; } };
-async function runScript(args, agent) {
-  const body = SRC.replace(/^export const meta/m, "const meta");
-  const pipeline = (items, ...stages) => Promise.all(items.map((item, i) => nullOnThrow(async () => {
-    let v = item;
-    for (const s of stages) v = await s(v, item, i);
-    return v;
-  })));
-  const parallel = (thunks) => Promise.all(thunks.map((t) => nullOnThrow(t)));
-  const logs = [];
-  const budget = { total: null, spent: () => 0, remaining: () => Infinity };
-  const workflow = async () => { throw new Error("workflow() is not stubbed"); };
-  const out = await new AsyncFunction("args", "agent", "pipeline", "parallel", "phase", "log", "budget", "workflow", body)(
-    args, agent, pipeline, parallel, () => {}, (m) => logs.push(String(m)), budget, workflow);
-  return { out, logs };
-}
+// ---- the harness: the Workflow tool's globals, as plain JS (shared with anker-abgleich.test.cjs) ----
+const { runScript } = require("./workflow-harness.cjs");
 
 const VITALS = { archetype: "service", languages: [{ name: "JavaScript", loc: 1, pct: 100 }], loc: 1, demographics: { contributors_90d: 1 } };
 const CORE = ["architecture", "code-quality", "tests", "deps", "security", "perf", "obs", "cicd", "api", "data", "docs", "config", "drift"];
@@ -62,7 +46,7 @@ function scenario(lanes = {}, synthesis = { summary_markdown: "# Audit Summary" 
 }
 async function go(args, lanes, synthesis, vitals) {
   const s = scenario(lanes, synthesis, vitals);
-  const r = await runScript({ path: "/no/such/repo", ...args }, s.agent);
+  const r = await runScript(SRC, { path: "/no/such/repo", ...args }, s.agent);
   return { ...r, seen: s.seen, row: (k) => (r.out.coverage?.rows || []).find((x) => x.lane === k) };
 }
 

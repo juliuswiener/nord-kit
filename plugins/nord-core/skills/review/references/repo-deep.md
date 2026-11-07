@@ -268,12 +268,13 @@ Lane prompts live inside `repo-deep/audit.workflow.js` as top-level constants (`
 
 The finding/verdict schema lives in `repo-deep/audit.workflow.js` (not this file) — these are the semantics it
 already wires, anchored:
-- **Confidence (B)** ties to the evidence tier a finding survived: **high** = `toolVerified` (a real tool's
-  exit-code/output — CVE, compiler/lint error: a fact, not a vote) OR survived the 3-skeptic majority
+- **Confidence (B)** ties to the evidence tier a finding survived: **high** = `toolVerified` with the command
+  in `toolEvidence` (the lane reports a tool run — CVE, compiler/lint error; the workflow has no shell and
+  does not rerun it, and a flag without `toolEvidence` goes to the verifier) OR survived the 3-skeptic majority
   refute (`thorough`); **medium** = lane-reported, static-only / verify-lite passthrough; **low** → route
   to the INVESTIGATE bucket, not asserted.
-- **Provenance (A):** `toolVerified:true` findings are `explicit` (deterministic source); reasoned/
-  pattern-matched findings are `derived`. The drift lane (Stated-vs-Actual) is where `conflicts` live.
+- **Provenance (A):** `toolVerified:true` findings are `explicit` (the lane names a tool run as source);
+  reasoned/pattern-matched findings are `derived`. The drift lane (Stated-vs-Actual) is where `conflicts` live.
 - **C — coverage_gap ≠ refuted:** a lane that couldn't run its tool (absent linter, no `--full` data) must
   surface as **coverage_gap / "unverified (tool absent)"** in `skipped`, kept distinct from a finding that
   was refuted-and-dropped by the verifier. Absence of a finding because the check didn't run is NOT a pass.

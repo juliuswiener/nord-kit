@@ -33,8 +33,9 @@ These three hold for whatever cell you picked:
 
 1. **A finding you cannot anchor is not a finding.** Every finding names a `file:line`
    you actually read. Drop it, or say in the summary that you could not anchor it and
-   what would settle that. This is the rule `--deep` mechanises with its verifier pass;
-   at one pass you enforce it yourself.
+   what would settle that. At one pass you enforce this yourself. `--deep` adds a verifier
+   agent that reads the cited place for the findings it checks; no script checks that the
+   file or line exists.
 2. **One severity vocabulary.** CRITICAL / HIGH / MEDIUM / LOW, and the verdict follows
    from it: APPROVE (no CRITICAL or HIGH at high confidence) · REQUEST CHANGES
    (CRITICAL or HIGH at high confidence) · COMMENT (only LOW/MEDIUM). A CRITICAL or HIGH

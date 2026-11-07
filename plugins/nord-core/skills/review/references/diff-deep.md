@@ -53,18 +53,18 @@ Run `lsp_diagnostics` on every modified file before launching the 4-dimension pi
 
 Dimension reviewers surface ALL findings annotated with `severity` + `confidence`. Never pre-filter during discovery. The Verify stage is the filter. When soft filter language appears in the request ("only important issues", "be conservative"), treat it as ranking guidance for output ordering, not a directive to silently drop findings. Recall is the reviewer's responsibility; precision is Verify's.
 
-**Verify = reproducer-gate first, adversarial second.** Where a finding can be reduced to a runnable check, the verifier writes + runs a minimal failing test/repro: it fails as predicted → finding is **deterministically** REAL (`reproduced:confirmed`, no LLM vote needed); it doesn't trigger → deterministically dropped (`reproduced:refuted`). Only genuinely non-runnable findings (design/perf judgement) fall back to the adversarial REFUTE vote (`reproduced:na` → `isReal`). A deterministic reproducer beats a plausible argument — same gate principle as `implement`, applied to review.
+**Verify = reproducer-gate first, adversarial second.** Where a finding can be reduced to a runnable check, the verifier writes + runs a minimal failing test/repro and reports the result: it fails as predicted → finding counts as REAL without a vote (`reproduced:confirmed`); it doesn't trigger → dropped (`reproduced:refuted`). The report counts only with the command in `reproCmd`; the workflow takes it as reported and does not rerun `reproCmd`. Findings that are genuinely non-runnable (design/perf judgement), and reports without a command, fall back to the adversarial REFUTE vote (`reproduced:na` → `isReal`). A reproduction that ran beats a plausible argument; one that is only reported is a claim, which is why the command is in the output.
 
 **Confidence scale (anchored — B, see BEHAVIOUR.md).** The `confidence` enum ships tied to the evidence
 tier it survived, never a bare label:
-- **high** — `reproduced:confirmed` (a failing repro ran as predicted) OR a deterministic `lsp_diagnostics`
-  type error. Demonstrated, not argued.
+- **high** — `reproduced:confirmed` with its `reproCmd` (the verifier reports a failing repro that ran as
+  predicted) OR a deterministic `lsp_diagnostics` type error. Reported as run, not only argued.
 - **medium** — `reproduced:na` + adversarial `isReal=true`: argued and survived the refute vote, but no
   executed reproduction.
 - **low** — author-could-refute-with-context → routes to **Open Questions**, not asserted as a finding.
 
-Nothing is `high` without the top evidence tier (a run repro or a deterministic checker) — survival of an
-argument alone caps at `medium`.
+Nothing is `high` without the top evidence tier (a reported run repro or a deterministic checker) — survival
+of an argument alone caps at `medium`.
 
 ---
 
@@ -112,11 +112,13 @@ const results = await pipeline(
       .then(v => ({ ...f, dimension:d.key, verdict:v }))))
 )
 const order = { critical:0, high:1, medium:2, low:3 }
-// deterministic reproducer wins over the LLM boolean; na falls back to adversarial isReal
+// a reproduction the verifier reports WITH the command it ran wins over the LLM boolean; this script
+// has no shell and does not rerun it. na, or a report without a command, falls back to adversarial isReal
 const confirmed = results.flat().filter(Boolean).filter(f => {
   const v = f.verdict; if (!v) return false
-  if (v.reproduced === 'confirmed') return true
-  if (v.reproduced === 'refuted') return false
+  const ran = typeof v.reproCmd === 'string' && v.reproCmd.trim() !== ''
+  if (ran && v.reproduced === 'confirmed') return true
+  if (ran && v.reproduced === 'refuted') return false
   return !!v.isReal
 })
 confirmed.sort((a,b) => (order[a.severity]??9) - (order[b.severity]??9))

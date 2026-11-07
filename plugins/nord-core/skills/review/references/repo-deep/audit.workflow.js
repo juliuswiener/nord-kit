@@ -838,12 +838,12 @@ const laneResults = await pipeline(
     if (!result?.findings?.length) return { lane, result, verified: [] }
     const sev = f => SEVERITY_RANK[f.severity] ?? 0
 
-    // M1 deterministic tool gate: findings backed by a real tool run (exit code /
-    // parsed report) are FACTS — they bypass the adversarial-verify skeptic entirely.
-    // You cannot refute a real CVE or a compiler error. Only reasoned/pattern-matched
-    // findings go through verification.
-    const toolFacts = result.findings.filter(f => f.toolVerified === true)
-    const judgedFindings = result.findings.filter(f => f.toolVerified !== true)
+    // M1 tool gate: a finding the lane reports as the output of a tool run, and backs with the
+    // command it ran (toolEvidence), skips the adversarial-verify skeptic. The lane's report is
+    // taken as given: this script has no shell and does not rerun the command. A flag without
+    // a command is a claim like any other and goes through verification.
+    const toolFacts = result.findings.filter(f => f.toolVerified === true && typeof f.toolEvidence === 'string' && f.toolEvidence.trim() !== '')
+    const judgedFindings = result.findings.filter(f => !toolFacts.includes(f))
 
     if (verifyIntensity === 'off') {
       return { lane, result, verified: result.findings }

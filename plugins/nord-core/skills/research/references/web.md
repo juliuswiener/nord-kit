@@ -76,16 +76,16 @@ Return: findings + sources[{url, verbatimQuote, supports}]. Tag each numeric/cla
 
 Before synthesizing, spawn ONE gap-check pass: *"Given the original query and the findings so far, what is still unanswered, contradicted, or thin?"* If it names concrete gaps, fire ONE more targeted facet round to fill them — **max 1 extra round, do not loop**. This is the single highest-leverage addition over plain fan-out (Together AI / GPT-Researcher both converge on an explicit gap-check before synthesis).
 
-### Step 2.5: Citation gate (deterministic — run before synthesis)
+### Step 2.5: Citation gate (run before synthesis)
 
-LLM synthesis hallucinates URLs and misattributes quotes. Gate every citation with an objective check,
-not a judgement:
+LLM synthesis hallucinates URLs and misattributes quotes. Gate every citation against its source, not
+against plausibility. You run the checks; no script runs them for you and no page is stored:
 
 1. **URL resolves** — each cited URL must return a non-error status. Verify by actually fetching it
    (WebFetch / `curl -sI -o /dev/null -w '%{http_code}' <url>`); a URL that 404s/times out is dropped.
 2. **Quote is real** — any quoted/paraphrased claim attributed to a source must appear in that source's
-   fetched text (substring / near-substring match of the key phrase). If the phrase isn't in the page,
-   the citation is hallucinated → drop the claim or re-fetch.
+   fetched text (substring / near-substring match of the key phrase). You compare; no script does. If
+   the phrase isn't in the page, the citation is hallucinated → drop the claim or re-fetch.
 3. Tag each finding with its provenance grade (A — canonical vocab, see BEHAVIOUR.md): quote
    substring-matches the fetched page → `explicit`; synthesized across sources, in no single one →
    `derived`; sources disagree → `conflicts`; URL 404/timeout or quote not found → `source_unavailable`.
@@ -93,7 +93,7 @@ not a judgement:
    the page is `conflicts` (refuted); a URL that never loaded is `source_unavailable`. Do NOT lump both
    into one `⚠ unverifiable` tag — flag each with its grade; never silently keep a `conflicts` claim.
 
-The gate is the fetch result + substring match, not "does this look plausible". Run the checks in
+The gate is the fetch result + your substring match, not "does this look plausible". Run the checks in
 parallel over the cited URLs (don't loop).
 
 ### Step 3: Synthesis Output Format

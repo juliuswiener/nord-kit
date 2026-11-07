@@ -75,6 +75,18 @@
 // broken one must never be able to turn a real answer into silence.
 //
 // ---------------------------------------------------------------------------
+// How many language servers stay warm
+//
+// The MCP server keeps at most NORD_LSP_MAX_SERVERS (default 2) language servers
+// of one kind per process; set it where that process starts. A new workspace over
+// the limit takes the place of the longest-unused server that has no request
+// running. When every server of the kind is busy, the MCP server refuses and this
+// hook says "not checked" with the limit named. It asks nobody else then: another
+// socket or a run in this process would start one more server (1 GB and more for
+// rust-analyzer), which is what the limit prevents. Members of one Cargo workspace
+// share a single rust-analyzer.
+//
+// ---------------------------------------------------------------------------
 // Switching a language server off for one session
 //
 // NORD_EDIT_DIAG_SKIP=rust-analyzer,taplo (comma list of server commands, compared

@@ -120,6 +120,49 @@ const brief = (r) => (r ? `${r.state}${r.reason ? ` (${r.reason})` : ""}` : "(no
   kase("H10", "the run logs one coverage line, so the gap shows before the report is read",
     nul.logs.some((l) => /coverage/i.test(l) && /no_result/.test(l)), [`logs=${JSON.stringify(nul.logs.slice(-3))}`]);
 
+  // ---- N*: a lane key that names no lane is refused BEFORE the first agent() call ----
+  // Ticket "review-deep-nimmt-einen-falschen-bahnnamen-in-lanes-oder-extralanes-still-hin". "Show, don't throw" is about a gap found AFTER
+  // agents ran (a throw would waste 30+ runs). A wrong key is known before the first agent() call, so refusing it costs nothing.
+  // `refuse` keeps the throw for the assertion (go() would crash the whole run) and notes which agents had been called by then.
+  const refuse = async (args) => {
+    const s = scenario();
+    let err = null;
+    try { await runScript(SRC, { path: "/no/such/repo", ...args }, s.agent); } catch (e) { err = e; }
+    return { err, msg: err ? String(err.message) : "", agents: Object.keys(s.seen.prompts) };
+  };
+  const said = (args, r) => `${JSON.stringify(args)} -> ${r.err ? `threw ${JSON.stringify(r.msg.slice(0, 60))}` : "no error"}, ${r.agents.length} agent call(s)`;
+  const wrong = {
+    lanes: [{ lanes: ["sec"] }, { lanes: ["security", "sec"] }, { lanes: ["Security"] }, { lanes: ["a11y"] }],
+    extra: [{ extraLanes: ["zzz"] }, { extraLanes: ["security"] }, { extraLanes: ["constructor"] }],
+    shape: [{ lanes: "security" }, { extraLanes: "a11y" }, { extraLanes: 5 }, { lanes: { security: true } }],
+  };
+  const got = {};
+  for (const [g, list] of Object.entries(wrong)) got[g] = await Promise.all(list.map(refuse));
+  const lines = (g) => got[g].map((r, i) => said(wrong[g][i], r));
+  const nameLanes = await refuse({ lanes: ["architecture", "sekurity"] }); // "sekurity" is no substring of a valid key, so naming it is checkable
+  const nameExtra = await refuse({ extraLanes: ["a11y", "zzz"] });
+  kase("N1", "args.lanes with a key that is no core lane (typo, other case, a conditional key) is refused whole; the error names the key and lists the core keys",
+    got.lanes.every((r) => r.err) && nameLanes.msg.includes("sekurity") && CORE.every((k) => nameLanes.msg.includes(k)),
+    [...lines("lanes"), `error for ["architecture","sekurity"]: ${JSON.stringify(nameLanes.msg.slice(0, 100))}`]);
+  kase("N2", "args.extraLanes with a key that is no conditional lane (typo, a core key, an Object.prototype name) is refused; the error names the key and lists the conditional keys",
+    got.extra.every((r) => r.err) && nameExtra.msg.includes("zzz") && COND.every((k) => nameExtra.msg.includes(k)),
+    [...lines("extra"), `error for ["a11y","zzz"]: ${JSON.stringify(nameExtra.msg.slice(0, 100))}`]);
+  kase("N3", "a value that is not an array (string, number, object) in args.lanes or args.extraLanes is refused, and the error says array",
+    got.shape.every((r) => r.err && /array/i.test(r.msg)), lines("shape"));
+  const refusals = Object.values(got).flat();
+  kase("N4", "every refusal comes before the first agent() call: nothing is spent on a run that cannot be the one asked for",
+    refusals.every((r) => r.err && r.agents.length === 0),
+    Object.keys(got).flatMap((g) => lines(g).filter((l) => !/threw .*, 0 agent call/.test(l))));
+  const finds = (r) => r.agents.filter((l) => l.startsWith("find:")).map((l) => l.slice(5)).sort().join();
+  const ctl = { two: await refuse({ lanes: ["security", "deps"] }), dup: await refuse({ lanes: ["security", "security"] }),
+    all: await Promise.all([{}, { lanes: [] }, { lanes: null }, { extraLanes: [] }, { extraLanes: null }].map(refuse)),
+    extra: await refuse({ extraLanes: ["a11y", "i18n", "a11y"] }) };
+  kase("N5", "control: valid lane args are not refused. lanes starts exactly its core lanes (duplicates too); absent, [] or null starts all 13; extraLanes adds exactly its lanes",
+    !ctl.two.err && finds(ctl.two) === "deps,security" && !ctl.dup.err && finds(ctl.dup) === "security" &&
+    ctl.all.every((r) => !r.err && finds(r) === [...CORE].sort().join()) && !ctl.extra.err && finds(ctl.extra) === [...CORE, "a11y", "i18n"].sort().join(),
+    [`two=${ctl.two.err ? ctl.two.msg.slice(0, 60) : finds(ctl.two)} dup=${ctl.dup.err ? ctl.dup.msg.slice(0, 60) : finds(ctl.dup)}`,
+      `13-lane runs=${ctl.all.filter((r) => !r.err && finds(r) === [...CORE].sort().join()).length}/5 extra=${ctl.extra.err ? ctl.extra.msg.slice(0, 60) : finds(ctl.extra)}`]);
+
   // ---- U*: the state table, cut out of the text by its markers and evaluated alone ----
   const BEGIN = /^\/\/ ─+ ledger:begin\b.*$/m;
   const END = /^\/\/ ─+ ledger:end\b.*$/m;
@@ -176,6 +219,10 @@ const brief = (r) => (r ? `${r.state}${r.reason ? ` (${r.reason})` : ""}` : "(no
   const doc = fs.readFileSync(path.join(ROOT, "skills/review/references/repo-deep.md"), "utf8");
   kase("D1", "repo-deep.md tells the caller to write `coverage` into findings.json and says the table checks form, not truth",
     /findings\.json[^\n]*coverage/.test(doc) && /form, not (what|truth)|form only/i.test(doc), ["repo-deep.md: output step and limitation"]);
+  const argLine = (name) => doc.split("\n").find((l) => l.startsWith(`- \`${name}\``)) || "";
+  kase("D2", "repo-deep.md says in the `lanes` line and in the `extraLanes` line that an unknown key, or a value that is not an array, stops the run before the first phase",
+    ["lanes", "extraLanes"].every((n) => /unknown key/i.test(argLine(n)) && /not an array/i.test(argLine(n)) && /before the first phase/i.test(argLine(n))),
+    ["lanes", "extraLanes"].map((n) => `${n} line: ${JSON.stringify(argLine(n).slice(0, 110))}`));
 
   console.log(`${total} cases, ${red} red`);
   process.exit(red ? 1 : 0);

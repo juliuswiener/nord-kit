@@ -814,6 +814,10 @@ Install with: ${this.serverConfig.installHint}`
   get serverPid() {
     return this.process?.pid;
   }
+  /** Kind of language server this client runs (LspServerConfig.name); the pool limits servers per kind. */
+  get serverName() {
+    return this.serverConfig.name;
+  }
   /**
    * Synchronously kill the LSP server process.
    * Used in process exit handlers where async operations are not possible.
@@ -1752,6 +1756,13 @@ ${content}`;
 };
 var IDLE_TIMEOUT_MS = readPositiveIntEnv("NORD_LSP_IDLE_TIMEOUT_MS", 5 * 60 * 1e3);
 var IDLE_CHECK_INTERVAL_MS = readPositiveIntEnv("NORD_LSP_IDLE_CHECK_INTERVAL_MS", 60 * 1e3);
+var MAX_SERVERS = readPositiveIntEnv("NORD_LSP_MAX_SERVERS", 2);
+var LspPoolFullError = class extends Error {
+  constructor(serverName, limit) {
+    super(`all ${limit} ${serverName} language servers are busy with other requests (NORD_LSP_MAX_SERVERS=${limit})`);
+    this.name = "LspPoolFullError";
+  }
+};
 var LspClientManager = class {
   clients = /* @__PURE__ */ new Map();
   /**
@@ -1868,6 +1879,7 @@ var LspClientManager = class {
       await running.ready;
       return running.client;
     }
+    this.makeRoomFor(target.serverConfig.name);
     const client = new LspClient(target.workspaceRoot, target.serverConfig, target.devContainerContext);
     const settle = () => {
       if (this.connecting.get(key)?.client === client) {
@@ -1892,6 +1904,36 @@ var LspClientManager = class {
   /** Every client that owns a language server process: pooled ones and ones still connecting. */
   allClients() {
     return [...this.clients.values(), ...Array.from(this.connecting.values(), (entry) => entry.client)];
+  }
+  /**
+   * Room for one more server of this kind (MAX_SERVERS): evict the longest-unused
+   * pooled one without a running request, or refuse when every one is busy.
+   * A server still connecting counts as taken and is never the one to go.
+   * ponytail: the evicted server shuts down in the background (up to the 3 s
+   * shutdown timeout), so for that long one process more than MAX_SERVERS can
+   * exist; await evict() here if that window ever matters.
+   */
+  makeRoomFor(serverName) {
+    const taken = this.allClients().filter((client) => client.serverName === serverName).length;
+    if (taken < MAX_SERVERS) {
+      return;
+    }
+    let victim;
+    let oldest = Infinity;
+    for (const [key, client] of this.clients) {
+      if (client.serverName !== serverName || (this.inFlightCount.get(key) || 0) > 0) {
+        continue;
+      }
+      const usedAt = this.lastUsed.get(key) ?? 0;
+      if (usedAt < oldest) {
+        oldest = usedAt;
+        victim = key;
+      }
+    }
+    if (victim === void 0) {
+      throw new LspPoolFullError(serverName, MAX_SERVERS);
+    }
+    this.evict(victim);
   }
   touchClient(key) {
     this.lastUsed.set(key, Date.now());
@@ -1988,6 +2030,13 @@ var LspClientManager = class {
       this.scheduleIdleDeadline(key);
       return;
     }
+    this.evict(key);
+  }
+  /**
+   * The only way a pooled client leaves the pool: idle eviction and making room
+   * for another workspace both end here.
+   */
+  evict(key) {
     const client = this.clients.get(key);
     this.clearIdleDeadline(key);
     this.clients.delete(key);

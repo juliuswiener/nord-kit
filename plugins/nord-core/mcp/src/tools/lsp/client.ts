@@ -471,6 +471,11 @@ export class LspClient {
     return this.process?.pid;
   }
 
+  /** Kind of language server this client runs (LspServerConfig.name); the pool limits servers per kind. */
+  get serverName(): string {
+    return this.serverConfig.name;
+  }
+
   /**
    * Synchronously kill the LSP server process.
    * Used in process exit handlers where async operations are not possible.
@@ -1606,6 +1611,23 @@ export class LspClient {
 export const IDLE_TIMEOUT_MS = readPositiveIntEnv('NORD_LSP_IDLE_TIMEOUT_MS', 5 * 60 * 1000);
 /** Check for idle clients every 60 seconds */
 export const IDLE_CHECK_INTERVAL_MS = readPositiveIntEnv('NORD_LSP_IDLE_CHECK_INTERVAL_MS', 60 * 1000);
+/**
+ * Most language servers of one kind (serverConfig.name) this process keeps at
+ * once, pooled plus still connecting. A rust-analyzer holds 0.6 to 1.7 GB, and
+ * the edit-diag hook keeps one warm per workspace without end. Over the limit,
+ * the longest-unused server without a running request makes way for the new
+ * one; if every one is busy, the request is refused (LspPoolFullError).
+ * The limit is per MCP-server process, not per user. Override: NORD_LSP_MAX_SERVERS.
+ */
+export const MAX_SERVERS = readPositiveIntEnv('NORD_LSP_MAX_SERVERS', 2);
+
+/** The pool has no free slot for another server of this kind, and every server of it is busy. */
+export class LspPoolFullError extends Error {
+  constructor(serverName: string, limit: number) {
+    super(`all ${limit} ${serverName} language servers are busy with other requests (NORD_LSP_MAX_SERVERS=${limit})`);
+    this.name = 'LspPoolFullError';
+  }
+}
 
 /** What it takes to find or start the language server that serves one file. */
 interface PoolTarget {
@@ -1757,6 +1779,8 @@ export class LspClientManager {
       return running.client;
     }
 
+    this.makeRoomFor(target.serverConfig.name);
+
     const client = new LspClient(target.workspaceRoot, target.serverConfig, target.devContainerContext);
     // Success: the client leaves `connecting` and enters `clients` in one synchronous
     // step, so it is never counted twice. Failure: the process dies with the connect.
@@ -1784,6 +1808,38 @@ export class LspClientManager {
   /** Every client that owns a language server process: pooled ones and ones still connecting. */
   private allClients(): LspClient[] {
     return [...this.clients.values(), ...Array.from(this.connecting.values(), (entry) => entry.client)];
+  }
+
+  /**
+   * Room for one more server of this kind (MAX_SERVERS): evict the longest-unused
+   * pooled one without a running request, or refuse when every one is busy.
+   * A server still connecting counts as taken and is never the one to go.
+   * ponytail: the evicted server shuts down in the background (up to the 3 s
+   * shutdown timeout), so for that long one process more than MAX_SERVERS can
+   * exist; await evict() here if that window ever matters.
+   */
+  private makeRoomFor(serverName: string): void {
+    const taken = this.allClients().filter((client) => client.serverName === serverName).length;
+    if (taken < MAX_SERVERS) {
+      return;
+    }
+
+    let victim: string | undefined;
+    let oldest = Infinity;
+    for (const [key, client] of this.clients) {
+      if (client.serverName !== serverName || (this.inFlightCount.get(key) || 0) > 0) {
+        continue;
+      }
+      const usedAt = this.lastUsed.get(key) ?? 0;
+      if (usedAt < oldest) {
+        oldest = usedAt;
+        victim = key;
+      }
+    }
+    if (victim === undefined) {
+      throw new LspPoolFullError(serverName, MAX_SERVERS);
+    }
+    this.evict(victim);
   }
 
   private touchClient(key: string): void {
@@ -1893,6 +1949,14 @@ export class LspClientManager {
       return;
     }
 
+    this.evict(key);
+  }
+
+  /**
+   * The only way a pooled client leaves the pool: idle eviction and making room
+   * for another workspace both end here.
+   */
+  private evict(key: string): void {
     const client = this.clients.get(key);
     this.clearIdleDeadline(key);
     this.clients.delete(key);

@@ -73,6 +73,17 @@
 // whole session and answers on a Unix socket. If no socket answers, the hook does
 // the work in-process -- slow, but correct. The socket is an optimisation, and a
 // broken one must never be able to turn a real answer into silence.
+//
+// ---------------------------------------------------------------------------
+// Switching a language server off for one session
+//
+// NORD_EDIT_DIAG_SKIP=rust-analyzer,taplo (comma list of server commands, compared
+// with the basename of the command) makes this hook skip those servers: the edit
+// gets "not checked" once per session and file, and nobody is asked -- no socket,
+// no in-process run, so no language server starts anywhere. For a session that
+// must not cost the machine a warm rust-analyzer (1 GB and more per workspace).
+// Set it in the environment of the session, e.g. a forked worker's. Different
+// from NORD_LSP_DAEMON=0, which skips only the socket and computes in this process.
 
 "use strict";
 
@@ -106,6 +117,8 @@ const WAIT_READY_MS = positiveInt(process.env.NORD_EDIT_DIAG_WAIT_READY_MS, 0);
 // and past this limit the remaining files are "not checked" -- a hook killed by
 // its timeout would say nothing, and silence reads as "checked".
 const REPORT_MS = positiveInt(process.env.NORD_EDIT_DIAG_REPORT_MS, 90000);
+// Server commands this session does not check; see "Switching a language server off".
+const SKIP = new Set((process.env.NORD_EDIT_DIAG_SKIP || "").split(",").map(s => s.trim()).filter(Boolean));
 // Same value and rule as in edit-diag-capture.cjs.
 const SLOT_MAX_AGE_MS = 15 * 60 * 1000;
 
@@ -278,6 +291,9 @@ async function diagnose(lsp, input, file, stash, calls, state, overTime) {
 
   const beforeText = stash ? stash.text : null;
   if (beforeText === afterText) return null;   // nothing actually changed
+  if (SKIP.has(path.basename(serverConfig.command))) {
+    return unchecked(input, file, `${serverConfig.name} is switched off in this session (NORD_EDIT_DIAG_SKIP)`);
+  }
   if (overTime) return unchecked(input, file, `this report used up its ${REPORT_MS}ms before ${name}`);
 
   const t0 = Date.now();

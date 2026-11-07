@@ -20859,12 +20859,40 @@ var LspClientManager = class {
       for (const marker of markers) {
         const markerPath = (0, import_path7.join)(dir, marker);
         if ((0, import_fs6.existsSync)(markerPath)) {
-          return dir;
+          return (0, import_path7.extname)(filePath).toLowerCase() === ".rs" ? this.cargoWorkspaceRoot(dir) : dir;
         }
       }
       dir = (0, import_path7.dirname)(dir);
     }
     return (0, import_path7.dirname)((0, import_path7.resolve)(filePath));
+  }
+  /**
+   * The directory rust-analyzer is started in for a Rust file whose nearest
+   * Cargo.toml is in crateDir. Members of one Cargo workspace share one server
+   * (it loads the whole workspace from any member), so a member's root is the
+   * nearest ancestor whose Cargo.toml has a [workspace] table. A crate with a
+   * [workspace] table of its own (like taxgraph's rust/fuzz) is its own root.
+   * ponytail: the members/exclude lists are not evaluated, so a crate below a
+   * workspace root is taken as a member even if that root does not list it;
+   * `cargo locate-project --workspace` is exact, for a cargo run per new directory.
+   */
+  cargoWorkspaceRoot(crateDir) {
+    const hasWorkspaceTable = (dir) => {
+      try {
+        return /^\s*\[workspace[\].]/m.test((0, import_fs6.readFileSync)((0, import_path7.join)(dir, "Cargo.toml"), "utf8"));
+      } catch {
+        return false;
+      }
+    };
+    if (!(0, import_fs6.existsSync)((0, import_path7.join)(crateDir, "Cargo.toml")) || hasWorkspaceTable(crateDir)) {
+      return crateDir;
+    }
+    for (let dir = (0, import_path7.dirname)(crateDir); (0, import_path7.parse)(dir).root !== dir; dir = (0, import_path7.dirname)(dir)) {
+      if (hasWorkspaceTable(dir)) {
+        return dir;
+      }
+    }
+    return crateDir;
   }
   /**
    * Start periodic idle check

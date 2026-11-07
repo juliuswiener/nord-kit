@@ -23,12 +23,12 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
 
 // What each orch preset may call. src = where the right is decided (orch_tui/internal/...).
 const RIGHTS = {
-  reviewer:    { edit: false, shell: false, skill: false, workflow: false, web: true,  src: "preset/preset.go:344 DefaultPolicy; permit/policy.go:221" },
-  researcher:  { edit: false, shell: false, skill: true,  workflow: false, web: true,  src: "preset/preset.go:360, researchPolicy 324-328" },
-  expert:      { edit: false, shell: false, skill: false, workflow: false, web: true,  src: "preset/preset.go:433 DefaultPolicy" },
-  implementer: { edit: true,  shell: true,  skill: true,  workflow: false, web: true,  src: "preset/preset.go:380; permit/policy.go:339-341" },
-  debugger:    { edit: true,  shell: true,  skill: true,  workflow: false, web: true,  src: "preset/preset.go:396" },
-  qualifier:   { edit: true,  shell: true,  skill: true,  workflow: true,  web: true,  src: "preset/preset.go:410, qualifierPolicy 330-339" },
+  reviewer:    { edit: false, shell: false, skill: true,  workflow: false, web: true,  exa: false, src: "preset/preset.go reviewerPolicy (0299caaa)" },
+  researcher:  { edit: false, shell: false, skill: true,  workflow: false, web: true,  exa: true,  src: "preset/preset.go researchPolicy; permit/exa.go ExaResearchTools (ff622465)" },
+  expert:      { edit: false, shell: false, skill: false, workflow: false, web: true,  exa: false, src: "preset/preset.go:433 DefaultPolicy" },
+  implementer: { edit: true,  shell: true,  skill: true,  workflow: false, web: true,  exa: false, src: "preset/preset.go:380; permit/policy.go:339-341" },
+  debugger:    { edit: true,  shell: true,  skill: true,  workflow: false, web: true,  exa: false, src: "preset/preset.go:396" },
+  qualifier:   { edit: true,  shell: true,  skill: true,  workflow: true,  web: true,  exa: false, src: "preset/preset.go:410, qualifierPolicy 330-339" },
 };
 // ---- the table: a verbatim copy of orch_tui's golden file (cp, never typed) ----
 const TSV = path.join(__dirname, "rollen-abgleich.preset-rights.tsv");
@@ -48,10 +48,10 @@ const ROWS = {
 const holds = (preset, right) => ROWS[right].every((t) => (table[preset] || {})[t] === true);
 const anyLacks = (right) => Object.values(RIGHTS).some((r) => !r[right]);
 
-// Known and open elsewhere; may only get shorter. reviewer + skill rows: the decision gives the
-// reviewer the Skill right, orch_tui builds it (backlog rollenkarten-zeigen-werkzeuge-...).
-const KNOWN_OPEN = [{ id: "K1", name: "reviewer x skill rows (ROUTING.md:43)" }];
-const MAX_KNOWN_OPEN = 1;
+// Known and open elsewhere; may only get shorter. Empty since orch gave the reviewer the Skill right
+// (0299caaa): RIGHTS holds it and D2 keeps it there.
+const KNOWN_OPEN = [];
+const MAX_KNOWN_OPEN = 0;
 
 function render(env) {
   const base = { ...process.env };

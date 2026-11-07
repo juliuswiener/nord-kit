@@ -96,8 +96,8 @@ const FINDINGS_SCHEMA = { type:'object', properties:{ findings:{ type:'array', i
   confidence:{type:'string', enum:['high','medium','low']},
   title:{type:'string'}, detail:{type:'string'}, fix:{type:'string'} }, required:['file','severity','confidence','title','detail'] } } }, required:['findings'] }
 const VERDICT_SCHEMA = { type:'object', properties:{ isReal:{type:'boolean'}, confidence:{type:'string', enum:['high','medium','low']}, reason:{type:'string'},
-  reproduced:{type:'string', enum:['confirmed','refuted','na'], description:'confirmed = a real test/repro was run and failed as predicted (deterministic REAL); refuted = repro did NOT fail (deterministic NOT real); na = not deterministically reproducible, fall back to adversarial judgement'},
-  reproCmd:{type:'string', description:'the exact test/command run (empty if na)'} }, required:['isReal','reason','reproduced'] }
+  reproduced:{type:'string', enum:['confirmed','refuted','na'], description:'confirmed = you ran a test/repro and it failed as predicted; refuted = you ran it and it did NOT fail; both count only with the command in reproCmd (the workflow takes your report as given and does not rerun it); na, or no reproCmd = adversarial judgement (isReal) decides'},
+  reproCmd:{type:'string', description:'the exact test/command run; required for confirmed or refuted to count (empty if na)'} }, required:['isReal','reason','reproduced'] }
 
 const results = await pipeline(
   DIMENSIONS,
@@ -105,7 +105,7 @@ const results = await pipeline(
         { label:`review:${d.key}`, phase:'Review', schema:FINDINGS_SCHEMA, ...(cheapGather ? { model:'worker' } : {}) }),
   (review, d) => parallel(((review && review.findings) || []).map(f => () =>
     agent(`Verify this ${d.key} finding. PREFER a DETERMINISTIC reproducer over opinion:\n` +
-          `1. If the finding is reproducible (most correctness/security bugs are), WRITE a minimal failing test or repro command that would pass iff the bug exists, and RUN it. Bug reproduces → reproduced="confirmed" (deterministically REAL). Repro does NOT trigger → reproduced="refuted" (deterministically NOT real). Put the exact command in reproCmd.\n` +
+          `1. If the finding is reproducible (most correctness/security bugs are), WRITE a minimal failing test or repro command that would pass iff the bug exists, and RUN it. Bug reproduces → reproduced="confirmed". Repro does NOT trigger → reproduced="refuted". Put the exact command in reproCmd: the report counts only with it (the workflow does not rerun it); without reproCmd your isReal decides.\n` +
           `2. Only if it genuinely cannot be reduced to a runnable check (e.g. a design/perf judgement), set reproduced="na" and fall back to adversarially REFUTING it — default isReal=false if uncertain.\n` +
           `Finding: "${f.title}" at ${f.file}:${f.line||'?'} — ${f.detail}`,
           { label:`verify:${f.file}`, phase:'Verify', schema:VERDICT_SCHEMA })

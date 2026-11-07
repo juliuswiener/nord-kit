@@ -1,4 +1,4 @@
-// Multi-Agent Codebase Audit — orchestrates 12 parallel specialist lanes,
+// Multi-Agent Codebase Audit — orchestrates 13 parallel specialist lanes,
 // adversarially verifies high-severity findings, and synthesizes a severity-ranked report.
 //
 // Invoke: Workflow({ scriptPath: '<this file>', args: { path, archetype, extraLanes, severityFloor, maxFindingsPerLane } })
@@ -10,7 +10,7 @@ export const meta = {
   description: 'Fan-out 12+ specialist lanes (architecture, tests, security, deps, perf, obs, CI, APIs, data, docs, config) with adversarial verification and severity-ranked synthesis.',
   phases: [
     { title: 'Vital Signs', detail: 'Repo demographics, archetype inference, churn baseline' },
-    { title: 'Parallel Lanes', detail: '12 core lanes + conditional add-ons' },
+    { title: 'Parallel Lanes', detail: '13 core lanes + conditional add-ons' },
     { title: 'Blast Radius', detail: '90-day change overlap with risk areas' },
     { title: 'Verify', detail: 'Adversarial refutation of high+ findings (batched per lane; intensity-scaled)' },
     { title: 'Synthesize', detail: 'Dedupe, cluster, severity-rank, write report' },
@@ -91,7 +91,7 @@ const FINDING = {
     recommendation: { type: 'string', description: 'Specific action, named tool/pattern' },
     effort: { type: 'string', enum: ['small', 'medium', 'large'] },
     evidence: { type: 'string', description: 'Quoted code, command output, or file ref supporting the claim' },
-    toolVerified: { type: 'boolean', description: 'TRUE only if this finding is the output of a real deterministic tool run (exit code / parsed report) — a CVE from npm-audit/pip-audit, a type error from tsc/mypy, a lint error from ruff/eslint, a failing build. These are facts, not judgements: they bypass the adversarial-verify stage. FALSE (default) for pattern-matched / reasoned findings, which still get verified.' },
+    toolVerified: { type: 'boolean', description: 'TRUE only if this finding is the output of a real deterministic tool run (exit code / parsed report) — a CVE from npm-audit/pip-audit, a type error from tsc/mypy, a lint error from ruff/eslint, a failing build. The finding skips the adversarial-verify stage only with the command and its output line in toolEvidence: the workflow takes your report as given and does not rerun the command. Without toolEvidence it is verified like any other finding. FALSE (default) for pattern-matched / reasoned findings, which still get verified.' },
     toolEvidence: { type: ['string', 'null'], description: 'When toolVerified: the exact command run + the key output/exit-code line proving it (e.g. "npm audit → CVE-2024-x high in lodash@4.17.20"). Null otherwise.' },
   },
 }
@@ -330,7 +330,7 @@ ${JSON.stringify(vitals.intent ?? {}, null, 2)}
 - "Best practice" alone is NOT impact. State the concrete failure mode.
 - Effort: small=<1 day, medium=<1 week, large=>1 week or coordinated migration.
 - If your lane doesn't apply to this archetype, return findings=[] and explain in 'summary' + 'skipped'.
-- **Deterministic tool gate (M1).** If a real tool can produce the finding objectively — \`npm/pnpm/yarn audit\`, \`pip-audit\`, \`cargo audit\`, \`govulncheck\` (CVEs); \`tsc --noEmit\`, \`mypy\`, \`go build\`, \`cargo check\` (type/compile errors); \`ruff\`/\`eslint\`/\`golangci-lint\` (lint); the test runner (failures) — RUN it via Bash and treat its exit code / parsed output as the verdict. For each such finding set \`toolVerified:true\` and put the exact command + the proving output line in \`toolEvidence\`. A real CVE or compiler error is a FACT — it bypasses adversarial verification. Set \`toolVerified:false\` (default) for anything you reasoned out or pattern-matched. If the tool isn't installed, attempt install via the project's package manager; if that fails, do NOT fabricate a green — list it in \`skipped\` as "unverified (tool absent)" and leave related findings toolVerified:false.
+- **Deterministic tool gate (M1).** If a real tool can produce the finding objectively — \`npm/pnpm/yarn audit\`, \`pip-audit\`, \`cargo audit\`, \`govulncheck\` (CVEs); \`tsc --noEmit\`, \`mypy\`, \`go build\`, \`cargo check\` (type/compile errors); \`ruff\`/\`eslint\`/\`golangci-lint\` (lint); the test runner (failures) — RUN it via Bash and treat its exit code / parsed output as the verdict. For each such finding set \`toolVerified:true\` and put the exact command + the proving output line in \`toolEvidence\`. The finding skips adversarial verification only with the command and its output line in \`toolEvidence\`: the workflow takes your report as given and does not rerun the command. A finding without \`toolEvidence\` is verified like any other. Set \`toolVerified:false\` (default) for anything you reasoned out or pattern-matched. If the tool isn't installed, attempt install via the project's package manager; if that fails, do NOT fabricate a green — list it in \`skipped\` as "unverified (tool absent)" and leave related findings toolVerified:false.
 
 Return a single LaneOutput object.
 `
@@ -1039,7 +1039,7 @@ const SYNTH_PROMPT = `You are synthesizing a codebase audit report.
 - Languages: ${vitals.languages.map(l => `${l.name} (${l.pct}%)`).join(', ')}
 
 ## Inputs
-- ${allFindings.length} verified findings across ${laneSummaries.length} lanes (severity floor: ${severityFloor})
+- ${allFindings.length} findings across ${laneSummaries.length} lanes (severity floor: ${severityFloor}); not all of them were verified. Verify tier '${verifyIntensity}': standard and thorough send high and critical findings to a verifier, lite sends critical only, off sends none; lower severities and tool-reported findings with a command in toolEvidence skip it.
 - Blast radius analysis attached
 - Per-lane summaries attached
 

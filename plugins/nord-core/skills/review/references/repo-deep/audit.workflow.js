@@ -64,6 +64,7 @@ const verifyIntensity = resolvedArgs.verifyIntensity ?? 'standard'
 // Optional lane subset: array of lane keys (see CORE_LANES) to run instead of
 // all core lanes. Lets a caller scope a cheap targeted pass, e.g.
 // lanes:['security','deps','tests']. Conditional/extra lanes still apply.
+// A key that is no core lane is refused before the first phase (see "Lane keys" below the registry).
 const laneFilter = Array.isArray(resolvedArgs.lanes) && resolvedArgs.lanes.length
   ? new Set(resolvedArgs.lanes)
   : null
@@ -733,6 +734,26 @@ const coverageMarkdown = (c) => {
   ].join('\n')
 }
 // ─── ledger:end ───
+
+// ─── Lane keys: an unknown key stops the run BEFORE the first phase ────────────
+// The ledger above shows a gap only after the agents ran. A wrong key is known now, before any agent() call, so refusing it costs nothing.
+// One rule for both args: an array of keys of its own registry (`lanes`: core, `extraLanes`: conditional). null or absent means not given.
+// ponytail: only these two args are checked; archetype, severityFloor and verifyIntensity still fall back silently. Upgrade path: one table of allowed values per arg, refused the same way.
+const laneArgError = (name, given, valid) => {
+  if (given == null) return null
+  if (!Array.isArray(given)) return `args.${name}: must be an array of lane keys, got ${JSON.stringify(given)}`
+  const unknownKeys = given.filter((k) => !valid.includes(k))
+  return unknownKeys.length ? `args.${name}: unknown lane key ${unknownKeys.map((k) => JSON.stringify(k)).join(', ')}` : null
+}
+const coreKeys = CORE_LANES.map((l) => l.key)
+const conditionalKeys = Object.keys(CONDITIONAL_LANES)
+const laneArgErrors = [
+  laneArgError('lanes', resolvedArgs.lanes, coreKeys),
+  laneArgError('extraLanes', resolvedArgs.extraLanes, conditionalKeys),
+].filter(Boolean)
+if (laneArgErrors.length) {
+  throw new Error(`audit.workflow.js: ${laneArgErrors.join('; ')}.\n  lanes (core): ${coreKeys.join(', ')}\n  extraLanes (conditional): ${conditionalKeys.join(', ')}`)
+}
 
 // ─── PHASE 1: Vital Signs ──────────────────────────────────────────────────────
 

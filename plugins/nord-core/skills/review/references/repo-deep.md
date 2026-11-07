@@ -45,7 +45,7 @@ Workflow({
 **Args:**
 - `path` (REQUIRED) — absolute path to the repo root.
 - `archetype` — `auto` | `library` | `service` | `frontend` | `monorepo` | `cli` | `ml` | `embedded`. Determines which conditional lanes activate. `auto` lets Phase 1 infer it.
-- `extraLanes` — array of conditional lane keys to force-enable (e.g. `['a11y', 'i18n', 'compliance']`).
+- `extraLanes` — array of conditional lane keys to force-enable (e.g. `['a11y', 'i18n', 'compliance']`). An unknown key, or a value that is not an array, stops the run before the first phase: no agent has run, and the error lists the valid keys.
 - `severityFloor` — `low` | `medium` | `high` (default `low`). Drops findings below this severity from the synthesis.
 - `maxFindingsPerLane` — default 20. Caps lane output for tractable synthesis.
 - `verifyIntensity` — `off` | `lite` | `standard` (default) | `thorough`. **The single biggest cost lever.** Phase 3 verification used to spawn 3 independent skeptics *per* high-severity finding (e.g. 11 highs → 33 agents, ~45% of total spend). The tiers:
@@ -53,7 +53,7 @@ Workflow({
   - `lite` — batch-verify **criticals only**; high findings pass straight to synthesis (human reviews them anyway). Cheapest pass that still guards the showstoppers.
   - `off` — trust the lanes, no verification. Only for a fast first look.
   - `thorough` — the original 3-skeptics-per-finding, majority-refute-drops behaviour. Reserve for acquisition / high-stakes / multi-contributor audits where a false positive is genuinely costly.
-- `lanes` — array of core lane keys to run *instead of* all core lanes (e.g. `['security', 'deps', 'tests']`) for a cheap targeted pass. Conditional/`extraLanes` still apply on top.
+- `lanes` — array of core lane keys to run *instead of* all core lanes (e.g. `['security', 'deps', 'tests']`) for a cheap targeted pass. Conditional/`extraLanes` still apply on top. An unknown key, or a value that is not an array, stops the run before the first phase: no agent has run, and the error lists the valid keys.
 - `cheapGather` (EXPERIMENTAL, default OFF) — route the **lane specialists** (Phase 2 gather) to a $0
   bridge worker (class `worker`, needs CC launched through the bridge — see `../../WORKERS.md`) while
   **Phase 3 adversarial verification + Phase 5 synthesis stay on the frontier**. This is a no-runtime-gate

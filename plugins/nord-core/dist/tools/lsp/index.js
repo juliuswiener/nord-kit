@@ -1754,6 +1754,12 @@ var IDLE_TIMEOUT_MS = readPositiveIntEnv("NORD_LSP_IDLE_TIMEOUT_MS", 5 * 60 * 1e
 var IDLE_CHECK_INTERVAL_MS = readPositiveIntEnv("NORD_LSP_IDLE_CHECK_INTERVAL_MS", 60 * 1e3);
 var LspClientManager = class {
   clients = /* @__PURE__ */ new Map();
+  /**
+   * Clients whose connect() is still running, by pool key. A request for a key
+   * that is connecting waits for that connect instead of starting a second
+   * server, and the shutdown paths reach these processes too.
+   */
+  connecting = /* @__PURE__ */ new Map();
   lastUsed = /* @__PURE__ */ new Map();
   inFlightCount = /* @__PURE__ */ new Map();
   idleDeadlines = /* @__PURE__ */ new Map();
@@ -1777,13 +1783,14 @@ var LspClientManager = class {
         clearTimeout(timer);
       }
       this.idleDeadlines.clear();
-      for (const client of this.clients.values()) {
+      for (const client of this.allClients()) {
         try {
           client.forceKill();
         } catch {
         }
       }
       this.clients.clear();
+      this.connecting.clear();
       this.lastUsed.clear();
       this.inFlightCount.clear();
     };
@@ -1796,24 +1803,12 @@ var LspClientManager = class {
    * Get or create a client for a file
    */
   async getClientForFile(filePath) {
-    const workspaceRoot = this.findWorkspaceRoot(filePath);
-    const serverConfig = getServerForFile(filePath, workspaceRoot);
-    if (!serverConfig) {
+    const target = this.poolTarget(filePath);
+    if (!target) {
       return null;
     }
-    const devContainerContext = resolveDevContainerContext(workspaceRoot);
-    const key = `${workspaceRoot}:${serverConfig.command}:${devContainerContext?.containerId ?? "host"}`;
-    let client = this.clients.get(key);
-    if (!client) {
-      client = new LspClient(workspaceRoot, serverConfig, devContainerContext);
-      try {
-        await client.connect();
-        this.clients.set(key, client);
-      } catch (error) {
-        throw error;
-      }
-    }
-    this.touchClient(key);
+    const client = await this.clientFor(target);
+    this.touchClient(target.key);
     return client;
   }
   /**
@@ -1822,26 +1817,16 @@ var LspClientManager = class {
    * The lastUsed timestamp is refreshed on both entry and exit.
    */
   async runWithClientLease(filePath, fn) {
-    const workspaceRoot = this.findWorkspaceRoot(filePath);
-    const serverConfig = getServerForFile(filePath, workspaceRoot);
-    if (!serverConfig) {
+    const target = this.poolTarget(filePath);
+    if (!target) {
       throw new Error(`No language server available for: ${filePath}`);
     }
-    const devContainerContext = resolveDevContainerContext(workspaceRoot);
-    const key = `${workspaceRoot}:${serverConfig.command}:${devContainerContext?.containerId ?? "host"}`;
-    let client = this.clients.get(key);
-    if (!client) {
-      client = new LspClient(workspaceRoot, serverConfig, devContainerContext);
-      try {
-        await client.connect();
-        this.clients.set(key, client);
-      } catch (error) {
-        throw error;
-      }
-    }
-    this.touchClient(key);
+    const { key } = target;
     this.inFlightCount.set(key, (this.inFlightCount.get(key) || 0) + 1);
+    let client;
     try {
+      client = await this.clientFor(target);
+      this.touchClient(key);
       return await fn(client);
     } finally {
       const count = (this.inFlightCount.get(key) || 1) - 1;
@@ -1850,8 +1835,63 @@ var LspClientManager = class {
       } else {
         this.inFlightCount.set(key, count);
       }
-      this.touchClient(key);
+      if (client) {
+        this.touchClient(key);
+      }
     }
+  }
+  /** The pool key and start parameters of the language server that serves filePath. */
+  poolTarget(filePath) {
+    const workspaceRoot = this.findWorkspaceRoot(filePath);
+    const serverConfig = getServerForFile(filePath, workspaceRoot);
+    if (!serverConfig) {
+      return null;
+    }
+    const devContainerContext = resolveDevContainerContext(workspaceRoot);
+    const key = `${workspaceRoot}:${serverConfig.command}:${devContainerContext?.containerId ?? "host"}`;
+    return { key, workspaceRoot, serverConfig, devContainerContext };
+  }
+  /**
+   * The ONE place a client is created. Every language server process this pool
+   * starts is either in `clients`, in `connecting`, or dead: requests for a key
+   * that is connecting wait for that connect, and a connect that fails kills the
+   * process it started.
+   */
+  async clientFor(target) {
+    const { key } = target;
+    const pooled = this.clients.get(key);
+    if (pooled) {
+      return pooled;
+    }
+    const running = this.connecting.get(key);
+    if (running) {
+      await running.ready;
+      return running.client;
+    }
+    const client = new LspClient(target.workspaceRoot, target.serverConfig, target.devContainerContext);
+    const settle = () => {
+      if (this.connecting.get(key)?.client === client) {
+        this.connecting.delete(key);
+      }
+    };
+    const ready = client.connect().then(
+      () => {
+        settle();
+        this.clients.set(key, client);
+      },
+      (error) => {
+        settle();
+        client.forceKill();
+        throw error;
+      }
+    );
+    this.connecting.set(key, { client, ready });
+    await ready;
+    return client;
+  }
+  /** Every client that owns a language server process: pooled ones and ones still connecting. */
+  allClients() {
+    return [...this.clients.values(), ...Array.from(this.connecting.values(), (entry) => entry.client)];
   }
   touchClient(key) {
     this.lastUsed.set(key, Date.now());
@@ -1972,6 +2012,10 @@ var LspClientManager = class {
       clearTimeout(timer);
     }
     this.idleDeadlines.clear();
+    for (const { client } of this.connecting.values()) {
+      client.forceKill();
+    }
+    this.connecting.clear();
     const entries = Array.from(this.clients.entries());
     const results = await Promise.allSettled(
       entries.map(([, client]) => client.disconnect())

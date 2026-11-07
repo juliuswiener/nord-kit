@@ -4,8 +4,9 @@
 //
 // orch gives each preset a fixed set of tools. A text that tells a worker to use a tool its
 // preset lacks is worse than no text: the worker follows it, the call fails, and nothing says
-// why (orch_tui internal/preset/preset.go:22-29). One case per known text, C1..C15; the ids
-// are those of the ticket "rollen-und-skilltexte-nennen-werkzeuge-die-die-rolle-nicht-aufrufen-darf".
+// why (orch_tui internal/preset/preset.go:22-29). One case per known text, C1..C20; C1..C15 are the
+// ids of the ticket "rollen-und-skilltexte-nennen-werkzeuge-die-die-rolle-nicht-aufrufen-darf", C16..C20,
+// F1 and G1 those of "die-rollenkarten-und-die-routing-tabelle-im-kit-widersprechen-dem-was-orch-den-rollen-gibt".
 //
 // ponytail: RIGHTS is still a hand copy of orch_tui's presets. D2 holds it to rollen-abgleich.preset-rights.tsv
 // (a verbatim cp of orch_tui's golden table), D1 holds that copy to the source file. `edit` is not read from
@@ -83,12 +84,14 @@ function needs(text) {
 }
 const N = needs(worker);
 
-// ---- C1..C4: the router names what each row needs (ROUTING.md:41-53) ----
-kase("C1", "skill rows need `Skill`; expert has none (ROUTING.md:41-53)",
+// ---- C1..C4, C20: the router names what each row needs (the `Needs` lines above the Tool table) ----
+kase("C1", "skill rows need `Skill`; expert has none",
   !anyLacks("skill") || (N["`Skill`"] && /skill row/.test(N["`Skill`"].rows)));
-for (const [id, row, line] of [["C2", "bin/context", 48], ["C3", "verify", 49], ["C4", "interactive", 51]]) {
-  kase(id, `\`${row}\` needs a shell; reviewer, researcher, expert have none (ROUTING.md:${line})`,
-    !anyLacks("shell") || (N["a shell"] && N["a shell"].rows.includes("`" + row + "`")));
+// `orient` runs nord-repomap in a shell (skills/orient/SKILL.md, "Run it").
+for (const [id, row] of [["C2", "bin/context"], ["C3", "verify"], ["C4", "interactive"], ["C20", "orient"]]) {
+  kase(id, `\`${row}\` needs a shell; reviewer, researcher, expert have none (the \`Needs a shell\` line)`,
+    !anyLacks("shell") || (N["a shell"] && N["a shell"].rows.includes("`" + row + "`")),
+    [`Needs a shell: ${N["a shell"] ? N["a shell"].rows : "(no such line)"}`]);
 }
 
 // ---- C5..C8: fan-out modes need Workflow, in the router and in the skill's own reference ----
@@ -109,7 +112,7 @@ for (const [id, mode, files] of [
     Boolean(inRouter) && files.every(refNamesNeed));
 }
 // C9: a worker never reads the instructor-only block, so the router must give the reason itself.
-kase("C9", "worker router says who holds Workflow (ROUTING.md:35-36 is instructor-only)",
+kase("C9", "worker router says who holds Workflow (the instructor-only block is not read by a worker)",
   Boolean(N["`Workflow`"]) && /only the instructor and the qualifier/.test(N["`Workflow`"].reason));
 
 // ---- C10..C12: agent cards vs presets (agents/*.md:4) ----
@@ -147,12 +150,12 @@ function roleTable(text) {
 const R = roleTable(instructor);
 const claimsOf = (rights) => ["edit", "shell", "web", "skill", "workflow"].filter((r) => new RegExp(`\\b${r}\\b`, "i").test(rights));
 const falseClaim = Object.keys(R).some((p) => claimsOf(R[p]).some((r) => !RIGHTS[p][r]));
-kase("C13", "role table: no row claims a right its preset lacks, and reviewer/expert name `web` (ROUTING.md:10,14)",
+kase("C13", "role table: no row claims a right its preset lacks, and reviewer/expert name `web`",
   !falseClaim && ["reviewer", "expert"].every((p) => R[p] && /\bweb\b/i.test(R[p])));
-kase("C14", "role table has a row for every preset, qualifier included, naming Workflow (ROUTING.md:8-14)",
+kase("C14", "role table has a row for every preset, qualifier included, naming Workflow",
   Object.keys(RIGHTS).every((p) => R[p]) && Boolean(R.qualifier) && /Workflow/.test(R.qualifier));
 
-// ---- C15: a row must not name its own default in "Do NOT use" (ROUTING.md:46) ----
+// ---- C15: a row must not name its own default in "Do NOT use" ----
 function toolRows(text) {
   const rows = [];
   for (const line of text.split("\n")) {
@@ -169,7 +172,76 @@ const dupes = toolRows(instructor).filter(([, def, , dont]) => {
   const name = ((/`([^`]+)`/.exec(def) || [, ""])[1]).trim();
   return name && dont.split(/[,·]/).map((i) => i.replace(/`/g, "").trim()).includes(name);
 });
-kase("C15", "no Tool row lists its own default under Do NOT use (ROUTING.md:46)", dupes.length === 0);
+kase("C15", "no Tool row lists its own default under Do NOT use", dupes.length === 0);
+
+// ---- S2, C16..C19: no text sends a worker to a tool that orch denies to every role ----
+// The names come from the table: denied to ALL presets, snake_case (ast_grep_search) or CamelCase
+// (AskUserQuestion). Task/Agent are common words, so they are matched by call syntax instead.
+// ponytail: names denied to SOME roles only (Monitor, Workflow) stay with C5..C14. A text is exempt for a
+// name when ONE paragraph of it names the tool, says the tool list rules, and says to skip or not retry:
+// per text, not per line. A user-only skill (disable-model-invocation) is not scanned, no worker loads it.
+const shortName = (t) => t.replace(/^mcp__plugin_nord-core_t__|^mcp__plugin_nord-mem_mcp-search__|^mcp__plugin_exa_exa__/, "");
+const NAMES = Object.keys(table.reviewer)
+  .filter((t) => !t.endsWith("*") && Object.keys(RIGHTS).every((p) => table[p][t] === false))
+  .map(shortName)
+  .filter((n) => /^[a-z]+(_[a-z]+)+$/.test(n) || /^[A-Z][a-z]+([A-Z][a-z]+)+$/.test(n));
+const SPAWN = /\b(Task|Agent)\(|\b(Task|Agent) tool\b|`(Task|Agent)`|spawn a fresh/;
+const spawnDenied = ["Task", "Agent"].every((t) => Object.keys(RIGHTS).every((p) => table[p][t] === false));
+function hits(text) {
+  const out = [];
+  text.split("\n").forEach((l, i) => {
+    for (const n of NAMES) if (new RegExp("\\b" + n + "\\b").test(l)) out.push({ line: i + 1, name: n });
+    if (spawnDenied && SPAWN.test(l)) out.push({ line: i + 1, name: "Task/Agent" });
+  });
+  return out;
+}
+function said(text, name) {
+  const key = name === "Task/Agent" ? /\b(Task|Agent|spawn)/ : new RegExp("\\b" + name + "\\b");
+  return text.split(/\n\s*\n/).some((p) => key.test(p) && /sets your tools|tool list/.test(p) && /skip|do not retry|not in it|no role holds/i.test(p));
+}
+function walk(dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? walk(path.join(dir, e.name)) : e.name.endsWith(".md") ? [path.join(dir, e.name)] : []);
+}
+const userOnly = fs.readdirSync(path.join(ROOT, "skills")).filter((s) => {
+  const skill = path.join(ROOT, "skills", s, "SKILL.md");
+  return fs.existsSync(skill) && /^disable-model-invocation:\s*true\s*$/m.test((/^---\n([\s\S]*?)\n---/.exec(fs.readFileSync(skill, "utf8")) || [, ""])[1]);
+});
+const files = [...walk(path.join(ROOT, "agents")), ...walk(path.join(ROOT, "skills"))]
+  .filter((f) => !userOnly.some((s) => f.startsWith(path.join(ROOT, "skills", s) + path.sep)));
+const texts = files.map((f) => [path.relative(ROOT, f), fs.readFileSync(f, "utf8")]).concat([["ROUTING.md (worker view)", worker]]);
+
+// A scan that finds nothing passes for the wrong reason: prove it reads the table and the texts,
+// skips the user-only skills, and flags a planted name that nothing excuses.
+kase("S2", "the table has >= 600 rows and Task/Agent are denied; the scan knows >= 20 names, reads >= 30 texts, skips user-only skills, flags a planted name",
+  Object.values(table).reduce((n, t) => n + Object.keys(t).length, 0) >= 600 && spawnDenied &&
+  NAMES.length >= 20 && texts.length >= 30 && userOnly.length > 0 &&
+  hits("use `" + NAMES[0] + "` here").length === 1 && !said("use `" + NAMES[0] + "` here", NAMES[0]));
+
+const off = { cards: [], skills: [], ask: [], spawn: [] };
+for (const [rel, text] of texts) {
+  for (const h of hits(text)) {
+    if (said(text, h.name)) continue;
+    const kind = h.name === "Task/Agent" ? "spawn" : h.name === "AskUserQuestion" ? "ask" : rel.startsWith("agents/") ? "cards" : "skills";
+    off[kind].push(`${rel}:${h.line} ${h.name}`);
+  }
+}
+kase("C16", "agent cards name no tool that every role lacks (ast_grep_*, lsp_* ...) unless they say so", off.cards.length === 0, off.cards);
+kase("C17", "skills and the worker router name no tool that every role lacks (ast_grep_*, lsp_* ...) unless they say so", off.skills.length === 0, off.skills);
+kase("C18", "no text orders AskUserQuestion (denied to every role) without saying what a role without it does", off.ask.length === 0, off.ask);
+kase("C19", "no text sends a worker to spawn a subagent (`Task`/`Agent` are denied to every role) unless it says so", off.spawn.length === 0, off.spawn);
+
+// ---- F1, G1: the instructor view of ROUTING.md against the table ----
+// ponytail: F1 and G1 match words; a rewording that says the same untruth differently passes.
+const workflowDenials = instructor.match(/[^.]*denied `Workflow`[^.]*\./g) || [];
+const f1 = workflowDenials.length === 0 ? ["no sentence in the instructor view says who is denied `Workflow`"]
+  : workflowDenials.filter((s) => table.qualifier.Workflow && !/qualifier/.test(s))
+    .map((s) => `ROUTING.md says: ${s.trim().replace(/\s+/g, " ").replace(/\.$/, "")}; preset-rights.tsv: qualifier Workflow allowed`);
+kase("F1", "the instructor view does not call `Workflow` denied to every worker while the table lets the qualifier hold it", f1.length === 0, f1);
+const MEMORY = "mcp__plugin_nord-mem_mcp-search__search";
+const g1 = Object.keys(RIGHTS).some((p) => table[p][MEMORY]) && /not the worker's/.test(instructor)
+  ? ["ROUTING.md says: Yours to run, not the worker's; preset-rights.tsv: every preset may call the memory search"] : [];
+kase("G1", "the instructor view does not deny the worker the memory search while the table allows it", g1.length === 0, g1);
 
 // ---- S3, D1..D5: the kit against the table copy ----
 // A parser that finds nothing makes D2..D4 pass for the wrong reason.

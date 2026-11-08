@@ -42,6 +42,7 @@ async function auditRun(findings, approve, extraArgs = {}) {
     if (opts.label.startsWith("verify:")) {
       const ids = findings.map((f) => f.id).filter((id) => prompt.includes(`"id": "${id}"`));
       shown.push(...ids);
+      (seen.verifyCalls = seen.verifyCalls || []).push({ label: opts.label, agentType: opts.agentType, prompt, ids });
       return { verdicts: ids.map((findingId) => ({ findingId, isReal: approve, reasoning: "r" })) };
     }
     if (opts.label === "synthesis") seen.synthPrompt = prompt;
@@ -281,6 +282,88 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
   kase("W9", "control: audit.workflow.js toolEvidence is described as the command run, and the diff-deep verifier is still told to put the exact command in reproCmd",
     /\bcommand\b/i.test(wEvid) && wVerPrompt.includes("command in reproCmd"),
     [`toolEvidence says: ${wEvid || "(missing)"} ; diff-deep prompt names "command in reproCmd": ${wVerPrompt.includes("command in reproCmd")}`]);
+
+  // ---- V0..V10: which findings a verifier sees, and what the texts say about it (tickets T1a, T1b) ----
+  // V0 measures what the code does; V1..V10 read the texts that describe it. The decision: the text says what the code does, the filter stays.
+  const vSet = () => [lane("v-high"), lane("v-crit", { severity: "critical" }), lane("v-med", { severity: "medium" }), lane("v-low", { severity: "low" })];
+  const vStd = await auditRun(vSet(), true);
+  const vLite = await auditRun(vSet(), true, { verifyIntensity: "lite" });
+  const vThor = await auditRun(vSet(), true, { verifyIntensity: "thorough" });
+  const vOff = await auditRun(vSet(), true, { verifyIntensity: "off" });
+  const vRef = await auditRun(vSet(), false); // standard, one verifier that refutes everything it is shown
+  const vDiffShown = [];
+  if (DIFF) {
+    const dagent = async (prompt, opts) => {
+      if (opts.label === "review:correctness") return { findings: ["critical", "medium", "low"].map((severity, i) => ({ file: `f${i}.js`, line: 1, severity, confidence: "high", title: `d-${severity}`, detail: "d" })) };
+      if (opts.label.startsWith("review:")) return { findings: [] };
+      if (opts.label.startsWith("verify:")) { vDiffShown.push(/Finding: "([^"]*)"/.exec(prompt)[1]); return { isReal: true, reason: "r", reproduced: "na" }; }
+      return {};
+    };
+    await runScript(DIFF, { target: "x" }, dagent);
+  }
+  const vA11y = await a11yRun(() => ["low", "medium", "high"].map((severity) => plain(`a-${severity}`, { severity })), true);
+  const vTests = await auditRun([lane("v-high")], true, { lanes: ["tests"] });
+  const vSec = await auditRun([lane("v-high")], true);
+  const vKinds = (r) => r.seen.verifyCalls || [];
+  kase("V0", "control (what the code does): standard shows a verifier the high and critical findings, one call per lane; lite only critical; thorough three calls per finding; off none; one refutation drops under standard; diff-deep and a11y show every finding",
+    vStd.shown.slice().sort().join() === "v-crit,v-high" && vKinds(vStd).length === 1
+      && vLite.shown.join() === "v-crit" && vKinds(vLite).length === 1
+      && vKinds(vThor).length === 6 && vKinds(vThor).every((c) => /:[012]$/.test(c.label))
+      && vOff.shown.length === 0
+      && vRef.kept.slice().sort().join() === "v-low,v-med"
+      && vDiffShown.slice().sort().join() === "d-critical,d-low,d-medium"
+      && vA11y.shown.slice().sort().join() === "a-high,a-low,a-medium",
+    [`standard: saw ${vStd.shown.join() || "(nothing)"} in ${vKinds(vStd).length} call(s); lite: ${vLite.shown.join() || "(nothing)"}; thorough: ${vKinds(vThor).length} calls; off: ${vOff.shown.join() || "(nothing)"}; refuting standard kept ${vRef.kept.join() || "(nothing)"}; diff-deep verifier saw ${vDiffShown.join() || "(nothing)"}; a11y verifier saw ${vA11y.shown.join() || "(nothing)"}`]);
+
+  const skillDesc = (/^description: "(.*)"$/m.exec(skill) || [, ""])[1];
+  const deepDesc = flat(section(skillDesc, "`--deep`", "Defaults"));
+  kase("V1", "review/SKILL.md description: --deep does not promise 'every finding adversarially verified', and names the high and critical filter",
+    deepDesc !== "" && !/every finding/i.test(deepDesc) && /\bhigh\b/i.test(deepDesc) && /\bcritical\b/i.test(deepDesc),
+    [deepDesc === "" ? "--deep part of the description not found" : `says: ${around(deepDesc, /every finding/i)} ; names high: ${/\bhigh\b/i.test(deepDesc)}, critical: ${/\bcritical\b/i.test(deepDesc)}`]);
+
+  const diffRow = flat(skill.split("\n").find((l) => l.startsWith("| **`diff`**")) || "");
+  kase("V2", "control: the diff cell of review/SKILL.md still says every finding is adversarially verified (V0: diff-deep shows a verifier every reviewer finding)",
+    diffRow.includes("every finding adversarially verified") && vDiffShown.length === 3, [`row found: ${diffRow !== ""}; says it: ${diffRow.includes("every finding adversarially verified")}; verifier saw ${vDiffShown.length} of 3`]);
+
+  const intro = flat(section(repoMd, "An architect-level audit", "\n\n"));
+  kase("V3", "repo-deep.md intro: the '3 skeptics per finding, majority refute' promise is tied to the thorough tier",
+    intro !== "" && (!/skeptic/i.test(intro) || /thorough/i.test(intro)),
+    [intro === "" ? "intro not found" : `says: ${around(intro, /skeptics?[^)]*/i)} ; names thorough: ${/thorough/i.test(intro)}`]);
+
+  const tiers = flat(section(repoMd, "- `verifyIntensity`", "\n- `lanes`"));
+  kase("V4", "repo-deep.md verifyIntensity: the standard tier is not said to give 'the same false-positive protection' as three skeptics",
+    tiers !== "" && !/same false-positive protection/i.test(tiers), [tiers === "" ? "tier block not found" : `says: ${around(tiers, /same false-positive protection/i)}`]);
+
+  const nWord = { twelve: 12, thirteen: 13 };
+  const mCounts = [...flat(repoMd).matchAll(/\b(\d+|twelve|thirteen)\s+(?:(?:specialist|core|parallel)\s+)*lanes\b/gi)].map((m) => ({ text: m[0], n: nWord[m[1].toLowerCase()] || +m[1] }));
+  const phase2 = (/Phase 2: PARALLEL LANES \((\d+) agents/.exec(repoMd) || [])[1];
+  const mWrong = mCounts.filter((c) => c.n !== wCore).map((c) => `"${c.text}"`).concat(phase2 && +phase2 !== wCore ? [`"Phase 2 ... ${phase2} agents"`] : []);
+  kase("V5", "repo-deep.md names the number of core lanes the registry has (every 'N lanes' and the Phase 2 line)",
+    wCore > 0 && mCounts.length > 0 && !!phase2 && mWrong.length === 0, [`registry starts ${wCore} core lanes ; text: ${mCounts.map((c) => `"${c.text}"`).join(" | ")} ; Phase 2 agents: ${phase2} ; wrong: ${mWrong.join(" | ") || "(none)"}`]);
+
+  const phase3 = section(repoMd, "Phase 3:", "Phase 4:");
+  const p3Lines = phase3.split("\n");
+  const p3Bad = p3Lines.filter((l) => (/\b3 agents\b|2\/3|majority/i.test(l)) && !/thorough/i.test(l));
+  kase("V6", "repo-deep.md Phase 3: the three-agents and two-of-three rules are tied to the thorough tier, and the standard batch is named",
+    phase3 !== "" && p3Bad.length === 0 && /batch/i.test(phase3), [phase3 === "" ? "Phase 3 not found" : `lines with the rule but not thorough: ${p3Bad.map((l) => `"${l.trim()}"`).join(" | ") || "(none)"} ; batch named: ${/batch/i.test(phase3)}`]);
+
+  const sameVerifier = vKinds(vSec).length === 1 && vKinds(vTests).length === 1
+    && vKinds(vSec)[0].agentType === vKinds(vTests)[0].agentType && vKinds(vSec)[0].prompt === vKinds(vTests)[0].prompt;
+  kase("V7", "repo-deep.md Phase 3: the Security lane's verifier is not described as a special one (V0: every lane gets the same verifier type and prompt)",
+    sameVerifier && phase3 !== "" && !/security-domain|not a generic skeptic/i.test(phase3),
+    [`same agentType and prompt for security and tests: ${sameVerifier} (${vKinds(vSec)[0] && vKinds(vSec)[0].agentType}) ; says: ${around(phase3, /security-domain[^`]*|not a generic skeptic/i)}`]);
+
+  const m4 = flat(section(repoMd, "Plus meta-lanes", "\n"));
+  kase("V8", "repo-deep.md meta-lane M4: 'runs per finding' is tied to the thorough tier",
+    m4 !== "" && (!/per finding/i.test(m4) || /thorough/i.test(m4)), [m4 === "" ? "M4 line not found" : `says: ${around(m4, /M4[^)]*/)}`]);
+
+  const provMd = flat(section(repoMd, "## Finding confidence + provenance", "## Honest limitations"));
+  kase("V9", "repo-deep.md confidence: findings below the verify threshold are not called a 'verify-lite' passthrough alone (standard passes them on unverified too)",
+    provMd !== "" && !/verify-lite passthrough/i.test(provMd), [provMd === "" ? "section not found" : `says: ${around(provMd, /verify-lite passthrough/i)}`]);
+
+  const wfHead = section(AUDIT, "// ─── PHASE 2 + 3", "const REFUTE_PROMPT");
+  kase("V10", "audit.workflow.js comments above REFUTE_PROMPT do not describe the verification as per-finding (standard and lite batch per lane)",
+    wfHead !== "" && !/per-finding/i.test(wfHead), [wfHead === "" ? "comment block not found" : `says: ${around(wfHead, /per-finding/i)}`]);
 
   console.log(`${total} cases, ${red} red`);
   process.exit(red ? 1 : 0);

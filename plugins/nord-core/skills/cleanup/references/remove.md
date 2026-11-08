@@ -52,13 +52,14 @@ const found = await parallel(DETECTORS.map(d => () =>
         { label:`detect:${d.key}`, phase:'Detect', schema:CAND_SCHEMA })
     .then(r => ((r && r.candidates) || []).map(c => ({ ...c, detector:d.key })))))
 const cands = found.filter(Boolean).flat()
+// the entry is the candidate as the detector reported it; the verdict adds its own fields (safeToRemove, reason, refsFound, refCmd, references) and never replaces file, lines, what, why or detector.
 const verified = await parallel(cands.map(c => () =>
   agent(`Verify SAFE TO REMOVE. Decide by a reference search you run, not by opinion.\n` +
         `1. RUN a real reference search (grep -rn / rg) for the symbol/file across the WHOLE repo (incl. dynamic uses: strings, configs, re-exports, DI, reflection). Report the exact command in refCmd and the real hit count in refsFound. The workflow acts on refsFound and safeToRemove as you report them and does not rerun the search.\n` +
         `2. safeToRemove=true ONLY if refsFound==0 (the workflow drops every candidate with any other count) AND it is not an external/public API / entrypoint. ANY real reference, doubt, or public surface → safeToRemove=false. Dead-code with 0 refs is the clean case.\n` +
         `Candidate (${c.detector}): "${c.what}" in ${c.file} ${c.lines||''} — ${c.why}`,
         { label:`safe:${c.file}`, phase:'VerifySafe', schema:SAFE_SCHEMA })
-    .then(v => ({ ...c, ...v }))))
+    .then(v => ({ ...c, ...v, file:c.file, lines:c.lines, what:c.what, why:c.why, detector:c.detector }))))
 // a judgement is usable only with a boolean safeToRemove and an integer refsFound; a dead verifier (null, or a thrown agent) gives none. Unlike a review finding, such a candidate is dropped (deleting is the unsafe direction) and named in noJudgement.
 const rows = cands.map((c, i) => verified[i] ?? c)
 const judged = c => typeof c.safeToRemove === 'boolean' && Number.isInteger(c.refsFound)

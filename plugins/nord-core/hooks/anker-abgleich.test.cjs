@@ -239,7 +239,7 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
   kase("D9", "repo-deep.md limitations: the unverified rule is not tied to the batch verifier alone; thorough is named",
     rdLimit !== "" && /unverified/.test(rdLimit) && /thorough/i.test(rdLimit), [rdLimit === "" ? "bullet not found" : `says: ${around(rdLimit, /A finding the[^.]*\./)} ; thorough named: ${/thorough/i.test(rdLimit)}`]);
 
-  // ---- N1..N8: a verdict counts only when isReal is a boolean; any other answer is no verdict: the finding stays, marked unverified, in all three workflows ----
+  // ---- N1..N9: a verdict counts only when isReal is a boolean; any other answer is no verdict: the finding stays, marked unverified, in all three workflows ----
   // (ticket "ein-verifizierer-urteil-ohne-isreal-verwirft-den-befund-in-diff-deep-und-a11y-still-der-batch-weg-behaelt-ihn"; the rule follows the decision of 2026-11-08)
   // An explicit refutation stays isReal === false. A verdict that carries its own evidence (diff-deep: reproCmd + confirmed/refuted; a11y: checked confirmed/refuted) is read as before (N5).
   const nBad = { "{}": {}, "{isReal:null}": { isReal: null }, "{isReal:'false'}": { isReal: "false" }, "{isReal:'yes'}": { isReal: "yes" }, "{reason:'x'}": { reason: "x" } };
@@ -280,6 +280,14 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
   kase("N7", "lens-a11y.md prose (confidence rule): says that a verdict whose isReal is no boolean counts as no verdict", nPhrase.test(a11yConf), [`confidence section around unverified: ${around(a11yConf, /unverified/)}`]);
   kase("N8", "repo-deep.md limitations (coverage table): the batch entry and the thorough skeptic with an isReal that is no boolean count as no verdict", nPhrase.test(rdLimit) && (rdLimit.match(new RegExp(nPhrase.source, "gi")) || []).length >= 2,
     [`bullet around unverified: ${around(rdLimit, /A finding the[^.]*\./)} ; isReal clauses: ${(rdLimit.match(new RegExp(nPhrase.source, "gi")) || []).length} (want 2)`]);
+
+  // N9 (ticket "diff-deep-md-eine-reproduktionsmeldung-ohne-befehl-und-ohne-isreal-hat-keinen-pruefall"): the verifier reports a reproduction but names no command and gives no isReal.
+  // A3 sends isReal with it, N3 sends no `reproduced` at all, N5 sends the command: none of them is this shape. Without the command the report is no evidence (A3), without isReal there is nothing to fall back to.
+  // ponytail: diff-deep.md only. lens-a11y.md reads `checked` without a command; its confirmed and refuted are pinned in N5, `checked: 'na'` without isReal is not (own ticket).
+  const n9 = DIFF ? { "{reproduced:'confirmed'}": await dScript(DIFF, "review:correctness", dDiffF, { reproduced: "confirmed" }), "{reproduced:'refuted'}": await dScript(DIFF, "review:correctness", dDiffF, { reproduced: "refuted" }),
+    "{reproduced:'na'}": await dScript(DIFF, "review:correctness", dDiffF, { reproduced: "na" }) } : {};
+  kase("N9", "diff-deep.md: a reproduction report (confirmed, refuted, na) with no reproCmd and no isReal is no verdict: the finding stays with verdict.reproduced 'unverified'",
+    Object.keys(n9).length === 3 && Object.values(n9).every((x) => x.count === 1 && x.verdict && x.verdict.reproduced === "unverified"), [nShowS(n9, "reproduced") + " ; want count=1 and reproduced=unverified each"]);
 
   // ---- L0..L3: lens-a11y.md — toolVerified skips the verifier only when the lane names the tool run it rests on ----
   const plain = (title, extra = {}) => ({ title, ...base, ...extra });

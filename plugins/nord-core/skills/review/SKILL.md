@@ -1,6 +1,6 @@
 ---
 name: review
-description: "Judge finished work and return severity-rated findings, each anchored to a file:line that was actually read. Three axes: `--scope diff|repo|plan` (what is under review — a change, a whole codebase, or a plan before anyone builds it), `--lens security|a11y|claims|contract` (narrow to one question), `--deep` (parallel specialists with every finding adversarially verified, instead of one pass). Defaults to a single pass over the current diff. Use for reviewing a diff or PR, auditing a codebase, checking whether a plan is sound, asking whether the documentation is true, or on 'schau dir das mal an', 'review das', 'ist der Code gut', 'stimmt das so'."
+description: "Judge finished work and return severity-rated findings, each anchored to a file:line that was actually read. Three axes: `--scope diff|repo|plan` (what is under review — a change, a whole codebase, or a plan before anyone builds it), `--lens security|a11y|claims|contract` (narrow to one question), `--deep` (parallel specialists, then a verifier agent that sees every reviewer finding for `diff` but by default only the high and critical ones for `repo` (`lite`: critical only), instead of one pass). Defaults to a single pass over the current diff. Use for reviewing a diff or PR, auditing a codebase, checking whether a plan is sound, asking whether the documentation is true, or on 'schau dir das mal an', 'review das', 'ist der Code gut', 'stimmt das so'."
 ---
 
 # review

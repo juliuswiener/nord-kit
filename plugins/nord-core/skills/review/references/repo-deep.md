@@ -8,7 +8,7 @@ description: "Full architectural audit: 12+ parallel specialists (architecture/q
 
 ## Overview
 
-An architect-level audit that fans across **~12 specialist lanes in parallel**, **adversarially verifies high-severity findings** (3 skeptics per finding, majority refute → drop), then **synthesizes a severity-ranked report**. Read-only by default. Cleaning is a separate follow-up after human review of findings — auto-fix in an unfamiliar codebase is unsafe.
+An architect-level audit that fans across **13 core specialist lanes in parallel**, **adversarially verifies high and critical findings** (by default one batched verifier per lane; with `verifyIntensity: 'thorough'`, 3 skeptics per finding, majority refute → drop), then **synthesizes a severity-ranked report**. Read-only by default. Cleaning is a separate follow-up after human review of findings — auto-fix in an unfamiliar codebase is unsafe.
 
 The audit surfaces *what will hurt*, not *what could be prettier*. Findings have category, severity, file/line, impact, recommendation, and effort. Linter-grade nits are out of scope — formatters and CI already catch those.
 
@@ -49,7 +49,7 @@ Workflow({
 - `severityFloor` — `low` | `medium` | `high` (default `low`). Drops findings below this severity from the synthesis.
 - `maxFindingsPerLane` — default 20. Caps lane output for tractable synthesis.
 - `verifyIntensity` — `off` | `lite` | `standard` (default) | `thorough`. **The single biggest cost lever.** Phase 3 verification used to spawn 3 independent skeptics *per* high-severity finding (e.g. 11 highs → 33 agents, ~45% of total spend). The tiers:
-  - `standard` (default) — one **batched** verifier per lane reviews all that lane's high+critical findings in a single call (reads cited files once). ~80% fewer verification agents than the old behaviour, same false-positive protection.
+  - `standard` (default) — one **batched** verifier per lane reviews all that lane's high+critical findings in a single call (reads cited files once). ~80% fewer verification agents than the old behaviour. One verifier drops a finding only on an explicit refutation; there is no majority vote.
   - `lite` — batch-verify **criticals only**; high findings pass straight to synthesis (human reviews them anyway). Cheapest pass that still guards the showstoppers.
   - `off` — trust the lanes, no verification. Only for a fast first look.
   - `thorough` — the original 3-skeptics-per-finding, majority-refute-drops behaviour. Reserve for acquisition / high-stakes / multi-contributor audits where a false positive is genuinely costly.
@@ -92,16 +92,16 @@ Phase 1: VITAL SIGNS + INTENT EXTRACTION (1 agent, blocking)
   └─ Produce `vitals` + `intent` — flows into every lane's context. Findings get evaluated
      against stated intent (not generic best practice), drastically reducing false positives
 
-Phase 2: PARALLEL LANES (12 agents + N conditional, all concurrent)
+Phase 2: PARALLEL LANES (13 agents + N conditional, all concurrent)
   ├─ Each lane gets the vital-signs context + its scope
   ├─ Returns structured findings list (capped)
   └─ Output streams into Phase 3 per-lane as it completes (pipeline, not barrier)
 
-Phase 3: ADVERSARIAL VERIFICATION (3 agents per high-severity finding, concurrent)
+Phase 3: ADVERSARIAL VERIFICATION (high + critical findings, `lite`: critical only; standard: one batched verifier per lane; `thorough`: 3 agents per finding; concurrent)
   ├─ Each verifier prompted to REFUTE the finding
-  ├─ ≥2/3 refute → finding dropped
+  ├─ standard/lite: one explicit isReal=false drops the finding, a missing verdict keeps it; `thorough`: ≥2/3 refute → finding dropped
   ├─ Reduces false positives from pattern-matching lanes
-  └─ Lane 5 (Security) HIGH/CRITICAL findings: use `nord-core:reviewer` subagent type for cross-validation — security-domain prompt, not a generic skeptic
+  └─ Every verifier runs as `nord-core:reviewer` with a generic refute prompt; the Security lane's verifier is no different
 
 Phase 4: BLAST RADIUS (1 agent, concurrent with Phase 2)
   └─ 90-day churn heatmap, hotspot overlap with low-coverage modules
@@ -131,7 +131,7 @@ Phase 5: SYNTHESIS (1 agent, blocking after 2+3+4)
 | 12 | Configuration, Secrets & Resilience | (general) | Config validation, secret mgmt, timeouts, circuit breakers, degradation |
 | 13 | **Stated vs Actual Drift** | `reviewer` | **Claims in docs vs reality in code** — architecture drift, quality-bar drift, API/schema drift, stalled migrations, doc rot, compliance-claim drift |
 
-Plus meta-lanes M1 (Vital Signs + Intent Extraction), M2 (Blast Radius), M3 (Synthesis), M4 (Adversarial Verification — runs per finding, not as a separate phase).
+Plus meta-lanes M1 (Vital Signs + Intent Extraction), M2 (Blast Radius), M3 (Synthesis), M4 (Adversarial Verification — one batched call per lane, per finding with `thorough`; runs inside the lane pipeline, not as a separate phase).
 
 ### Lane 5 Security — Extended Scope
 
@@ -271,7 +271,7 @@ already wires, anchored:
 - **Confidence (B)** ties to the evidence tier a finding survived: **high** = `toolVerified` with the command
   in `toolEvidence` (the lane reports a tool run — CVE, compiler/lint error; the workflow has no shell and
   does not rerun it, and a flag without `toolEvidence` goes to the verifier) OR survived the 3-skeptic majority
-  refute (`thorough`); **medium** = lane-reported, static-only / verify-lite passthrough; **low** → route
+  refute (`thorough`); **medium** = lane-reported, static-only, or passed on unverified because it sits below the verify threshold (or the tier is `off`); **low** → route
   to the INVESTIGATE bucket, not asserted.
 - **Provenance (A):** `toolVerified:true` findings are `explicit` (the lane names a tool run as source);
   reasoned/pattern-matched findings are `derived`. The drift lane (Stated-vs-Actual) is where `conflicts` live.
@@ -305,7 +305,7 @@ After major remediation, re-run the workflow. Track findings closed quarter-over
 
 ## Instead of this
 
-- `review --scope repo` — the same question, one pass instead of twelve lanes
+- `review --scope repo` — the same question, one pass instead of thirteen lanes
 - `review --scope diff` — a single change rather than a whole tree
 - `implement --from goal --parallel` — once you have findings and want them fixed
 - `nord-core:reviewer`, `nord-core:researcher`, `nord-core:expert` — the underlying role agents this skill orchestrates

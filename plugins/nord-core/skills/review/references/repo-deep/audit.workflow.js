@@ -847,11 +847,11 @@ const activeLanes = [
 
 log(`Running ${activeLanes.length} lanes (${selectedCore.length} core${laneFilter ? ` of ${CORE_LANES.length}, filtered` : ''} + ${activeLanes.length - selectedCore.length} conditional)`)
 
-// ─── PHASE 2 + 3: Parallel lanes with per-finding adversarial verification ────
+// ─── PHASE 2 + 3: Parallel lanes with adversarial verification (see verifyIntensity) ────
 
 phase('Parallel Lanes')
 
-// Pipeline: each lane streams into per-finding verification as soon as it completes,
+// Pipeline: each lane streams into verification as soon as it completes,
 // no barrier between phases. Lane A's high-severity findings can be verified while
 // Lane B is still running.
 

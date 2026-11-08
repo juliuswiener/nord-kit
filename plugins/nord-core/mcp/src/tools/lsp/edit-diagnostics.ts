@@ -45,8 +45,8 @@ export interface EditDiagnosticsResult {
    * Set by the MCP server when it turned the request away: every language server
    * of this kind is busy and the pool is at NORD_LSP_MAX_SERVERS. The text names
    * the limit; `before`/`after` are empty. The caller says "not checked" and asks
-   * nobody else, because another socket or its own process would start one more
-   * server -- the thing the refusal prevents.
+   * nobody else, because its own process would start one more server -- the
+   * thing the refusal prevents.
    */
   refused?: string;
 }

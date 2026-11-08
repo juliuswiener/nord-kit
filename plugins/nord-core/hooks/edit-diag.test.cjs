@@ -78,7 +78,7 @@ async function main() {
     process.on("SIGTERM", () => process.exit(0)); setInterval(() => {}, 1e6);`;
   const server = spawn("node", ["-e", serverCode(DIST)], { env: ENV, stdio: "ignore" });
   const sockDir = path.join(TMP, `nord-lsp-${process.getuid()}`);
-  const sock = path.join(sockDir, `${server.pid}.sock`);
+  const sock = path.join(sockDir, `${process.pid}-${server.pid}.sock`);
   for (let i = 0; i < 50 && !fs.existsSync(sock); i++) await new Promise((r) => setTimeout(r, 100));
   check("MCP-side socket comes up", fs.existsSync(sock), `no ${sock}`);
 
@@ -133,7 +133,7 @@ async function main() {
   // 4. A SIGKILLed server leaves its socket; the next hook call removes it and
   //    still answers in-process.
   const dead = spawn("node", ["-e", serverCode(DIST)], { env: ENV, stdio: "ignore" });
-  const deadSock = path.join(sockDir, `${dead.pid}.sock`);
+  const deadSock = path.join(sockDir, `${process.pid}-${dead.pid}.sock`);
   for (let i = 0; i < 50 && !fs.existsSync(deadSock); i++) await new Promise((r) => setTimeout(r, 100));
   dead.kill("SIGKILL");
   await new Promise((r) => setTimeout(r, 300));

@@ -8,7 +8,9 @@
 // Braucht gebautes dist/ und bridge/ (cd mcp && npm run build). LSP_DIST=<index.js> ueberschreibt nur den Server.
 // STANDIN=bridge node edit-diag-pool.test.cjs ak1|ak5  -> der Server ist das gebaute Buendel bridge/mcp-server.cjs
 // statt dist/ (AK8: ak1 und ak5 muessen mit beiden Stand-ins bestehen).
-// Aufruf: node edit-diag-pool.test.cjs [ak0|ak1|ak2|ak3|ak4|ak5|ak6|ak7]   (ohne Argument: alle; ak1 schliesst ak1b ein)
+// AK9-AK11: der Hook fragt nur den MCP-Server der eigenen Sitzung (Vault: der-diagnose-hook-nutzt-nur-den-sprachserver-der-eigenen-sitzung-ohne-rueckfall-auf-fremde).
+// "Eigene Sitzung" = der Elternprozess des Servers ist ein Vorfahre des Hooks; ein fremder Server ist hier das Kind eines Zwischenprozesses.
+// Aufruf: node edit-diag-pool.test.cjs [ak0|ak1|ak2|ak3|ak4|ak5|ak6|ak7|ak9|ak10|ak11]   (ohne Argument: alle; ak1 schliesst ak1b ein)
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -108,22 +110,46 @@ function project() {
 }
 
 const standIns = [];
+// STANDIN=bridge: der Stand-in ist das ausgelieferte Buendel bridge/mcp-server.cjs (der echte MCP-Server auf stdio,
+// stdin bleibt offen); sonst ein kleiner Prozess, der nur dist/tools/lsp/index.js laedt und den Socket oeffnet.
+const STANDIN_CODE = `const l = require(${JSON.stringify(DIST)}); l.startDiagSocket(); process.on("SIGTERM", () => process.exit(0)); setInterval(() => {}, 1e6);`;
+const standInCommand = () => process.env.STANDIN === "bridge"
+  ? { cmd: "node", args: [path.join(PLUGIN, "bridge", "mcp-server.cjs")], stdio: ["pipe", "ignore", "ignore"] }
+  : { cmd: "node", args: ["-e", STANDIN_CODE], stdio: "ignore" };
+// Der Socket eines Servers: <tmpdir>/nord-lsp-<uid>/<pid>.sock oder <elternpid>-<pid>.sock -- beide Namen, damit
+// dieselbe Wartezeit vor und nach der Namensaenderung laeuft.
+const socketOf = (pid) => {
+  try {
+    const dir = path.join(TMP, `nord-lsp-${process.getuid()}`);
+    const n = fs.readdirSync(dir).find((f) => f === `${pid}.sock` || f.endsWith(`-${pid}.sock`));
+    return n ? path.join(dir, n) : null;
+  } catch { return null; }
+};
 async function startServer(extra = {}) {
-  // STANDIN=bridge: der Stand-in ist das ausgelieferte Buendel bridge/mcp-server.cjs (der echte MCP-Server auf stdio,
-  // stdin bleibt offen); sonst ein kleiner Prozess, der nur dist/tools/lsp/index.js laedt und den Socket oeffnet.
-  const code = `const l = require(${JSON.stringify(DIST)}); l.startDiagSocket(); process.on("SIGTERM", () => process.exit(0)); setInterval(() => {}, 1e6);`;
-  const child = process.env.STANDIN === "bridge"
-    ? spawn("node", [path.join(PLUGIN, "bridge", "mcp-server.cjs")], { env: baseEnv(extra), stdio: ["pipe", "ignore", "ignore"] })
-    : spawn("node", ["-e", code], { env: baseEnv(extra), stdio: "ignore" });
+  const { cmd, args, stdio } = standInCommand();
+  const child = spawn(cmd, args, { env: baseEnv(extra), stdio });
   standIns.push(child);
-  const sock = path.join(TMP, `nord-lsp-${process.getuid()}`, `${child.pid}.sock`);
-  await until(() => fs.existsSync(sock), 5000);
+  await until(() => socketOf(child.pid), 5000);
   return child;
 }
+// Der Server einer fremden Sitzung: sein Elternprozess (`mid`) ist ein Zwischenprozess, den der Hook nicht zum Vorfahren hat.
+// Rueckgabe: { pid (des Servers), kill() }.
+async function startForeignServer(extra = {}) {
+  const { cmd, args, stdio } = standInCommand();
+  const mid = spawn("node", ["-e", `const c = require("child_process").spawn(${JSON.stringify(cmd)}, ${JSON.stringify(args)}, { env: process.env, stdio: ${JSON.stringify(stdio)} });
+console.log(c.pid); setInterval(() => {}, 1e6);`], { env: baseEnv(extra), stdio: ["ignore", "pipe", "ignore"] });
+  standIns.push(mid);
+  const pid = await new Promise((resolve) => mid.stdout.once("data", (d) => resolve(Number(String(d).trim()))));
+  await until(() => socketOf(pid), 5000);
+  return { pid, kill() { try { process.kill(pid, "SIGKILL"); } catch {} try { mid.kill("SIGKILL"); } catch {} } };
+}
 
-function runNode(script, payload, env) {
+// wrap: der Hook laeuft hinter einer Zwischen-Shell (Claude Code startet Hooks nicht zwingend selbst als Elternprozess).
+function runNode(script, payload, env, wrap = false) {
   return new Promise((resolve) => {
-    const p = spawn("node", [script], { env, stdio: ["pipe", "pipe", "ignore"] });
+    const p = wrap
+      ? spawn("sh", ["-c", 'node "$1"; r=$?; exit $r', "sh", script], { env, stdio: ["pipe", "pipe", "ignore"] })
+      : spawn("node", [script], { env, stdio: ["pipe", "pipe", "ignore"] });
     let out = "";
     const timer = setTimeout(() => p.kill("SIGKILL"), 60000);
     p.stdout.on("data", (d) => (out += d));
@@ -132,12 +158,12 @@ function runNode(script, payload, env) {
   });
 }
 // Ein Edit wie Claude Code ihn meldet: PreToolUse (Stash), Datei schreiben, PostToolBatch (Bericht).
-async function edit(file, env, before = "fn a() {}\n", after = "fn a() { }\n") {
+async function edit(file, env, before = "fn a() {}\n", after = "fn a() { }\n", wrap = false) {
   fs.writeFileSync(file, before);
   const call = { tool_name: "Edit", tool_input: { file_path: file } };
-  await runNode(CAPTURE, { hook_event_name: "PreToolUse", ...call, cwd: path.dirname(file) }, env);
+  await runNode(CAPTURE, { hook_event_name: "PreToolUse", ...call, cwd: path.dirname(file) }, env, wrap);
   fs.writeFileSync(file, after);
-  return runNode(REPORT, { hook_event_name: "PostToolBatch", tool_calls: [{ ...call, tool_use_id: "t", tool_response: "ok" }], cwd: path.dirname(file) }, env);
+  return runNode(REPORT, { hook_event_name: "PostToolBatch", tool_calls: [{ ...call, tool_use_id: "t", tool_response: "ok" }], cwd: path.dirname(file) }, env, wrap);
 }
 
 async function main() {
@@ -332,6 +358,41 @@ const req = { file: process.env.RACE_FILE, beforeText: "fn a() {}\\n", afterText
     check("AK7 Randfall: ein Crate mit eigenem [workspace] (wie rust/fuzz) bekommt einen eigenen Server",
       cwds.includes(fs.realpathSync(path.join(ws, "fuzz"))) && cwds.includes(fs.realpathSync(ws)), `Server in: ${cwds.map((c) => path.relative(TMP, c)).join(", ")}`);
     srv.kill();
+  }
+
+  // AK9: nur der Server einer fremden Sitzung lebt -> der Hook fragt ihn nicht. Er rechnet selbst (via=in-process, langsam
+  // aber richtig, nie ein stilles "sauber"), der fremde Server startet keinen Sprachserver, und sein Socket bleibt stehen.
+  if (want("ak9")) {
+    const fremd = await startForeignServer();
+    const out = await edit(project(), baseEnv());
+    check("AK9 nur ein fremder Server da: der Hook rechnet im eigenen Prozess (via=in-process)", /via=in-process/.test(out), JSON.stringify(out));
+    check("AK9 der fremde Server hat keinen Sprachserver gestartet", servers(fremd.pid).length === 0, `${servers(fremd.pid).length} Sprachserver unter dem fremden Server`);
+    check("AK9 der Socket des lebenden fremden Servers bleibt stehen (der Hook raeumt nur tote weg)", !!socketOf(fremd.pid), "Socket des fremden Servers fehlt");
+    fremd.kill();
+  }
+
+  // AK10: eigener Server UND zwei fremde da -> der Sprachserver startet unter dem eigenen, unter keinem fremden.
+  if (want("ak10")) {
+    const fremd = [await startForeignServer(), await startForeignServer()];
+    const eigen = await startServer();
+    const out = await edit(project(), baseEnv());
+    const beiFremden = fremd.reduce((n, f) => n + servers(f.pid).length, 0);
+    check("AK10 mit eigenem und zwei fremden Servern: die Antwort kommt ueber den Socket (via=socket)", /via=socket/.test(out), JSON.stringify(out));
+    check("AK10 der Sprachserver laeuft unter dem eigenen Server", servers(eigen.pid).length === 1, `${servers(eigen.pid).length} Sprachserver unter dem eigenen Server`);
+    check("AK10 unter keinem fremden Server laeuft ein Sprachserver", beiFremden === 0, `${beiFremden} Sprachserver unter fremden Servern`);
+    for (const f of fremd) f.kill();
+    eigen.kill();
+  }
+
+  // AK11 (Wache, heute gruen): Claude Code startet den Hook nicht zwingend selbst als Kind des Prozesses, der auch den Server
+  // startet. Liegt eine Zwischen-Shell dazwischen, ist der Server ein Vorfahre-Geschwister, nicht der direkte Elternprozess.
+  // Mutation: nur process.ppid statt aller Vorfahren -> rot.
+  if (want("ak11")) {
+    const eigen = await startServer();
+    const out = await edit(project(), baseEnv(), "fn a() {}\n", "fn a() { }\n", true);
+    check("AK11 Hook hinter einer Zwischen-Shell findet den Server der eigenen Sitzung (via=socket)", /via=socket/.test(out) && servers(eigen.pid).length === 1,
+      JSON.stringify({ out, lebend: servers(eigen.pid).length }));
+    eigen.kill();
   }
 }
 

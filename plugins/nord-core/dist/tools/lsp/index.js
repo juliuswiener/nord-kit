@@ -2201,7 +2201,7 @@ function startDiagSocket() {
   try {
     const dir = diagSocketDir();
     (0, import_fs4.mkdirSync)(dir, { recursive: true, mode: 448 });
-    const path = (0, import_path5.join)(dir, `${process.pid}.sock`);
+    const path = (0, import_path5.join)(dir, `${process.ppid}-${process.pid}.sock`);
     if ((0, import_fs4.existsSync)(path)) (0, import_fs4.unlinkSync)(path);
     const server = (0, import_net.createServer)((conn) => {
       let buf = "";
@@ -2247,6 +2247,23 @@ function alive(pid) {
     return e.code === "EPERM";
   }
 }
+function parentOf(pid) {
+  try {
+    const st = (0, import_fs4.readFileSync)(`/proc/${pid}/stat`, "utf8");
+    return Number(st.slice(st.lastIndexOf(")") + 2).split(" ")[1]);
+  } catch {
+    return null;
+  }
+}
+function ancestors() {
+  const out = [];
+  let p = process.ppid;
+  while (p && p > 1 && out.length < 32 && !out.includes(p)) {
+    out.push(p);
+    p = parentOf(p);
+  }
+  return out;
+}
 function ask(path, req, timeoutMs) {
   return new Promise((resolve4) => {
     let buf = "";
@@ -2288,17 +2305,24 @@ async function requestEditDiagnostics(req, timeoutMs) {
   } catch {
     return null;
   }
+  const mine = ancestors();
+  const own = [];
   for (const name of names) {
-    const m = /^(\d+)\.sock$/.exec(name);
+    const m = /^(?:(\d+)-)?(\d+)\.sock$/.exec(name);
     if (!m) continue;
     const path = (0, import_path5.join)(dir, name);
-    if (!alive(Number(m[1]))) {
+    if (!alive(Number(m[2]))) {
       try {
         (0, import_fs4.unlinkSync)(path);
       } catch {
       }
       continue;
     }
+    const rank = m[1] === void 0 ? -1 : mine.indexOf(Number(m[1]));
+    if (rank >= 0) own.push({ path, rank });
+  }
+  own.sort((a, b) => a.rank - b.rank);
+  for (const { path } of own) {
     const r = await ask(path, req, timeoutMs);
     if (r) return r;
   }

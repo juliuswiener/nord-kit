@@ -4,12 +4,19 @@
  * A hook is a fresh process per edit, so a pool it holds is always cold:
  * TypeScript 7.1 s per edit, measured. The MCP server lives for the whole
  * session and keeps its pool warm, so it answers on a Unix socket and the hook
- * asks there first. Vault: edit-diagnose-laeuft-ueber-den-warmen-mcp-server.
+ * asks there first. Vault: edit-diagnose-laeuft-ueber-den-warmen-mcp-server,
+ * narrowed by die-edit-diagnose-fragt-nur-den-mcp-server-der-eigenen-sitzung.
  *
- * One socket per server process: <tmpdir>/nord-lsp-<uid>/<pid>.sock. Any live
- * one will do -- servers are pooled per workspace root, not per session.
- * ponytail: the first socket that answers wins, no load spreading; add it if
- * several sessions ever queue up behind one server.
+ * One socket per server process: <tmpdir>/nord-lsp-<uid>/<ppid>-<pid>.sock.
+ * The hook asks ONLY the server of its own session: the one whose parent
+ * process (<ppid>, Claude Code) is an ancestor of the hook. A foreign server
+ * is never asked -- its language servers would grow in another session's
+ * memory and die with it. Session id is no key: it changes on /clear, the
+ * server stays.
+ * ponytail: ancestors come from /proc (Linux); elsewhere only the direct
+ * parent counts, which finds no server behind a shell and the hook computes
+ * in-process. A nested claude without an MCP server of its own would find its
+ * outer session's; add a "is this process claude" test if that ever matters.
  *
  * Wire format: one JSON line in, one JSON line out, then close. The line out is
  * the result, { refused: <text> } when the pool is full and every server of the
@@ -17,7 +24,7 @@
  */
 
 import { createServer, createConnection } from 'net';
-import { chmodSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { LspPoolFullError } from './client.js';
@@ -33,7 +40,7 @@ export function startDiagSocket(): void {
   try {
     const dir = diagSocketDir();
     mkdirSync(dir, { recursive: true, mode: 0o700 });
-    const path = join(dir, `${process.pid}.sock`);
+    const path = join(dir, `${process.ppid}-${process.pid}.sock`);
     if (existsSync(path)) unlinkSync(path);
 
     const server = createServer((conn) => {
@@ -77,6 +84,21 @@ function alive(pid: number): boolean {
   }
 }
 
+function parentOf(pid: number): number | null {
+  try {
+    const st = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    return Number(st.slice(st.lastIndexOf(')') + 2).split(' ')[1]);   // "S <ppid> ..." after "(comm)"
+  } catch { return null; }
+}
+
+/** This process's ancestors, nearest first. pid 0 and 1 never count: an orphan's parent is not a session. */
+export function ancestors(): number[] {
+  const out: number[] = [];
+  let p: number | null = process.ppid;
+  while (p && p > 1 && out.length < 32 && !out.includes(p)) { out.push(p); p = parentOf(p); }
+  return out;
+}
+
 function ask(path: string, req: EditDiagnosticsRequest, timeoutMs: number): Promise<EditDiagnosticsResult | null> {
   return new Promise((resolve) => {
     let buf = '';
@@ -104,9 +126,10 @@ function ask(path: string, req: EditDiagnosticsRequest, timeoutMs: number): Prom
 }
 
 /**
- * Ask a live MCP server. null = nobody answered; the caller computes in-process.
- * Sockets of dead processes are removed on the way. A refusal (result.refused) is
- * an answer: it ends the search, because the next socket or an in-process run
+ * Ask the live MCP server of this session. null = nobody answered; the caller
+ * computes in-process. Sockets of dead processes are removed on the way, those
+ * of live servers of other sessions are left alone and never asked. A refusal
+ * (result.refused) is an answer: it ends the search, because an in-process run
  * would start one more language server.
  */
 export async function requestEditDiagnostics(
@@ -116,14 +139,22 @@ export async function requestEditDiagnostics(
   const dir = diagSocketDir();
   let names: string[];
   try { names = readdirSync(dir); } catch { return null; }
+  const mine = ancestors();
+  const own: { path: string; rank: number }[] = [];
   for (const name of names) {
-    const m = /^(\d+)\.sock$/.exec(name);
+    // <ppid>-<pid>.sock; the old <pid>.sock of a server from before this scheme has no session and is never asked.
+    const m = /^(?:(\d+)-)?(\d+)\.sock$/.exec(name);
     if (!m) continue;
     const path = join(dir, name);
-    if (!alive(Number(m[1]))) {
+    if (!alive(Number(m[2]))) {
       try { unlinkSync(path); } catch { /* raced */ }
       continue;
     }
+    const rank = m[1] === undefined ? -1 : mine.indexOf(Number(m[1]));
+    if (rank >= 0) own.push({ path, rank });
+  }
+  own.sort((a, b) => a.rank - b.rank);
+  for (const { path } of own) {
     const r = await ask(path, req, timeoutMs);
     if (r) return r;
   }

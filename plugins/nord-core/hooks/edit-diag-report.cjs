@@ -311,8 +311,10 @@ async function diagnose(lsp, input, file, stash, calls, state, overTime) {
   const t0 = Date.now();
   const req = { file, beforeText, afterText, budgetMs: BUDGET_MS, waitReadyMs: WAIT_READY_MS, flycheckMs: FLYCHECK_MS };
 
-  // Ask the MCP server first: it lives for the whole session and keeps its
-  // language servers warm (vault: edit-diagnose-laeuft-ueber-den-warmen-mcp-server).
+  // Ask the MCP server of THIS session first: it lives for the whole session and
+  // keeps its language servers warm (vault: edit-diagnose-laeuft-ueber-den-warmen-mcp-server).
+  // Only that one -- a foreign session's server is never asked, so its memory stays
+  // with its session (vault: die-edit-diagnose-fragt-nur-den-mcp-server-der-eigenen-sitzung).
   // The whole before/after sequence goes over in ONE request, so no client lease
   // is held across round trips. NORD_LSP_DAEMON=0 skips it (name kept from the
   // retired daemon).
@@ -324,15 +326,16 @@ async function diagnose(lsp, input, file, stash, calls, state, overTime) {
     } catch { r = null; }
   }
   if (!r) {
-    // Nobody answered. Do it here -- slow but correct, never a silent all-clear.
+    // This session has no server (or none answered). Do it here -- slow but
+    // correct, never a silent all-clear.
     // The servers it starts stay up for the batch's other files; main() stops them.
     via = "in-process";
     state.inProcess = true;
     r = await lsp.editDiagnostics(req);
   }
   // Refused: the MCP server is at NORD_LSP_MAX_SERVERS and every server of this
-  // kind is busy. Say so. Another socket or a run in this process would start one
-  // more language server, which is what the limit is there to prevent.
+  // kind is busy. Say so. A run in this process would start one more language
+  // server, which is what the limit is there to prevent.
   if (r.refused) return unchecked(input, file, r.refused);
   const { before, after, answered, indexState, flycheck, rustcBaselineKnown, timing } = r;
   const rustcUnchecked = flycheck === "timeout";

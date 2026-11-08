@@ -25135,7 +25135,7 @@ function startDiagSocket() {
   try {
     const dir = diagSocketDir();
     (0, import_fs12.mkdirSync)(dir, { recursive: true, mode: 448 });
-    const path6 = (0, import_path13.join)(dir, `${process.pid}.sock`);
+    const path6 = (0, import_path13.join)(dir, `${process.ppid}-${process.pid}.sock`);
     if ((0, import_fs12.existsSync)(path6)) (0, import_fs12.unlinkSync)(path6);
     const server2 = (0, import_net.createServer)((conn) => {
       let buf = "";

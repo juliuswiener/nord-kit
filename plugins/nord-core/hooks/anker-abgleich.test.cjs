@@ -365,6 +365,52 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
   kase("V10", "audit.workflow.js comments above REFUTE_PROMPT do not describe the verification as per-finding (standard and lite batch per lane)",
     wfHead !== "" && !/per-finding/i.test(wfHead), [wfHead === "" ? "comment block not found" : `says: ${around(wfHead, /per-finding/i)}`]);
 
+  // ---- O0..O4: args.toolFindings of the a11y lane — a text stays as it is, an object goes in as JSON (ticket T2) ----
+  // tfRun runs the REAL lens-a11y.md script with `tf` as args.toolFindings (undefined = not set) and returns the tool line the "perceivable"
+  // lane is told, or the error the script threw, and how many agents had run by then.
+  async function tfRun(tf) {
+    let prompt = null;
+    let calls = 0;
+    const agent = async (p, opts) => { calls++; if (opts.label === "review:perceivable") prompt = p; return { findings: [] }; };
+    const args = tf === undefined ? { target: "x" } : { target: "x", toolFindings: tf };
+    try {
+      await runScript(A11Y, args, agent);
+    } catch (e) {
+      return { threw: String((e && e.message) || e), line: null, calls };
+    }
+    const m = /do not re-argue it\): ([\s\S]*?)\nFor a finding that restates/.exec(prompt || "");
+    return { threw: null, line: m ? m[1] : null, calls };
+  }
+  const NONE = "none supplied";
+  const oText = "axe color-contrast: a.btn 4.54:1\naxe image-alt: img.hero has no alt";
+  const oJsonText = '{"violations":[{"id":"color-contrast"}]}'; // a text that only looks like JSON must not be quoted again
+  const o0 = A11Y ? { text: await tfRun(oText), json: await tfRun(oJsonText), unset: await tfRun(undefined), nul: await tfRun(null), empty: await tfRun(""), zero: await tfRun(0), five: await tfRun(5) } : null;
+  kase("O0", "control: a text in args.toolFindings reaches the lane unchanged (also one that looks like JSON); unset, null, '' and 0 give 'none supplied'; 5 stays '5'",
+    !!o0 && o0.text.line === oText && o0.json.line === oJsonText && [o0.unset, o0.nul, o0.empty, o0.zero].every((r) => r.line && r.line.startsWith(NONE)) && o0.five.line === "5",
+    [o0 ? `text: ${JSON.stringify(o0.text.line)}; json-looking text: ${JSON.stringify(o0.json.line)}; unset/null/''/0: ${[o0.unset, o0.nul, o0.empty, o0.zero].map((r) => (r.line || "").slice(0, 13)).join(" | ")}; 5: ${JSON.stringify(o0.five.line)}` : "no script block found"]);
+
+  const oObj = { violations: [{ id: "color-contrast", nodes: 3 }], url: "https://example.org/" };
+  const o1 = A11Y ? await tfRun(oObj) : { line: null };
+  kase("O1", "lens-a11y.md: an object in args.toolFindings reaches the lane as its JSON text, not as '[object Object]'",
+    o1.line === JSON.stringify(oObj), [`lane prompt carries: ${JSON.stringify(o1.line)} ; want: ${JSON.stringify(oObj)}`]);
+
+  const oArr = [{ id: "a" }, { id: "b" }];
+  const o2 = A11Y ? await tfRun(oArr) : { line: null };
+  kase("O2", "lens-a11y.md: an array of objects in args.toolFindings reaches the lane as its JSON text",
+    o2.line === JSON.stringify(oArr), [`lane prompt carries: ${JSON.stringify(o2.line)} ; want: ${JSON.stringify(oArr)}`]);
+
+  const o3a = A11Y ? await tfRun({}) : { line: null };
+  const o3b = A11Y ? await tfRun({ secret: 1, toJSON() { return { shown: 2 }; } }) : { line: null };
+  kase("O3", "lens-a11y.md: an empty object gives '{}' and an object with toJSON gives what its toJSON returns (the lane gets JSON.stringify's text, not a hand-made one)",
+    o3a.line === "{}" && o3b.line === '{"shown":2}', [`{} -> ${JSON.stringify(o3a.line)} (want "{}"); toJSON -> ${JSON.stringify(o3b.line)} (want {"shown":2})`]);
+
+  const oCyc = { tool: "axe" }; oCyc.self = oCyc;
+  const o4a = A11Y ? await tfRun(oCyc) : { threw: null, calls: -1 };
+  const o4b = A11Y ? await tfRun({ n: 1n }) : { threw: null, calls: -1 }; // JSON.stringify throws on a BigInt too
+  const refused = (r) => r.threw !== null && r.threw.includes("args.toolFindings") && r.calls === 0;
+  kase("O4", "lens-a11y.md: an object JSON.stringify cannot serialise (a cycle, a BigInt) stops the run before any agent runs, with an error that names args.toolFindings",
+    refused(o4a) && refused(o4b), [`cycle: threw ${JSON.stringify(o4a.threw)} after ${o4a.calls} agent call(s); BigInt: threw ${JSON.stringify(o4b.threw)} after ${o4b.calls} agent call(s)`]);
+
   console.log(`${total} cases, ${red} red`);
   process.exit(red ? 1 : 0);
 })().catch((e) => { console.log(`FAIL harness: ${e && e.stack || e}`); process.exit(2); });

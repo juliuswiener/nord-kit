@@ -412,6 +412,53 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
     qSec !== "" && !/deterministic|no LLM judge|both exit-code|regardless of\s+the agent/i.test(qSec) && qSec.includes("does not rerun `refCmd`") && !/The gate is the exit code/.test(qSec),
     [qSec === "" ? "section not found" : `says: ${around(qSec, /deterministic[^.]*|no LLM judge|both exit-code|regardless of\s+the agent[^.]*/i)} ; "does not rerun \`refCmd\`": ${qSec.includes("does not rerun `refCmd`")}`]);
 
+  // ---- Q5..Q9: a candidate the verifier gave no usable judgement for is not proposed for deletion, and the run names it (ticket "der-cleanup-filter-in-remove-md-verwirft-bei-fehlendem-urteil-still-und-traegt-einen-toten-zweig") ----
+  // Deleting is the case where dropping is the safe direction (unlike review, where a missing verdict keeps the finding). The drop must not be silent: the result carries `noJudgement`.
+  // q2Run: two dead-code candidates, a.js and b.js; a.js always gets a clean verdict; `answerB` is the verifier's answer for b.js (a function that throws = a dead agent).
+  async function q2Run(answerB) {
+    const agent = async (prompt, opts) => {
+      if (opts.label === "detect:dead-code") return { candidates: [{ file: "a.js", lines: "1-3", what: "fn foo", why: "unused" }, { file: "b.js", lines: "4-6", what: "fn bar", why: "unused" }] };
+      if (opts.label.startsWith("detect:")) return { candidates: [] };
+      if (opts.label === "safe:a.js") return qV();
+      if (opts.label === "safe:b.js") return typeof answerB === "function" ? answerB() : answerB;
+      return {};
+    };
+    if (!REMOVE) return { total: -1, kept: -1, plan: [], named: [] };
+    const { out } = await runScript(REMOVE, { target: "x" }, agent);
+    return { total: out.totalCandidates, kept: out.safeToRemove, plan: out.plan.map((c) => c.file), named: Array.isArray(out.noJudgement) ? out.noJudgement.map((c) => c.file) : null };
+  }
+  const q5 = {
+    "verifier null": await q2Run(null), "verifier {}": await q2Run({}), "agent throws": await q2Run(() => { throw new Error("agent died"); }),
+    "refsFound missing": await q2Run(qV({ refsFound: undefined })), "refsFound null": await q2Run(qV({ refsFound: null })), "refsFound '0'": await q2Run(qV({ refsFound: "0" })),
+    "refsFound 0.5": await q2Run(qV({ refsFound: 0.5 })), "refsFound NaN": await q2Run(qV({ refsFound: NaN })),
+    "safeToRemove missing": await q2Run(qV({ safeToRemove: undefined })), "safeToRemove 'true'": await q2Run(qV({ safeToRemove: "true" })),
+  };
+  const qShow = (o) => Object.entries(o).map(([k, r]) => `${k}: plan=[${r.plan}] noJudgement=${r.named === null ? "(missing)" : `[${r.named}]`}`).join(" | ");
+  kase("Q5", "remove.md: a candidate whose verifier gave no usable judgement (null, {}, a dead agent, refsFound missing/null/'0'/0.5/NaN, safeToRemove missing or 'true') is not in the plan, and the result names it in noJudgement",
+    Object.values(q5).every((r) => r.plan.join() === "a.js" && r.kept === 1 && r.total === 2 && r.named && r.named.join() === "b.js"),
+    [`${qShow(q5)} ; want plan [a.js] and noJudgement [b.js] each`]);
+
+  const q6 = {
+    "safe=true, 0 refs": await q2Run(qV()), "safe=false, 0 refs": await q2Run(qV({ safeToRemove: false })),
+    "safe=true, 1 ref": await q2Run(qV({ refsFound: 1 })), "safe=false, 3 refs": await q2Run(qV({ safeToRemove: false, refsFound: 3 })), "refsFound 0.0": await q2Run(qV({ refsFound: 0.0 })),
+  };
+  kase("Q6", "control: a judgement that arrived is not 'no judgement': a clean verdict (also refsFound 0.0) is in the plan, an explicit refusal or a reference count is out, and neither is named in noJudgement",
+    q6["safe=true, 0 refs"].plan.join() === "a.js,b.js" && q6["refsFound 0.0"].plan.join() === "a.js,b.js"
+      && ["safe=false, 0 refs", "safe=true, 1 ref", "safe=false, 3 refs"].every((k) => q6[k].plan.join() === "a.js" && (q6[k].named ?? []).length === 0)
+      && (q6["safe=true, 0 refs"].named ?? []).length === 0,
+    [qShow(q6)]);
+
+  kase("Q7", "remove.md: the counts stay consistent when a candidate has no judgement: totalCandidates counts it, safeToRemove does not, noJudgement lists exactly that one",
+    q5["verifier null"].total === 2 && q5["verifier null"].kept === 1 && !!q5["verifier null"].named && q5["verifier null"].named.length === 1,
+    [`verifier null: total=${q5["verifier null"].total} safeToRemove=${q5["verifier null"].kept} noJudgement=${q5["verifier null"].named === null ? "(missing)" : `[${q5["verifier null"].named}]`}`]);
+
+  const qLead = flat(section(REMOVE_MD, "This is REPORT-FIRST", "```javascript"));
+  kase("Q8", "remove.md prose (REPORT-FIRST paragraph): says that a candidate without a usable judgement is not deleted and that the report names it (noJudgement)",
+    qLead !== "" && qLead.includes("noJudgement") && /no usable judgement/i.test(qLead), [qLead === "" ? "paragraph not found" : `says: ${qLead.slice(0, 400)}`]);
+
+  kase("Q9", "remove.md filter: no dead branch: the script does not test `refsFound == null` (a clause that `&& false` kept from ever being true)",
+    REMOVE !== "" && !/refsFound\s*==\s*null/.test(REMOVE), [`script block has it: ${/refsFound\s*==\s*null/.test(REMOVE)}; line: ${(REMOVE.split("\n").find((l) => /refsFound\s*==\s*null/.test(l)) || "(none)").trim().slice(0, 160)}`]);
+
   // ---- W0..W9: the words the scripts hand to the agents and to the progress display ----
   // One run of audit.workflow.js shows what the lanes and the synthesis are told: a high finding (verified), a medium one (passes
   // the threshold unverified) and a tool finding with its command (skips the verifier); the verifier approves what it is shown.

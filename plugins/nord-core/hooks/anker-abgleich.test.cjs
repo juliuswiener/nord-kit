@@ -414,10 +414,10 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
 
   // ---- Q5..Q9: a candidate the verifier gave no usable judgement for is not proposed for deletion, and the run names it (ticket "der-cleanup-filter-in-remove-md-verwirft-bei-fehlendem-urteil-still-und-traegt-einen-toten-zweig") ----
   // Deleting is the case where dropping is the safe direction (unlike review, where a missing verdict keeps the finding). The drop must not be silent: the result carries `noJudgement`.
-  // q2Run: two dead-code candidates, a.js and b.js; a.js always gets a clean verdict; `answerB` is the verifier's answer for b.js (a function that throws = a dead agent).
-  async function q2Run(answerB) {
+  // q2Run: two dead-code candidates, a.js and b.js; a.js always gets a clean verdict; `answerB` is the verifier's answer for b.js (a function that throws = a dead agent); `candB` is the detector's candidate for b.js.
+  async function q2Run(answerB, candB = { file: "b.js", lines: "4-6", what: "fn bar", why: "unused" }) {
     const agent = async (prompt, opts) => {
-      if (opts.label === "detect:dead-code") return { candidates: [{ file: "a.js", lines: "1-3", what: "fn foo", why: "unused" }, { file: "b.js", lines: "4-6", what: "fn bar", why: "unused" }] };
+      if (opts.label === "detect:dead-code") return { candidates: [{ file: "a.js", lines: "1-3", what: "fn foo", why: "unused" }, candB] };
       if (opts.label.startsWith("detect:")) return { candidates: [] };
       if (opts.label === "safe:a.js") return qV();
       if (opts.label === "safe:b.js") return typeof answerB === "function" ? answerB() : answerB;
@@ -425,7 +425,7 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
     };
     if (!REMOVE) return { total: -1, kept: -1, plan: [], named: [] };
     const { out } = await runScript(REMOVE, { target: "x" }, agent);
-    return { total: out.totalCandidates, kept: out.safeToRemove, plan: out.plan.map((c) => c.file), named: Array.isArray(out.noJudgement) ? out.noJudgement.map((c) => c.file) : null, entries: Array.isArray(out.noJudgement) ? out.noJudgement : null };
+    return { total: out.totalCandidates, kept: out.safeToRemove, plan: out.plan.map((c) => c.file), planEntries: out.plan, named: Array.isArray(out.noJudgement) ? out.noJudgement.map((c) => c.file) : null, entries: Array.isArray(out.noJudgement) ? out.noJudgement : null };
   }
   const q5 = {
     "verifier null": await q2Run(null), "verifier {}": await q2Run({}), "agent throws": await q2Run(() => { throw new Error("agent died"); }),
@@ -460,11 +460,51 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
     REMOVE !== "" && !/refsFound\s*==\s*null/.test(REMOVE), [`script block has it: ${/refsFound\s*==\s*null/.test(REMOVE)}; line: ${(REMOVE.split("\n").find((l) => /refsFound\s*==\s*null/.test(l)) || "(none)").trim().slice(0, 160)}`]);
 
   // Q10 (Bau 11): Q5 reads the file of a noJudgement entry only. The report names the candidates, so the entry must also say where (lines), what, and which detector found it.
-  // ponytail: four fields with fixed values. A verdict that carries its own file/what/lines/detector is merged over the candidate (`{ ...c, ...v }`) and is not pinned here. Upgrade path: swap the merge order and add a case with such a verdict.
+  // ponytail: four fields with fixed values. A verdict that carries its own file/what/lines/detector is pinned in Q11, a candidate that carries verdict-named keys or its own detector in Q12.
   const qEntry = (r) => (r.entries && r.entries.length === 1 ? r.entries[0] : null);
   kase("Q10", "remove.md: a noJudgement entry carries what the report needs to find the candidate again (file, lines, what, and the detector that found it), for every kind of missing judgement",
     Object.values(q5).every((r) => { const e = qEntry(r); return !!e && e.file === "b.js" && e.lines === "4-6" && e.what === "fn bar" && e.detector === "dead-code"; }),
     [`entries: ${Object.entries(q5).map(([k, r]) => `${k}: ${JSON.stringify(qEntry(r))}`).join(" | ")} ; want {"file":"b.js","lines":"4-6","what":"fn bar","detector":"dead-code"} each`]);
+
+  // ---- Q11, Q12: a verifier's answer does not replace what the detector reported (ticket "remove-md-laesst-ein-urteil-mit-eigenen-feldern-den-kandidaten-ueberschreiben") ----
+  // The candidate schema names file/lines/what/why (the script adds detector), the verdict schema safeToRemove/reason/refsFound/refCmd/references: the two share no key. Neither schema forbids more keys and the harness strips none,
+  // so an answer can still send some. The plan is the list of what gets deleted: it names the candidate the verifier was asked about, never a file the verifier chose to send.
+  // ponytail: Q11 and Q12 send the keys the two schemas name. The script lists the candidate's five keys by hand, so a key added to CAND_SCHEMA later stays overridable until it joins that list, and no case notices.
+  // A key outside both schemas (say `severity`) rides along into the plan entry. Upgrade path: read the key list from the schema the stub sees.
+  const q11own = { file: "other.js", what: "fn other", lines: "9-9", detector: "ui-design", why: "other reason" }; // fields a verdict has no business sending
+  const q11bad = { safeToRemove: "yes", reason: "r", refCmd: "x" }; // no usable judgement: refsFound is missing
+  const q11cand = { file: "b.js", what: "fn bar", why: "unused" }; // b.js without `lines`, the one optional candidate key
+  const q11 = {
+    "clean verdict + own fields": await q2Run(qV(q11own)),
+    "unusable verdict + own fields": await q2Run({ ...q11bad, ...q11own }),
+    "clean verdict sends lines, candidate has none": await q2Run(qV({ lines: "9-9" }), q11cand),
+    "unusable verdict sends lines, candidate has none": await q2Run({ ...q11bad, lines: "9-9" }, q11cand),
+  };
+  const q11at = (e, want) => !!e && Object.entries(want).every(([k, v]) => e[k] === v);
+  const q11b = (r) => (r.planEntries || [])[1]; // a.js is the first plan entry, b.js the second
+  const q11one = (r) => (r.entries && r.entries.length === 1 ? r.entries[0] : null);
+  const q11c = q11["clean verdict + own fields"], q11n = q11["unusable verdict + own fields"];
+  const q11cl = q11["clean verdict sends lines, candidate has none"], q11nl = q11["unusable verdict sends lines, candidate has none"];
+  kase("Q11", "remove.md: a verdict that sends its own file/what/lines/detector/why does not replace the candidate: the plan entry and the noJudgement entry name what the detector reported, also for a candidate without `lines`",
+    q11c.plan.join() === "a.js,b.js" && q11at(q11b(q11c), { file: "b.js", lines: "4-6", what: "fn bar", detector: "dead-code", why: "unused" })
+      && q11n.plan.join() === "a.js" && q11at(q11one(q11n), { file: "b.js", lines: "4-6", what: "fn bar", detector: "dead-code" })
+      && q11cl.plan.join() === "a.js,b.js" && q11at(q11b(q11cl), { file: "b.js", what: "fn bar", detector: "dead-code", lines: undefined })
+      && q11at(q11one(q11nl), { file: "b.js", what: "fn bar", detector: "dead-code", lines: undefined }),
+    [`clean verdict + own fields: plan entry ${JSON.stringify(q11b(q11c))} ; want {"file":"b.js","lines":"4-6","what":"fn bar","detector":"dead-code","why":"unused"}`,
+      `unusable verdict + own fields: plan=[${q11n.plan}] noJudgement entry ${JSON.stringify(q11one(q11n))} ; want plan [a.js] and {"file":"b.js","lines":"4-6","what":"fn bar","detector":"dead-code"}`,
+      `clean verdict sends lines, candidate has none: plan entry ${JSON.stringify(q11b(q11cl))} ; want b.js with no lines`,
+      `unusable verdict sends lines, candidate has none: noJudgement entry ${JSON.stringify(q11one(q11nl))} ; want b.js with no lines`]);
+
+  // Q12: the other direction. A candidate that carries keys of its own does not outvote the verifier or the workflow. A plain swap of the merge order ({ ...v, ...c }) fixes Q11 and breaks this.
+  const q12cand = { file: "b.js", lines: "4-6", what: "fn bar", why: "unused" };
+  const q12ref = await q2Run(qV({ safeToRemove: false, refsFound: 3 }), { ...q12cand, safeToRemove: true, refsFound: 0 }); // the candidate says safe with 0 refs, the verdict says no with 3 refs
+  const q12det = await q2Run(qV(), { ...q12cand, detector: "claimed-by-detector" }); // the detector labels its own candidate; the label the workflow gives it is the one that counts
+  const q12detn = await q2Run(q11bad, { ...q12cand, detector: "claimed-by-detector" });
+  kase("Q12", "remove.md: a candidate that carries keys of its own does not outvote the verifier (safeToRemove true / refsFound 0 on the candidate, a refusal in the verdict) nor the workflow (its own detector label)",
+    q12ref.plan.join() === "a.js" && (q12ref.named ?? []).length === 0
+      && q11at(q11b(q12det), { file: "b.js", detector: "dead-code" }) && q11at(q11one(q12detn), { file: "b.js", detector: "dead-code" }),
+    [`candidate says safe/0 refs, verdict says refused/3 refs: plan=[${q12ref.plan}] noJudgement=[${q12ref.named}] ; want plan [a.js] and noJudgement []`,
+      `candidate labelled by the detector: plan entry ${JSON.stringify(q11b(q12det))} ; noJudgement entry ${JSON.stringify(q11one(q12detn))} ; want detector "dead-code" in both`]);
 
   // ---- W0..W9: the words the scripts hand to the agents and to the progress display ----
   // One run of audit.workflow.js shows what the lanes and the synthesis are told: a high finding (verified), a medium one (passes

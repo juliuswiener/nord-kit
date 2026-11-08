@@ -239,7 +239,7 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
   kase("D9", "repo-deep.md limitations: the unverified rule is not tied to the batch verifier alone; thorough is named",
     rdLimit !== "" && /unverified/.test(rdLimit) && /thorough/i.test(rdLimit), [rdLimit === "" ? "bullet not found" : `says: ${around(rdLimit, /A finding the[^.]*\./)} ; thorough named: ${/thorough/i.test(rdLimit)}`]);
 
-  // ---- N1..N9: a verdict counts only when isReal is a boolean; any other answer is no verdict: the finding stays, marked unverified, in all three workflows ----
+  // ---- N1..N10: a verdict counts only when isReal is a boolean; any other answer is no verdict: the finding stays, marked unverified, in all three workflows ----
   // (ticket "ein-verifizierer-urteil-ohne-isreal-verwirft-den-befund-in-diff-deep-und-a11y-still-der-batch-weg-behaelt-ihn"; the rule follows the decision of 2026-11-08)
   // An explicit refutation stays isReal === false. A verdict that carries its own evidence (diff-deep: reproCmd + confirmed/refuted; a11y: checked confirmed/refuted) is read as before (N5).
   const nBad = { "{}": {}, "{isReal:null}": { isReal: null }, "{isReal:'false'}": { isReal: "false" }, "{isReal:'yes'}": { isReal: "yes" }, "{reason:'x'}": { reason: "x" } };
@@ -283,11 +283,17 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
 
   // N9 (ticket "diff-deep-md-eine-reproduktionsmeldung-ohne-befehl-und-ohne-isreal-hat-keinen-pruefall"): the verifier reports a reproduction but names no command and gives no isReal.
   // A3 sends isReal with it, N3 sends no `reproduced` at all, N5 sends the command: none of them is this shape. Without the command the report is no evidence (A3), without isReal there is nothing to fall back to.
-  // ponytail: diff-deep.md only. lens-a11y.md reads `checked` without a command; its confirmed and refuted are pinned in N5, `checked: 'na'` without isReal is not (own ticket).
+  // ponytail: diff-deep.md only. lens-a11y.md reads `checked` without a command; its confirmed and refuted are pinned in N5, `checked: 'na'` without isReal in N10.
   const n9 = DIFF ? { "{reproduced:'confirmed'}": await dScript(DIFF, "review:correctness", dDiffF, { reproduced: "confirmed" }), "{reproduced:'refuted'}": await dScript(DIFF, "review:correctness", dDiffF, { reproduced: "refuted" }),
     "{reproduced:'na'}": await dScript(DIFF, "review:correctness", dDiffF, { reproduced: "na" }) } : {};
   kase("N9", "diff-deep.md: a reproduction report (confirmed, refuted, na) with no reproCmd and no isReal is no verdict: the finding stays with verdict.reproduced 'unverified'",
     Object.keys(n9).length === 3 && Object.values(n9).every((x) => x.count === 1 && x.verdict && x.verdict.reproduced === "unverified"), [nShowS(n9, "reproduced") + " ; want count=1 and reproduced=unverified each"]);
+
+  // N10 (ticket "lens-a11y-md-eine-pruefmeldung-checked-na-ohne-isreal-hat-keinen-pruefall"): the a11y verifier reports checked:'na' and gives no isReal.
+  // N4 sends no `checked` at all, N5 sends confirmed or refuted: none of them is this shape. The filter reads confirmed and refuted from `checked` (N5) and everything else from isReal; with no isReal there is nothing to read, so the report is no verdict.
+  const n10 = A11Y ? { "{checked:'na'}": await dScript(A11Y, "review:perceivable", dA11yF, { checked: "na" }), "{reason:'x',checked:'na'}": await dScript(A11Y, "review:perceivable", dA11yF, { reason: "x", checked: "na" }) } : {};
+  kase("N10", "lens-a11y.md: a verifier report checked:'na' with no isReal is no verdict: the finding stays with verdict.checked 'unverified'",
+    Object.keys(n10).length === 2 && Object.values(n10).every((x) => x.count === 1 && x.verdict && x.verdict.checked === "unverified"), [nShowS(n10, "checked") + " ; want count=1 and checked=unverified each"]);
 
   // ---- L0..L3: lens-a11y.md — toolVerified skips the verifier only when the lane names the tool run it rests on ----
   const plain = (title, extra = {}) => ({ title, ...base, ...extra });

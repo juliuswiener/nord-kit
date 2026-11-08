@@ -163,6 +163,82 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
     prov !== "" && !/a fact, not a vote|deterministic source/i.test(flat(prov)) && flat(prov).includes("toolEvidence"),
     [prov === "" ? "section not found" : `says: ${around(prov, /a fact, not a vote|deterministic source/i)} ; toolEvidence named: ${flat(prov).includes("toolEvidence")}`]);
 
+  // ---- D0..D10: a verifier that returns null keeps the finding and marks it unverified, in all three workflows (ticket "ein-toter-verifizierer-hat-in-drei-workflows-drei-standardwerte") ----
+  // The rule (decision 2026-11-08): a missing verdict is not a refutation. audit.workflow.js batch path already does it; `thorough`, diff-deep.md and lens-a11y.md do not.
+  // dAudit: audit.workflow.js at tier `intensity` with one high finding "d1"; call number i to a verifier answers answers[i % answers.length] (null = a dead agent).
+  async function dAudit(intensity, answers) {
+    let n = 0;
+    const agent = async (prompt, opts) => {
+      if (opts.label === "vitals") return { archetype: "library", languages: [{ name: "JavaScript", loc: 1, pct: 100 }], loc: 1, demographics: { contributors_90d: 1 } };
+      if (opts.label.startsWith("find:")) return { lane: "security", summary: "s", findings: [lane("d1")] };
+      if (opts.label.startsWith("verify:")) return answers[n++ % answers.length];
+      return {};
+    };
+    try {
+      const { out } = await runScript(AUDIT, { path: "/no/such/repo", lanes: ["security"], verifyIntensity: intensity }, agent);
+      const row = out.coverage.rows.find((r) => r.lane === "security");
+      return { kept: out.findings.map((f) => f.id).join(), state: row.state, unverified: row.unverified.join(), headline: out.coverage.headline };
+    } catch (e) { return { kept: "", state: `script threw ${e.message}`, unverified: "", headline: "" }; }
+  }
+  const dReal = { isReal: true, reasoning: "r" };
+  const dFake = { isReal: false, reasoning: "r" };
+  const dShow = (r) => `kept=[${r.kept}] security row: ${r.state}, unverified=[${r.unverified}]`;
+  const d0 = await dAudit("standard", [null]);
+  kase("D0", "control (Bau 3, batch path): a batch verifier that returns null keeps the finding, the security row stays covered and names it unverified",
+    d0.kept === "d1" && d0.state === "covered" && d0.unverified === "d1" && /unverified/.test(d0.headline), [dShow(d0)]);
+
+  const d1 = await dAudit("thorough", [null]);
+  kase("D1", "audit.workflow.js thorough: three skeptics that return null keep the finding, the row stays covered and names it unverified (today a TypeError loses the whole lane)",
+    d1.kept === "d1" && d1.state === "covered" && d1.unverified === "d1" && /unverified/.test(d1.headline), [`${dShow(d1)} ; headline: ${d1.headline}`]);
+
+  const d2 = { "real,real,null": await dAudit("thorough", [dReal, dReal, null]), "null,null,real": await dAudit("thorough", [null, null, dReal]), "fake,null,null": await dAudit("thorough", [dFake, null, null]), "fake,fake,null": await dAudit("thorough", [dFake, dFake, null]) };
+  kase("D2", "audit.workflow.js thorough: a null skeptic is a missing vote, not a refutation: only two refutations drop the finding",
+    d2["real,real,null"].kept === "d1" && d2["null,null,real"].kept === "d1" && d2["fake,null,null"].kept === "d1" && d2["fake,fake,null"].kept === "",
+    [`${Object.entries(d2).map(([k, r]) => `[${k}] ${dShow(r)}`).join(" | ")} ; want kept, kept, kept, dropped`]);
+
+  const d3 = { "real,real,fake": await dAudit("thorough", [dReal, dReal, dFake]), "fake,fake,real": await dAudit("thorough", [dFake, dFake, dReal]), "fake,fake,fake": await dAudit("thorough", [dFake, dFake, dFake]), "real,real,real": await dAudit("thorough", [dReal, dReal, dReal]) };
+  kase("D3", "control: audit.workflow.js thorough with all three verdicts in: the majority decides, and nothing is named unverified",
+    d3["real,real,fake"].kept === "d1" && d3["fake,fake,real"].kept === "" && d3["fake,fake,fake"].kept === "" && d3["real,real,real"].kept === "d1" && Object.values(d3).every((r) => r.unverified === ""),
+    [Object.entries(d3).map(([k, r]) => `[${k}] ${dShow(r)}`).join(" | ")]);
+
+  // diff-deep.md and lens-a11y.md: one finding, the verifier answers `verdict`; the run is caught so a throw reads as a result
+  async function dScript(src, label, finding, verdict) {
+    const agent = async (prompt, opts) => (opts.label === label ? { findings: [finding] } : opts.label.startsWith("review:") ? { findings: [] } : opts.label.startsWith("verify:") ? verdict : {});
+    try { const { out } = await runScript(src, { target: "x" }, agent); return { count: out.count, verdict: out.findings[0] ? out.findings[0].verdict : undefined, threw: null }; }
+    catch (e) { return { count: -1, verdict: undefined, threw: e.message }; }
+  }
+  const dDiffF = { file: "a.js", line: 1, severity: "high", confidence: "high", title: "d-diff", detail: "d" };
+  const dA11yF = { title: "d-a11y", detail: "d", where: "a.btn", severity: "high", confidence: "high" };
+  const d4 = DIFF ? await dScript(DIFF, "review:correctness", dDiffF, null) : { count: -1, threw: "no script block" };
+  kase("D4", "diff-deep.md: a verifier that returns null keeps the finding with verdict.reproduced 'unverified' and a reason that says there was no verdict",
+    d4.count === 1 && !!d4.verdict && d4.verdict.reproduced === "unverified" && /no verdict/i.test(d4.verdict.reason || ""),
+    [`count=${d4.count} (want 1); verdict=${JSON.stringify(d4.verdict)}${d4.threw ? `; script threw ${d4.threw}` : ""}`]);
+
+  const d6 = A11Y ? await dScript(A11Y, "review:perceivable", dA11yF, null) : { count: -1, threw: "no script block" };
+  kase("D6", "lens-a11y.md: a verifier that returns null keeps the finding with verdict.checked 'unverified' and a reason that says there was no verdict",
+    d6.count === 1 && !!d6.verdict && d6.verdict.checked === "unverified" && /no verdict/i.test(d6.verdict.reason || ""),
+    [`count=${d6.count} (want 1); verdict=${JSON.stringify(d6.verdict)}${d6.threw ? `; script threw ${d6.threw}` : ""}`]);
+
+  const d5 = DIFF && A11Y ? [await dScript(DIFF, "review:correctness", dDiffF, { isReal: true, reason: "r", reproduced: "na" }), await dScript(DIFF, "review:correctness", dDiffF, { isReal: false, reason: "r", reproduced: "na" }),
+    await dScript(A11Y, "review:perceivable", dA11yF, { isReal: true, reason: "r", checked: "na" }), await dScript(A11Y, "review:perceivable", dA11yF, { isReal: false, reason: "r", checked: "na" })] : [];
+  kase("D5", "control: a verdict that arrives still decides in diff-deep.md and lens-a11y.md (isReal), and is not labelled unverified",
+    d5.length === 4 && d5.map((r) => r.count).join() === "1,0,1,0" && d5[0].verdict.reproduced === "na" && d5[2].verdict.checked === "na",
+    [d5.length ? `diff isReal true/false: ${d5[0].count}/${d5[1].count}, a11y: ${d5[2].count}/${d5[3].count} (want 1/0 and 1/0); labels kept: ${d5[0].verdict && d5[0].verdict.reproduced}, ${d5[2].verdict && d5[2].verdict.checked}` : "no script block"]);
+
+  const diffAfter = flat(section(diffMd, "After the workflow returns", "```javascript"));
+  kase("D7", "diff-deep.md prose: says how a finding without a verifier verdict is shown (kept, marked unverified)",
+    diffAfter !== "" && /unverified/.test(diffAfter) && /no (verifier )?verdict/i.test(diffAfter), [diffAfter === "" ? "paragraph not found" : `after-the-workflow paragraph: ${diffAfter.slice(0, 220)}`]);
+
+  const a11yMdD = read("skills/review/references/lens-a11y.md");
+  const a11yConf = flat(section(a11yMdD, "## Confidence + provenance", "## Final output"));
+  const a11yOut = flat(section(a11yMdD, "## Final output", "**Bürgernähe"));
+  kase("D8", "lens-a11y.md prose: the confidence rule and the output template say how a finding with checked:'unverified' is shown",
+    a11yConf.includes("unverified") && a11yOut.includes("unverified"), [`confidence section names unverified: ${a11yConf.includes("unverified")}; output template names it: ${a11yOut.includes("unverified")}`]);
+
+  const rdLimit = flat(repoMd.split("\n").find((l) => /^- \*\*The coverage table/.test(l)) || "");
+  kase("D9", "repo-deep.md limitations: the unverified rule is not tied to the batch verifier alone; thorough is named",
+    rdLimit !== "" && /unverified/.test(rdLimit) && /thorough/i.test(rdLimit), [rdLimit === "" ? "bullet not found" : `says: ${around(rdLimit, /A finding the[^.]*\./)} ; thorough named: ${/thorough/i.test(rdLimit)}`]);
+
   // ---- L0..L3: lens-a11y.md — toolVerified skips the verifier only when the lane names the tool run it rests on ----
   const plain = (title, extra = {}) => ({ title, ...base, ...extra });
   const l0no = await a11yRun(() => [plain("plain")], false);

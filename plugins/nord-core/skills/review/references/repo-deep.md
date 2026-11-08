@@ -48,8 +48,8 @@ Workflow({
 - `extraLanes` — array of conditional lane keys to force-enable (e.g. `['a11y', 'i18n', 'compliance']`). An unknown key, or a value that is not an array, stops the run before the first phase: no agent has run, and the error lists the valid keys.
 - `severityFloor` — `low` | `medium` | `high` (default `low`). Drops findings below this severity from the synthesis.
 - `maxFindingsPerLane` — default 20. Caps lane output for tractable synthesis.
-- `verifyIntensity` — `off` | `lite` | `standard` (default) | `thorough`. **The single biggest cost lever.** Phase 3 verification used to spawn 3 independent skeptics *per* high-severity finding (e.g. 11 highs → 33 agents, ~45% of total spend). The tiers:
-  - `standard` (default) — one **batched** verifier per lane reviews all that lane's high+critical findings in a single call (reads cited files once). ~80% fewer verification agents than the old behaviour. One verifier drops a finding only on an explicit refutation; there is no majority vote.
+- `verifyIntensity` — `off` | `lite` | `standard` (default) | `thorough`. Phase 3 verification used to spawn 3 independent skeptics *per* high-severity finding (e.g. 11 highs → 33 agents). The tiers:
+  - `standard` (default) — one **batched** verifier per lane reviews all that lane's high+critical findings in a single call (reads cited files once). One verifier drops a finding only on an explicit refutation; there is no majority vote.
   - `lite` — batch-verify **criticals only**; high findings pass straight to synthesis (human reviews them anyway). Cheapest pass that still guards the showstoppers.
   - `off` — trust the lanes, no verification. Only for a fast first look.
   - `thorough` — the original 3-skeptics-per-finding, majority-refute-drops behaviour. Reserve for acquisition / high-stakes / multi-contributor audits where a false positive is genuinely costly.
@@ -224,7 +224,7 @@ DATE=$(date -I)  # YYYY-MM-DD
 mkdir -p "<repo>/.audit/$DATE"
 ```
 
-- `findings.json` ← `JSON.stringify({ vitals, blast, findings, report, laneSummaries, coverage }, null, 2)` — `coverage.rows` has one row per lane (13 core + 6 conditional), each in `covered`, `partial`, `not_run` or `no_result`; `coverage.complete` is false when a core lane left no result or was not asked, or when `coverage.errors` is not empty; `coverage.rows[].unverified` lists the ids of findings a batch verifier returned no verdict for (they stay in `findings`, unverified; the lane stays `covered`)
+- `findings.json` ← `JSON.stringify({ vitals, blast, findings, report, laneSummaries, coverage }, null, 2)` — `coverage.rows` has one row per lane (13 core + 6 conditional), each in `covered`, `partial`, `not_run` or `no_result`; `coverage.complete` is false when a core lane left no result or was not asked, or when `coverage.errors` is not empty; `coverage.rows[].unverified` lists the ids of findings that got no verdict: the batch verifier returned none for them, or with `thorough` none of their three skeptics answered (they stay in `findings`, unverified; the lane stays `covered`)
 - `report.md` ← assemble from `report.{verdict, verdict_rationale, executive_summary, top_risks, clusters, quarter_plan, methodology_notes}` + a markdown table of every finding (id, severity, lane, file:lines, title)
 - `summary.md` ← `report.summary_markdown` verbatim
 
@@ -266,12 +266,12 @@ Lane prompts live inside `repo-deep/audit.workflow.js` as top-level constants (`
 
 ## Finding confidence + provenance (anchored — A/B/C, see BEHAVIOUR.md)
 
-The finding/verdict schema lives in `repo-deep/audit.workflow.js` (not this file) — these are the semantics it
-already wires, anchored:
+The finding/verdict schema lives in `repo-deep/audit.workflow.js` (not this file) — the script sets no confidence on a
+finding, so these are the rules for the labels you state in the report, anchored:
 - **Confidence (B)** ties to the evidence tier a finding survived: **high** = `toolVerified` with the command
   in `toolEvidence` (the lane reports a tool run — CVE, compiler/lint error; the workflow has no shell and
   does not rerun it, and a flag without `toolEvidence` goes to the verifier) OR survived the 3-skeptic majority
-  refute (`thorough`); **medium** = lane-reported, static-only, or passed on unverified because it sits below the verify threshold (or the tier is `off`); **low** → route
+  refute (`thorough`; a finding none of its three skeptics answered is not counted as having survived it: its lane row in `coverage.rows[].unverified` names it, and it is not `high` on that ground); **medium** = lane-reported, static-only, or passed on unverified because it sits below the verify threshold (or the tier is `off`); **low** → route
   to the INVESTIGATE bucket, not asserted.
 - **Provenance (A):** `toolVerified:true` findings are `explicit` (the lane names a tool run as source);
   reasoned/pattern-matched findings are `derived`. The drift lane (Stated-vs-Actual) is where `conflicts` live.
@@ -282,7 +282,7 @@ already wires, anchored:
 ## Honest limitations
 
 - **Sampling, not exhaustive.** Each lane has a finding cap (default 20) and reads excerpts, not entire trees. Large repos get represented, not surveyed.
-- **The coverage table checks form only.** It shows which lane ended in which state and that every `skipped` entry is non-blank. It cannot show what a lane really read or whether a `skipped` text is a true reason. `summary.md` opens with it, written by the script, not by the synthesis model. A finding the batch verifier returned no verdict for (null, `verdicts: []`, or no entry for its id) stays in the report, unverified, and the table names it; the lane stays `covered`. With `thorough` the same holds for a finding that none of its three skeptics answered; a skeptic that returns null casts no vote, and only two explicit refutations drop the finding.
+- **The coverage table checks form only.** It shows which lane ended in which state and that every `skipped` entry is non-blank. It cannot show what a lane really read or whether a `skipped` text is a true reason. `summary.md` opens with it, written by the script, not by the synthesis model. A finding the batch verifier returned no verdict for (null, `verdicts: []`, no entry for its id, or an entry whose `isReal` is neither true nor false) stays in the report, unverified, and the table names it; the lane stays `covered`. With `thorough` the same holds for a finding that none of its three skeptics answered; a skeptic that returns null, or a verdict whose `isReal` is neither true nor false, casts no vote, and only two explicit refutations drop the finding.
 - **No runtime verification.** Findings are static-analysis-grade. The audit can flag "no health check endpoint" but won't probe a running service.
 - **Adversarial verification is necessary but not sufficient.** Skeptics can miss subtle real findings just as the original lane can produce false positives.
 - **Untested for codebases >500k LOC.** Token budget and synthesis quality degrade.

@@ -239,6 +239,62 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
   kase("D9", "repo-deep.md limitations: the unverified rule is not tied to the batch verifier alone; thorough is named",
     rdLimit !== "" && /unverified/.test(rdLimit) && /thorough/i.test(rdLimit), [rdLimit === "" ? "bullet not found" : `says: ${around(rdLimit, /A finding the[^.]*\./)} ; thorough named: ${/thorough/i.test(rdLimit)}`]);
 
+  // ---- N1..N10: a verdict counts only when isReal is a boolean; any other answer is no verdict: the finding stays, marked unverified, in all three workflows ----
+  // (ticket "ein-verifizierer-urteil-ohne-isreal-verwirft-den-befund-in-diff-deep-und-a11y-still-der-batch-weg-behaelt-ihn"; the rule follows the decision of 2026-11-08)
+  // An explicit refutation stays isReal === false. A verdict that carries its own evidence (diff-deep: reproCmd + confirmed/refuted; a11y: checked confirmed/refuted) is read as before (N5).
+  const nBad = { "{}": {}, "{isReal:null}": { isReal: null }, "{isReal:'false'}": { isReal: "false" }, "{isReal:'yes'}": { isReal: "yes" }, "{reason:'x'}": { reason: "x" } };
+  const nAudit = async (intensity, wrap) => { const r = {}; for (const [k, v] of Object.entries(nBad)) r[k] = await dAudit(intensity, [wrap({ ...v, reasoning: "r" })]); return r; };
+  const nShow = (r) => Object.entries(r).map(([k, x]) => `${k}: ${dShow(x)}`).join(" | ");
+  const n1 = await nAudit("thorough", (v) => v);
+  const n1m = [await dAudit("thorough", [dFake, dFake, {}]), await dAudit("thorough", [dFake, {}, {}])];
+  kase("N1", "audit.workflow.js thorough: skeptics whose isReal is no boolean cast no vote: the finding stays, the row names it unverified; two explicit refutations still drop it",
+    Object.values(n1).every((x) => x.kept === "d1" && x.state === "covered" && x.unverified === "d1") && n1m[0].kept === "" && n1m[1].kept === "d1",
+    [`${nShow(n1)} ; [false,false,{}] kept=[${n1m[0].kept}] (want none); [false,{},{}] kept=[${n1m[1].kept}] (want d1)`]);
+
+  const n2 = await nAudit("standard", (v) => ({ verdicts: [{ findingId: "d1", ...v }] }));
+  const n2c = await dAudit("standard", [{ verdicts: [{ findingId: "d1", isReal: false, reasoning: "r" }] }]);
+  kase("N2", "audit.workflow.js batch: a batch entry whose isReal is no boolean is no verdict: the finding stays, the row names it unverified; isReal false still drops it",
+    Object.values(n2).every((x) => x.kept === "d1" && x.state === "covered" && x.unverified === "d1") && n2c.kept === "",
+    [`${nShow(n2)} ; isReal false: kept=[${n2c.kept}] (want none)`]);
+
+  const nScript = async (src, label, finding) => { const r = {}; for (const [k, v] of Object.entries(nBad)) r[k] = await dScript(src, label, finding, v); return r; };
+  const nShowS = (r, key) => Object.entries(r).map(([k, x]) => `${k}: count=${x.count} ${key}=${x.verdict && x.verdict[key]}${x.threw ? ` threw ${x.threw}` : ""}`).join(" | ");
+  const n3 = DIFF ? await nScript(DIFF, "review:correctness", dDiffF) : {};
+  kase("N3", "diff-deep.md: a verdict whose isReal is no boolean keeps the finding with verdict.reproduced 'unverified' and a reason that says there was no verdict",
+    Object.keys(n3).length === 5 && Object.values(n3).every((x) => x.count === 1 && x.verdict && x.verdict.reproduced === "unverified" && /no verdict/i.test(x.verdict.reason || "")), [nShowS(n3, "reproduced") + " ; want count=1 and reproduced=unverified each"]);
+
+  const n4 = A11Y ? await nScript(A11Y, "review:perceivable", dA11yF) : {};
+  kase("N4", "lens-a11y.md: a verdict whose isReal is no boolean keeps the finding with verdict.checked 'unverified' and a reason that says there was no verdict",
+    Object.keys(n4).length === 5 && Object.values(n4).every((x) => x.count === 1 && x.verdict && x.verdict.checked === "unverified" && /no verdict/i.test(x.verdict.reason || "")), [nShowS(n4, "checked") + " ; want count=1 and checked=unverified each"]);
+
+  const n5 = DIFF && A11Y ? [
+    await dScript(DIFF, "review:correctness", dDiffF, { reproduced: "confirmed", reproCmd: "node t.js" }), await dScript(DIFF, "review:correctness", dDiffF, { reproduced: "refuted", reproCmd: "node t.js" }),
+    await dScript(A11Y, "review:perceivable", dA11yF, { checked: "confirmed" }), await dScript(A11Y, "review:perceivable", dA11yF, { checked: "refuted" })] : [];
+  kase("N5", "control: a verdict without isReal that carries its own evidence is read as before: diff-deep reproCmd + confirmed keeps, + refuted drops; a11y checked confirmed keeps, refuted drops; the kept ones are not labelled unverified",
+    n5.length === 4 && n5.map((r) => r.count).join() === "1,0,1,0" && n5[0].verdict.reproduced === "confirmed" && n5[2].verdict.checked === "confirmed",
+    [n5.length ? `diff confirmed/refuted: ${n5[0].count}/${n5[1].count}, a11y confirmed/refuted: ${n5[2].count}/${n5[3].count} (want 1/0 and 1/0); labels: ${n5[0].verdict && n5[0].verdict.reproduced}, ${n5[2].verdict && n5[2].verdict.checked}` : "no script block"]);
+
+  const nPhrase = /isReal[^.;)]*\b(neither true nor false|boolean)\b/i;
+  const nDiffTxt = diffAfter;
+  kase("N6", "diff-deep.md prose: says that a verdict whose isReal is no boolean counts as no verdict", nPhrase.test(nDiffTxt), [`after-the-workflow paragraph: ${nDiffTxt.slice(0, 260)}`]);
+  kase("N7", "lens-a11y.md prose (confidence rule): says that a verdict whose isReal is no boolean counts as no verdict", nPhrase.test(a11yConf), [`confidence section around unverified: ${around(a11yConf, /unverified/)}`]);
+  kase("N8", "repo-deep.md limitations (coverage table): the batch entry and the thorough skeptic with an isReal that is no boolean count as no verdict", nPhrase.test(rdLimit) && (rdLimit.match(new RegExp(nPhrase.source, "gi")) || []).length >= 2,
+    [`bullet around unverified: ${around(rdLimit, /A finding the[^.]*\./)} ; isReal clauses: ${(rdLimit.match(new RegExp(nPhrase.source, "gi")) || []).length} (want 2)`]);
+
+  // N9 (ticket "diff-deep-md-eine-reproduktionsmeldung-ohne-befehl-und-ohne-isreal-hat-keinen-pruefall"): the verifier reports a reproduction but names no command and gives no isReal.
+  // A3 sends isReal with it, N3 sends no `reproduced` at all, N5 sends the command: none of them is this shape. Without the command the report is no evidence (A3), without isReal there is nothing to fall back to.
+  // ponytail: diff-deep.md only. lens-a11y.md reads `checked` without a command; its confirmed and refuted are pinned in N5, `checked: 'na'` without isReal in N10.
+  const n9 = DIFF ? { "{reproduced:'confirmed'}": await dScript(DIFF, "review:correctness", dDiffF, { reproduced: "confirmed" }), "{reproduced:'refuted'}": await dScript(DIFF, "review:correctness", dDiffF, { reproduced: "refuted" }),
+    "{reproduced:'na'}": await dScript(DIFF, "review:correctness", dDiffF, { reproduced: "na" }) } : {};
+  kase("N9", "diff-deep.md: a reproduction report (confirmed, refuted, na) with no reproCmd and no isReal is no verdict: the finding stays with verdict.reproduced 'unverified'",
+    Object.keys(n9).length === 3 && Object.values(n9).every((x) => x.count === 1 && x.verdict && x.verdict.reproduced === "unverified"), [nShowS(n9, "reproduced") + " ; want count=1 and reproduced=unverified each"]);
+
+  // N10 (ticket "lens-a11y-md-eine-pruefmeldung-checked-na-ohne-isreal-hat-keinen-pruefall"): the a11y verifier reports checked:'na' and gives no isReal.
+  // N4 sends no `checked` at all, N5 sends confirmed or refuted: none of them is this shape. The filter reads confirmed and refuted from `checked` (N5) and everything else from isReal; with no isReal there is nothing to read, so the report is no verdict.
+  const n10 = A11Y ? { "{checked:'na'}": await dScript(A11Y, "review:perceivable", dA11yF, { checked: "na" }), "{reason:'x',checked:'na'}": await dScript(A11Y, "review:perceivable", dA11yF, { reason: "x", checked: "na" }) } : {};
+  kase("N10", "lens-a11y.md: a verifier report checked:'na' with no isReal is no verdict: the finding stays with verdict.checked 'unverified'",
+    Object.keys(n10).length === 2 && Object.values(n10).every((x) => x.count === 1 && x.verdict && x.verdict.checked === "unverified"), [nShowS(n10, "checked") + " ; want count=1 and checked=unverified each"]);
+
   // ---- L0..L3: lens-a11y.md — toolVerified skips the verifier only when the lane names the tool run it rests on ----
   const plain = (title, extra = {}) => ({ title, ...base, ...extra });
   const l0no = await a11yRun(() => [plain("plain")], false);
@@ -290,7 +346,7 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
     gateIntro !== "" && gateIntro.includes("toolEvidence") && !/get `toolVerified:true` and bypass adversarial verify/.test(gateIntro),
     [gateIntro === "" ? "gate intro not found" : `says: ${around(gateIntro, /args\.toolFindings[^)]*\)/)}; toolEvidence named: ${gateIntro.includes("toolEvidence")}`]);
 
-  // ---- K1..K4: the verdict lens-a11y.md gives a finding that skipped the verifier (ticket "weitere-selbstflag-stellen-a11y-checked-confirmed-...", part 1) ----
+  // ---- K1..K5: the verdict lens-a11y.md gives a finding that skipped the verifier (ticket "weitere-selbstflag-stellen-a11y-checked-confirmed-...", part 1) ----
   // Its schema calls checked:'confirmed' "re-ran the tool / inspected the actual DOM-or-tile", and the filter reads the value. K2..K4 hold the
   // report, the filter and the verifier's schema in place; K1 asks the synthetic verdict for a label that says what happened.
   // ponytail: kf() builds its own findings, because `plain` above spreads the verdict-less `base` of S1, not the a11y one (own ticket).
@@ -318,15 +374,27 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
   kase("K2", "control: the a11y report does not depend on the label: tool-reported findings stay whatever the verifier says, the judged one follows isReal, order by severity",
     k2y.titles.join() === "k-t1,k-j1,k-t2" && k2n.titles.join() === "k-t1,k-t2", [`approving verifier: ${k2y.titles.join() || "(nothing)"} (want k-t1,k-j1,k-t2); refuting verifier: ${k2n.titles.join() || "(nothing)"} (want k-t1,k-t2)`]);
 
+  // K3 and K5 (ticket "ein-a11y-befund-bleibt-bei-checked-confirmed-ohne-nachpruefung-auch-wenn-der-verifizierer-isreal-false-sagt", variant V4): while checked and isReal agree the filter reads them;
+  // when they contradict each other (confirmed + isReal:false, refuted + isReal:true) the report is no verdict: the finding stays, labelled unverified, with a reason that names the contradiction (K5: the text says so).
   const k3 = {};
-  for (const [c, isReal] of [["confirmed", false], ["refuted", true], ["na", true], ["na", false]]) k3[`${c}/${isReal}`] = (await kRun([kf("k-j")], { isReal, reason: "r", checked: c })).titles.length;
-  kase("K3", "control: the filter reads checked from the verifier: confirmed keeps, refuted drops, na follows isReal",
-    k3["confirmed/false"] === 1 && k3["refuted/true"] === 0 && k3["na/true"] === 1 && k3["na/false"] === 0, [`kept (1) or dropped (0) by checked/isReal: ${JSON.stringify(k3)}; want confirmed/false 1, refuted/true 0, na/true 1, na/false 0`]);
+  for (const [c, isReal] of [["confirmed", true], ["confirmed", false], ["refuted", true], ["refuted", false], ["na", true], ["na", false]]) {
+    const r = await kRun([kf("k-j")], { isReal, reason: "r", checked: c });
+    const v = (r.out.findings[0] && r.out.findings[0].verdict) || {};
+    k3[c + "/" + isReal] = r.titles.length ? "1 " + v.checked + (/contradict/i.test(v.reason || "") ? " (contradiction named)" : "") : "0";
+  }
+  const k3want = { "confirmed/true": "1 confirmed", "confirmed/false": "1 unverified (contradiction named)", "refuted/true": "1 unverified (contradiction named)", "refuted/false": "0", "na/true": "1 na", "na/false": "0" };
+  kase("K3", "the filter reads checked from the verifier while it agrees with isReal (confirmed keeps, refuted drops, na follows isReal); a verdict whose checked and isReal contradict each other is no verdict: the finding stays, labelled unverified",
+    Object.keys(k3want).every((k) => k3[k] === k3want[k]), ["kept (1 + label) or dropped (0) by checked/isReal: " + JSON.stringify(k3) + " ; want " + JSON.stringify(k3want)]);
 
   const k4 = await kRun([kf("k-j")], { isReal: true, reason: "r", checked: "na" });
   const k4enum = ((k4.seen.schema && k4.seen.schema.properties.checked.enum) || []).slice().sort().join();
   kase("K4", "control: the verifier is offered confirmed, refuted and na only ('tool-reported' is the workflow's own label, a verifier never picks it)",
     k4enum === "confirmed,na,refuted", [`verdict schema offers checked: ${k4enum || "(none)"}`]);
+
+  const k5 = section(a11yConf, "checked:unverified", "stays in the report");
+  kase("K5", "lens-a11y.md prose (confidence rule): a verdict whose checked and isReal contradict each other counts as no verdict, like one whose isReal is no boolean",
+    /contradict/i.test(k5), ["confidence rule around checked:unverified: " + (k5 || "(not found)")]);
+  // ponytail: K5 matches a word; a rewording that keeps the word but drops the rule passes. Upgrade path: a case that reads the clause.
 
   // ---- Q0..Q4: cleanup/references/remove.md — what its "DETERMINISTIC gate" does, and what the text says (part 2) ----
   const REMOVE_MD = read("skills/cleanup/references/remove.md");
@@ -369,6 +437,125 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
   kase("Q4", "remove.md delete-gate section: the reference gate is not called deterministic / 'no LLM judge' / exit-code, and it says the workflow does not rerun refCmd",
     qSec !== "" && !/deterministic|no LLM judge|both exit-code|regardless of\s+the agent/i.test(qSec) && qSec.includes("does not rerun `refCmd`") && !/The gate is the exit code/.test(qSec),
     [qSec === "" ? "section not found" : `says: ${around(qSec, /deterministic[^.]*|no LLM judge|both exit-code|regardless of\s+the agent[^.]*/i)} ; "does not rerun \`refCmd\`": ${qSec.includes("does not rerun `refCmd`")}`]);
+
+  // ---- Q5..Q9: a candidate the verifier gave no usable judgement for is not proposed for deletion, and the run names it (ticket "der-cleanup-filter-in-remove-md-verwirft-bei-fehlendem-urteil-still-und-traegt-einen-toten-zweig") ----
+  // Deleting is the case where dropping is the safe direction (unlike review, where a missing verdict keeps the finding). The drop must not be silent: the result carries `noJudgement`.
+  // q2Run: two dead-code candidates, a.js and b.js; a.js always gets a clean verdict; `answerB` is the verifier's answer for b.js (a function that throws = a dead agent); `candB` is the detector's candidate for b.js.
+  async function q2Run(answerB, candB = { file: "b.js", lines: "4-6", what: "fn bar", why: "unused" }) {
+    const agent = async (prompt, opts) => {
+      if (opts.label === "detect:dead-code") return { candidates: [{ file: "a.js", lines: "1-3", what: "fn foo", why: "unused" }, candB] };
+      if (opts.label.startsWith("detect:")) return { candidates: [] };
+      if (opts.label === "safe:a.js") return qV();
+      if (opts.label === "safe:b.js") return typeof answerB === "function" ? answerB() : answerB;
+      return {};
+    };
+    if (!REMOVE) return { total: -1, kept: -1, plan: [], named: [] };
+    const { out } = await runScript(REMOVE, { target: "x" }, agent);
+    return { total: out.totalCandidates, kept: out.safeToRemove, plan: out.plan.map((c) => c.file), planEntries: out.plan, named: Array.isArray(out.noJudgement) ? out.noJudgement.map((c) => c.file) : null, entries: Array.isArray(out.noJudgement) ? out.noJudgement : null };
+  }
+  const q5 = {
+    "verifier null": await q2Run(null), "verifier {}": await q2Run({}), "agent throws": await q2Run(() => { throw new Error("agent died"); }),
+    "refsFound missing": await q2Run(qV({ refsFound: undefined })), "refsFound null": await q2Run(qV({ refsFound: null })), "refsFound '0'": await q2Run(qV({ refsFound: "0" })),
+    "refsFound 0.5": await q2Run(qV({ refsFound: 0.5 })), "refsFound NaN": await q2Run(qV({ refsFound: NaN })),
+    "safeToRemove missing": await q2Run(qV({ safeToRemove: undefined })), "safeToRemove 'true'": await q2Run(qV({ safeToRemove: "true" })),
+  };
+  const qShow = (o) => Object.entries(o).map(([k, r]) => `${k}: plan=[${r.plan}] noJudgement=${r.named === null ? "(missing)" : `[${r.named}]`}`).join(" | ");
+  kase("Q5", "remove.md: a candidate whose verifier gave no usable judgement (null, {}, a dead agent, refsFound missing/null/'0'/0.5/NaN, safeToRemove missing or 'true') is not in the plan, and the result names it in noJudgement",
+    Object.values(q5).every((r) => r.plan.join() === "a.js" && r.kept === 1 && r.total === 2 && r.named && r.named.join() === "b.js"),
+    [`${qShow(q5)} ; want plan [a.js] and noJudgement [b.js] each`]);
+
+  const q6 = {
+    "safe=true, 0 refs": await q2Run(qV()), "safe=false, 0 refs": await q2Run(qV({ safeToRemove: false })),
+    "safe=true, 1 ref": await q2Run(qV({ refsFound: 1 })), "safe=false, 3 refs": await q2Run(qV({ safeToRemove: false, refsFound: 3 })), "refsFound 0.0": await q2Run(qV({ refsFound: 0.0 })),
+  };
+  kase("Q6", "control: a judgement that arrived is not 'no judgement': a clean verdict (also refsFound 0.0) is in the plan, an explicit refusal or a reference count is out, and neither is named in noJudgement",
+    q6["safe=true, 0 refs"].plan.join() === "a.js,b.js" && q6["refsFound 0.0"].plan.join() === "a.js,b.js"
+      && ["safe=false, 0 refs", "safe=true, 1 ref", "safe=false, 3 refs"].every((k) => q6[k].plan.join() === "a.js" && (q6[k].named ?? []).length === 0)
+      && (q6["safe=true, 0 refs"].named ?? []).length === 0,
+    [qShow(q6)]);
+
+  kase("Q7", "remove.md: the counts stay consistent when a candidate has no judgement: totalCandidates counts it, safeToRemove does not, noJudgement lists exactly that one",
+    q5["verifier null"].total === 2 && q5["verifier null"].kept === 1 && !!q5["verifier null"].named && q5["verifier null"].named.length === 1,
+    [`verifier null: total=${q5["verifier null"].total} safeToRemove=${q5["verifier null"].kept} noJudgement=${q5["verifier null"].named === null ? "(missing)" : `[${q5["verifier null"].named}]`}`]);
+
+  const qLead = flat(section(REMOVE_MD, "This is REPORT-FIRST", "```javascript"));
+  kase("Q8", "remove.md prose (REPORT-FIRST paragraph): says that a candidate without a usable judgement is not deleted and that the report names it (noJudgement)",
+    qLead !== "" && qLead.includes("noJudgement") && /no usable judgement/i.test(qLead), [qLead === "" ? "paragraph not found" : `says: ${qLead.slice(0, 400)}`]);
+
+  kase("Q9", "remove.md filter: no dead branch: the script does not test `refsFound == null` (a clause that `&& false` kept from ever being true)",
+    REMOVE !== "" && !/refsFound\s*==\s*null/.test(REMOVE), [`script block has it: ${/refsFound\s*==\s*null/.test(REMOVE)}; line: ${(REMOVE.split("\n").find((l) => /refsFound\s*==\s*null/.test(l)) || "(none)").trim().slice(0, 160)}`]);
+
+  // Q10 (Bau 11): Q5 reads the file of a noJudgement entry only. The report names the candidates, so the entry must also say where (lines), what, and which detector found it.
+  // ponytail: four fields with fixed values. A verdict that carries its own file/what/lines/detector is pinned in Q11, a candidate that carries verdict-named keys or its own detector in Q12.
+  const qEntry = (r) => (r.entries && r.entries.length === 1 ? r.entries[0] : null);
+  kase("Q10", "remove.md: a noJudgement entry carries what the report needs to find the candidate again (file, lines, what, and the detector that found it), for every kind of missing judgement",
+    Object.values(q5).every((r) => { const e = qEntry(r); return !!e && e.file === "b.js" && e.lines === "4-6" && e.what === "fn bar" && e.detector === "dead-code"; }),
+    [`entries: ${Object.entries(q5).map(([k, r]) => `${k}: ${JSON.stringify(qEntry(r))}`).join(" | ")} ; want {"file":"b.js","lines":"4-6","what":"fn bar","detector":"dead-code"} each`]);
+
+  // ---- Q11, Q12: a verifier's answer does not replace what the detector reported (ticket "remove-md-laesst-ein-urteil-mit-eigenen-feldern-den-kandidaten-ueberschreiben") ----
+  // The candidate schema names file/lines/what/why (the script adds detector), the verdict schema safeToRemove/reason/refsFound/refCmd/references: the two share no key. Neither schema forbids more keys and the harness strips none,
+  // so an answer can still send some. The plan is the list of what gets deleted: it names the candidate the verifier was asked about, never a file the verifier chose to send.
+  // ponytail: Q11 and Q12 send the keys the two schemas name. The script lists the candidate's five keys by hand, so a key added to CAND_SCHEMA later stays overridable until it joins that list, and no case notices.
+  // A key outside both schemas (say `severity`) is dropped where `cands` is built and reaches no entry (Q13). Upgrade path: read the key list from the schema the stub sees.
+  const q11own = { file: "other.js", what: "fn other", lines: "9-9", detector: "ui-design", why: "other reason" }; // fields a verdict has no business sending
+  const q11bad = { safeToRemove: "yes", reason: "r", refCmd: "x" }; // no usable judgement: refsFound is missing
+  const q11cand = { file: "b.js", what: "fn bar", why: "unused" }; // b.js without `lines`, the one optional candidate key
+  const q11 = {
+    "clean verdict + own fields": await q2Run(qV(q11own)),
+    "unusable verdict + own fields": await q2Run({ ...q11bad, ...q11own }),
+    "clean verdict sends lines, candidate has none": await q2Run(qV({ lines: "9-9" }), q11cand),
+    "unusable verdict sends lines, candidate has none": await q2Run({ ...q11bad, lines: "9-9" }, q11cand),
+  };
+  const q11at = (e, want) => !!e && Object.entries(want).every(([k, v]) => e[k] === v);
+  const q11b = (r) => (r.planEntries || [])[1]; // a.js is the first plan entry, b.js the second
+  const q11one = (r) => (r.entries && r.entries.length === 1 ? r.entries[0] : null);
+  const q11c = q11["clean verdict + own fields"], q11n = q11["unusable verdict + own fields"];
+  const q11cl = q11["clean verdict sends lines, candidate has none"], q11nl = q11["unusable verdict sends lines, candidate has none"];
+  kase("Q11", "remove.md: a verdict that sends its own file/what/lines/detector/why does not replace the candidate: the plan entry and the noJudgement entry name what the detector reported, also for a candidate without `lines`",
+    q11c.plan.join() === "a.js,b.js" && q11at(q11b(q11c), { file: "b.js", lines: "4-6", what: "fn bar", detector: "dead-code", why: "unused" })
+      && q11n.plan.join() === "a.js" && q11at(q11one(q11n), { file: "b.js", lines: "4-6", what: "fn bar", detector: "dead-code" })
+      && q11cl.plan.join() === "a.js,b.js" && q11at(q11b(q11cl), { file: "b.js", what: "fn bar", detector: "dead-code", lines: undefined })
+      && q11at(q11one(q11nl), { file: "b.js", what: "fn bar", detector: "dead-code", lines: undefined }),
+    [`clean verdict + own fields: plan entry ${JSON.stringify(q11b(q11c))} ; want {"file":"b.js","lines":"4-6","what":"fn bar","detector":"dead-code","why":"unused"}`,
+      `unusable verdict + own fields: plan=[${q11n.plan}] noJudgement entry ${JSON.stringify(q11one(q11n))} ; want plan [a.js] and {"file":"b.js","lines":"4-6","what":"fn bar","detector":"dead-code"}`,
+      `clean verdict sends lines, candidate has none: plan entry ${JSON.stringify(q11b(q11cl))} ; want b.js with no lines`,
+      `unusable verdict sends lines, candidate has none: noJudgement entry ${JSON.stringify(q11one(q11nl))} ; want b.js with no lines`]);
+
+  // Q12: the other direction. A candidate that carries keys of its own does not outvote the verifier or the workflow. A plain swap of the merge order ({ ...v, ...c }) fixes Q11 and breaks this.
+  const q12cand = { file: "b.js", lines: "4-6", what: "fn bar", why: "unused" };
+  const q12ref = await q2Run(qV({ safeToRemove: false, refsFound: 3 }), { ...q12cand, safeToRemove: true, refsFound: 0 }); // the candidate says safe with 0 refs, the verdict says no with 3 refs
+  const q12det = await q2Run(qV(), { ...q12cand, detector: "claimed-by-detector" }); // the detector labels its own candidate; the label the workflow gives it is the one that counts
+  const q12detn = await q2Run(q11bad, { ...q12cand, detector: "claimed-by-detector" });
+  kase("Q12", "remove.md: a candidate that carries keys of its own does not outvote the verifier (safeToRemove true / refsFound 0 on the candidate, a refusal in the verdict) nor the workflow (its own detector label)",
+    q12ref.plan.join() === "a.js" && (q12ref.named ?? []).length === 0
+      && q11at(q11b(q12det), { file: "b.js", detector: "dead-code" }) && q11at(q11one(q12detn), { file: "b.js", detector: "dead-code" }),
+    [`candidate says safe/0 refs, verdict says refused/3 refs: plan=[${q12ref.plan}] noJudgement=[${q12ref.named}] ; want plan [a.js] and noJudgement []`,
+      `candidate labelled by the detector: plan entry ${JSON.stringify(q11b(q12det))} ; noJudgement entry ${JSON.stringify(q11one(q12detn))} ; want detector "dead-code" in both`]);
+
+  // ---- Q13, Q14: a candidate is not its own verdict (ticket "remove-md-nimmt-einen-kandidaten-mit-urteilsschluesseln-vom-detektor-ohne-pruefung-in-den-plan") ----
+  // The candidate schema names file/lines/what/why, but nothing stops a detector's answer from carrying the verdict's keys (the harness strips none; whether the real runtime does is not measured).
+  // The filter reads safeToRemove and refsFound off the merged entry, so a detector's own true/0 would stand for a judgement nobody made when the verifier answers null, dies, or leaves one of the two keys out.
+  // Only the verifier's answer is a judgement: the candidate is cut to its five keys where `cands` is built (not inside the detector's own `.then`: Q14), so a verdict key the detector sent reaches no entry.
+  // ponytail: Q13 sends safeToRemove, refsFound, reason, refCmd and references from the detector. The five candidate keys are listed by hand where `cands` is built and again in the merge (Q11), and a key added to CAND_SCHEMA is dropped until it joins the first list. Upgrade path: read the key list from the schema the stub sees.
+  const q13cand = { ...q12cand, safeToRemove: true, refsFound: 0 }; // the detector's own verdict: safe, 0 refs
+  const q13 = {
+    "verifier null": await q2Run(null, q13cand),
+    "agent throws": await q2Run(() => { throw new Error("agent died"); }, q13cand),
+    "answer without safeToRemove and refsFound": await q2Run({ reason: "r", refCmd: "x" }, q13cand),
+    "answer without refsFound": await q2Run({ safeToRemove: true, reason: "r", refCmd: "x" }, q13cand),
+    "answer without safeToRemove": await q2Run({ refsFound: 0, reason: "r", refCmd: "x" }, q13cand),
+  };
+  const q13yes = await q2Run({ safeToRemove: true, refsFound: 0 }, { ...q12cand, reason: "from the detector", refCmd: "from the detector", references: "from the detector" }); // a usable verdict that sends no reason, refCmd or references
+  kase("Q13", "remove.md: a candidate that brings verdict keys from the detector is not its own verdict: if the verifier answers null, dies, or leaves safeToRemove or refsFound out, it is named in noJudgement and not in the plan; a plan entry holds no reason, refCmd or references the verifier did not send",
+    Object.values(q13).every((r) => r.plan.join() === "a.js" && q11at(q11one(r), { file: "b.js", lines: "4-6", what: "fn bar", detector: "dead-code" }))
+      && q13yes.plan.join() === "a.js,b.js" && q11at(q11b(q13yes), { file: "b.js", safeToRemove: true, refsFound: 0, reason: undefined, refCmd: undefined, references: undefined }),
+    [`${Object.entries(q13).map(([k, r]) => `${k}: plan=[${r.plan}] noJudgement entry ${JSON.stringify(q11one(r))}`).join(" | ")} ; want plan [a.js] and {"file":"b.js","lines":"4-6","what":"fn bar","detector":"dead-code"} each`,
+      `usable verdict without reason/refCmd/references, the detector sent its own: plan=[${q13yes.plan}] entry ${JSON.stringify(q11b(q13yes))} ; want b.js in the plan with safeToRemove true, refsFound 0 and none of the three`]);
+
+  // Q14 (pin, green today): the cut sits where `cands` is built, not inside the detector's own `.then`, where a null element would throw and drop that detector's whole list.
+  const q14 = await q2Run(qV(), null); // the detector's list is [a.js, null]
+  kase("Q14", "remove.md: a null element in a detector's candidate list does not take the detector's other candidates with it (a.js still reaches its verifier and the plan)",
+    q14.plan.join() === "a.js", [`list [a.js, null]: plan=[${q14.plan}] total=${q14.total} ; want plan [a.js]`]);
 
   // ---- W0..W9: the words the scripts hand to the agents and to the progress display ----
   // One run of audit.workflow.js shows what the lanes and the synthesis are told: a high finding (verified), a medium one (passes
@@ -566,6 +753,77 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
   const refused = (r) => r.threw !== null && r.threw.includes("args.toolFindings") && r.calls === 0;
   kase("O4", "lens-a11y.md: an object JSON.stringify cannot serialise (a cycle, a BigInt) stops the run before any agent runs, with an error that names args.toolFindings",
     refused(o4a) && refused(o4b), [`cycle: threw ${JSON.stringify(o4a.threw)} after ${o4a.calls} agent call(s); BigInt: threw ${JSON.stringify(o4b.threw)} after ${o4b.calls} agent call(s)`]);
+
+  // ---- U1..U12: the rule "no verdict keeps the finding" at its edges, and the claims that stood without a case or without a source (Bau 11) ----
+  // Tickets: die-regel-toter-verifizierer-behaelt-den-befund-hat-fuenf-grenzen-ohne-testfall (U1, U3, U4, U5), die-zwei-von-drei-regel-von-thorough-... (U2),
+  // repo-deep-md-nennt-high-fuer-die-skeptiker-mehrheit-... (U6, U7), repo-deep-md-nennt-45-prozent-kosten-... (U8, U9, U10); findings 5 and T-1 of nord-qual-folge (U12, U11).
+  // U1, U7 (second half) and U12 run the real script; the others read a phrase of the text (as D7..D9 and N6..N8 do).
+  // A figure or a superlative without a source in the tree falls; no measurement replaces it (decision review-deep-sagt-im-text-nur-was-der-workflow-tut).
+  // ponytail: the text cases match phrases. A rewording that keeps the phrase and turns the sense passes; a faithful synonym turns the case red and the case is updated.
+  // Upgrade path: a person reads the places (as for D7..D9), or a case that checks the sentence against the script's result.
+  const u1 = { "real,real,null": await dAudit("thorough", [dReal, dReal, null]), "fake,null,null": await dAudit("thorough", [dFake, null, null]), "null,null,real": await dAudit("thorough", [null, null, dReal]), "{},null,real": await dAudit("thorough", [{}, null, dReal]) };
+  kase("U1", "audit.workflow.js thorough: a finding that at least one skeptic answered is checked, not unverified: the row names only a finding that no skeptic answered (D1)",
+    Object.values(u1).every((x) => x.kept === "d1" && x.state === "covered" && x.unverified === "" && !/unverified/.test(x.headline)),
+    [`${Object.entries(u1).map(([k, r]) => `[${k}] ${dShow(r)} ; headline: ${r.headline}`).join(" | ")} ; want kept=[d1] and unverified=[] each`]);
+
+  const uP3 = flat(p3Lines.find((l) => /standard\/lite/.test(l)) || "");
+  kase("U2", "repo-deep.md Phase 3: the verdict line says one explicit isReal=false drops the finding under standard/lite, a missing verdict keeps it, and thorough drops at two of three refutations",
+    uP3.includes("one explicit isReal=false drops the finding") && uP3.includes("a missing verdict keeps it") && uP3.includes("`thorough`: ≥2/3 refute"),
+    [uP3 === "" ? "standard/lite line of Phase 3 not found" : `says: ${uP3}`]);
+
+  kase("U3", "repo-deep.md limitations (coverage table): with thorough, only two explicit refutations drop the finding",
+    rdLimit.includes("only two explicit refutations drop the finding"), [rdLimit === "" ? "bullet not found" : `says: ${around(rdLimit, /With `thorough`[^.]*/)}`]);
+
+  kase("U4", "diff-deep.md prose: an unverified finding is marked `(unverified: no verifier verdict)`, and --fix applies the confirmed findings and leaves the unverified ones",
+    diffAfter.includes("(unverified: no verifier verdict)") && /--fix[^.]*\bleave the unverified ones/.test(diffAfter),
+    [`marker present: ${diffAfter.includes("(unverified: no verifier verdict)")} ; --fix says: ${around(diffAfter, /if `--fix`[^.]*/)}`]);
+
+  kase("U5", "lens-a11y.md prose: an unverified finding shows `unverified` in place of a confidence, in the confidence rule and in the output template",
+    a11yConf.includes("`unverified` in place of a confidence") && a11yOut.includes("`unverified` in place of `conf`"),
+    [`confidence rule: ${around(a11yConf, /unverified[^.]*/)} ; output template: ${around(a11yOut, /A finding whose verdict[^.]*/)}`]);
+
+  kase("U6", "repo-deep.md confidence rule: a finding none of its three skeptics answered is not counted as having survived the refute, its lane row names it, and it is not `high` on that ground",
+    provMd.includes("none of its three skeptics answered") && provMd.includes("coverage.rows[].unverified") && provMd.includes("not `high`"),
+    [provMd === "" ? "section not found" : `names the unanswered finding: ${provMd.includes("none of its three skeptics answered")} ; lane row named: ${provMd.includes("coverage.rows[].unverified")} ; says not high: ${provMd.includes("not `high`")} ; high rule: ${around(provMd, /\*\*high\*\*[^;]*;/)}`]);
+
+  // uFinding: the finding that leaves audit.workflow.js (one high finding "d1") at tier `tier`; call number i to a verifier answers answers[i % answers.length]
+  async function uFinding(tier, answers) {
+    let n = 0;
+    const agent = async (prompt, opts) => {
+      if (opts.label === "vitals") return { archetype: "library", languages: [{ name: "JavaScript", loc: 1, pct: 100 }], loc: 1, demographics: { contributors_90d: 1 } };
+      if (opts.label.startsWith("find:")) return { lane: "security", summary: "s", findings: [lane("d1")] };
+      if (opts.label.startsWith("verify:")) return answers[n++ % answers.length];
+      return {};
+    };
+    return (await runScript(AUDIT, { path: "/no/such/repo", lanes: ["security"], verifyIntensity: tier }, agent)).out.findings[0];
+  }
+  const uApprove = { isReal: true, confidence: "high", reasoning: "r" }; // the verifier's own confidence: the script must not hand it on to the finding
+  const u7 = { "thorough, no answer": await uFinding("thorough", [null]), "thorough, approved": await uFinding("thorough", [uApprove]), "standard, no answer": await uFinding("standard", [null]), "standard, approved": await uFinding("standard", [{ verdicts: [{ findingId: "d1", ...uApprove }] }]) };
+  kase("U7", "repo-deep.md confidence rule: the lead-in says the script sets no confidence on a finding (not 'the semantics it already wires'), and the script sets none, at either tier: no confidence field on a finding no verifier answered, nor on one a verifier approved with its own confidence",
+    /sets no confidence on a finding/.test(provMd) && !/already wires/.test(provMd) && Object.values(u7).every((f) => !!f && !("confidence" in f)),
+    [`lead-in: ${around(provMd, /The finding\/verdict schema[^:]*:/)} ; finding keys: ${Object.entries(u7).map(([k, f]) => `${k}: ${f ? Object.keys(f).join(",") : "(no finding)"}`).join(" | ")}`]);
+
+  kase("U8", "repo-deep.md verifyIntensity: no percent figure (the '~45% of total spend' and '~80% fewer verification agents' had no run, no measurement and no note in the tree)",
+    tiers !== "" && !/\d\s*%/.test(tiers), [tiers === "" ? "tier block not found" : `says: ${around(tiers, /\d\s*%[^.]*/)}`]);
+
+  const uHead = flat(section(AUDIT, "// Verification intensity", "const verifyIntensity").replace(/^\/\/ ?/gm, ""));
+  kase("U9", "audit.workflow.js comment above verifyIntensity: no percent figure and no 'same false-positive protection' (repo-deep.md dropped that claim, V4)",
+    uHead !== "" && !/\d\s*%/.test(uHead) && !/same false-positive protection/i.test(uHead),
+    [uHead === "" ? "comment block not found" : `says: ${around(uHead, /\d\s*%[^.]*|same false-positive protection/i)}`]);
+
+  kase("U10", "the superlative 'the single biggest cost lever' is gone from the repo-deep.md tier block and from the script comment (its only support was the ~45% figure)",
+    tiers !== "" && uHead !== "" && !/single biggest cost lever/i.test(tiers) && !/single biggest cost lever/i.test(uHead),
+    [`tier block: ${around(tiers, /single biggest cost lever/i)} ; script comment: ${around(uHead, /single biggest cost lever/i)}`]);
+
+  const uOut = flat(repoMd.split("\n").find((l) => /findings\.json/.test(l) && /coverage/.test(l)) || "");
+  kase("U11", "repo-deep.md findings.json step: coverage.rows[].unverified is not tied to the batch verifier alone; thorough is named",
+    uOut !== "" && /unverified/.test(uOut) && /thorough/i.test(uOut), [uOut === "" ? "findings.json step not found" : `says: ${around(uOut, /coverage\.rows\[\]\.unverified[^;]*/)} ; thorough named: ${/thorough/i.test(uOut)}`]);
+
+  const u12a = await dAudit("standard", [{ verdicts: [null] }]);
+  const u12b = await dAudit("standard", [{ verdicts: [null, { findingId: "d1", isReal: false, reasoning: "r" }] }]);
+  kase("U12", "audit.workflow.js batch: a null inside verdicts is no verdict, not a crash: the finding stays and the row names it; a refutation next to it still drops the finding",
+    u12a.kept === "d1" && u12a.state === "covered" && u12a.unverified === "d1" && u12b.kept === "" && u12b.unverified === "",
+    [`[null]: ${dShow(u12a)} (want kept=[d1], covered, unverified=[d1]) | [null, refutation]: ${dShow(u12b)} (want kept=[], unverified=[])`]);
 
   console.log(`${total} cases, ${red} red`);
   process.exit(red ? 1 : 0);

@@ -15,7 +15,9 @@ this mode could not run and why (in orch only the instructor and the qualifier h
 
 This is REPORT-FIRST: the workflow returns a verified deletion plan. Present it, then apply
 removals only after the user confirms (or if they said "apply"/"--fix"). Never delete on a
-candidate that wasn't marked `safeToRemove`.
+candidate that wasn't marked `safeToRemove`. A candidate whose verifier gave no usable judgement (no answer,
+or `safeToRemove` not a boolean, or `refsFound` not an integer) is never proposed for deletion; the result lists
+it in `noJudgement`, and your report names those candidates (count and file) so the drop is not silent.
 
 ```javascript
 export const meta = {
@@ -49,17 +51,23 @@ const found = await parallel(DETECTORS.map(d => () =>
   agent(`Scan ${target} for ${d.key}: ${d.prompt} Report concrete removable candidates with file and line range. Only real, removable items.`,
         { label:`detect:${d.key}`, phase:'Detect', schema:CAND_SCHEMA })
     .then(r => ((r && r.candidates) || []).map(c => ({ ...c, detector:d.key })))))
-const cands = found.filter(Boolean).flat()
+// a candidate is what the detector reported under its five keys; a verdict key it sent along (safeToRemove, refsFound, reason, refCmd, references) is dropped here, because only the verifier's answer is a judgement.
+const cands = found.filter(Boolean).flat().map(c => ({ file:c.file, lines:c.lines, what:c.what, why:c.why, detector:c.detector }))
+// the entry is the candidate as the detector reported it; the verdict adds its own fields (safeToRemove, reason, refsFound, refCmd, references) and never replaces file, lines, what, why or detector.
 const verified = await parallel(cands.map(c => () =>
   agent(`Verify SAFE TO REMOVE. Decide by a reference search you run, not by opinion.\n` +
         `1. RUN a real reference search (grep -rn / rg) for the symbol/file across the WHOLE repo (incl. dynamic uses: strings, configs, re-exports, DI, reflection). Report the exact command in refCmd and the real hit count in refsFound. The workflow acts on refsFound and safeToRemove as you report them and does not rerun the search.\n` +
         `2. safeToRemove=true ONLY if refsFound==0 (the workflow drops every candidate with any other count) AND it is not an external/public API / entrypoint. ANY real reference, doubt, or public surface → safeToRemove=false. Dead-code with 0 refs is the clean case.\n` +
         `Candidate (${c.detector}): "${c.what}" in ${c.file} ${c.lines||''} — ${c.why}`,
         { label:`safe:${c.file}`, phase:'VerifySafe', schema:SAFE_SCHEMA })
-    .then(v => ({ ...c, ...v }))))
+    .then(v => ({ ...c, ...v, file:c.file, lines:c.lines, what:c.what, why:c.why, detector:c.detector }))))
+// a judgement is usable only with a boolean safeToRemove and an integer refsFound; a dead verifier (null, or a thrown agent) gives none. Unlike a review finding, such a candidate is dropped (deleting is the unsafe direction) and named in noJudgement.
+const rows = cands.map((c, i) => verified[i] ?? c)
+const judged = c => typeof c.safeToRemove === 'boolean' && Number.isInteger(c.refsFound)
 // gate on the verifier's report: this script has no shell and does not rerun refCmd (nothing reads it). A candidate stays only with safeToRemove true AND a reported refsFound of exactly 0; any other count drops it, a true safeToRemove included; nothing turns a false one true.
-const safe = verified.filter(Boolean).filter(c => c.safeToRemove && (c.refsFound === 0 || c.refsFound == null && false))
-return { totalCandidates: cands.length, safeToRemove: safe.length, plan: safe }
+const safe = rows.filter(c => judged(c) && c.safeToRemove && c.refsFound === 0)
+const noJudgement = rows.filter(c => !judged(c)).map(c => ({ file: c.file, lines: c.lines, what: c.what, detector: c.detector }))
+return { totalCandidates: cands.length, safeToRemove: safe.length, plan: safe, noJudgement }
 ```
 
 ## When to Use

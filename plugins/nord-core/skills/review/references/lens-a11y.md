@@ -89,6 +89,8 @@ const VERDICT_SCHEMA = { type:'object', properties:{ isReal:{type:'boolean'}, re
   checked:{type:'string', enum:['confirmed','refuted','na'], description:'confirmed = re-ran the tool / inspected the actual DOM-or-tile and it holds; refuted = it does not hold; na = judgement finding, fall back to adversarial refute'} },
   required:['isReal','reason','checked'] }
 
+// ponytail: a verdict that contradicts itself is kept, unverified, because no real verdict yet shows which side errs. Upgrade path: let the side that proves right win.
+const contradicts = v => (v?.checked === 'confirmed' && v?.isReal === false) || (v?.checked === 'refuted' && v?.isReal === true)
 const results = await pipeline(
   DIMENSIONS,
   d => agent(`Review this web UI for ${d.key} issues.\nTARGET: ${target}\nA11y tool-gate output the caller already collected (a tool run, do not re-argue it): ${toolFindings}\nFor a finding that restates a line of it, tag toolVerified:true and copy that line into toolEvidence. If you ran a tool yourself, tag toolVerified:true and put the command and the output line that proves it into toolEvidence. A finding without toolEvidence is verified like any other.\n${d.prompt}\nReport concrete findings with a precise location (selector / file:line / tile-path). Severity: blocker = fails a Level A criterion AND blocks a core citizen task; critical = Level A failure or task-blocking UX; high = Level AA failure; medium/low = lesser. No praise, no nits.`,
@@ -101,8 +103,9 @@ const results = await pipeline(
       ? Promise.resolve({ ...f, dimension:d.key, verdict:{ isReal:true, checked:'tool-reported', reason:'tool-reported (toolEvidence, not rerun)' } })
       : agent(`Verify this ${d.key} finding. If it is machine-checkable (contrast, alt/label presence, ARIA validity, lang, target size), RE-CHECK it against the actual page/DOM/tile — holds → checked="confirmed", does not → checked="refuted". If it is a judgement (usability, plain-language, visual, trust), set checked="na" and adversarially REFUTE it — default isReal=false if the impact is overstated or the citizen would not actually be blocked.\nFinding: "${f.title}" @ ${f.where}${f.wcagSC ? ' ['+f.wcagSC+']' : ''} — ${f.detail}`,
             { label:`verify:${d.key}`, phase:'Verify', schema:VERDICT_SCHEMA })
-        // a verifier that returns null left no verdict: the finding stays, labelled checked:'unverified' (this script's own label, not in the verifier's enum)
-        .then(v => ({ ...f, dimension:d.key, verdict: v ?? { isReal:true, checked:'unverified', reason:'the verifier returned no verdict; kept, unverified' } }))) ))
+        // a verifier that returns null, or a verdict whose isReal is no boolean and that sets no checked confirmed/refuted, left no verdict: the finding stays, labelled checked:'unverified' (this script's own label, not in the verifier's enum)
+        // so does a verdict whose checked and isReal contradict each other (confirmed + isReal:false, refuted + isReal:true): which of the two is right is not known
+        .then(v => ({ ...f, dimension:d.key, verdict: !contradicts(v) && (typeof v?.isReal === 'boolean' || v?.checked === 'confirmed' || v?.checked === 'refuted') ? v : { isReal:true, checked:'unverified', reason: contradicts(v) ? 'the verifier contradicted itself (checked vs isReal); kept, unverified' : 'the verifier returned no verdict; kept, unverified' } }))) ))
 )
 const order = { blocker:0, critical:1, high:2, medium:3, low:4 }
 const confirmed = results.flat().filter(Boolean).filter(f => {
@@ -133,7 +136,7 @@ return { count: confirmed.length, findings: confirmed }
   caller or the lane reports the run; the workflow does not rerun it) OR `checked:confirmed`
   (re-inspected the actual DOM/tile). **medium** = judgement finding that survived adversarial refute.
   **low** → Open Questions, not asserted. Nothing is `high` on argument alone. A finding with `checked:unverified`
-  (the verifier returned no verdict) stays in the report and shows `unverified` in place of a confidence: nobody checked it, and it did not survive a refute.
+  (the verifier returned no verdict, or one whose `isReal` is neither true nor false, or one whose `checked` and `isReal` contradict each other) stays in the report and shows `unverified` in place of a confidence: nobody checked it, and it did not survive a refute.
 - **coverage_gap ≠ pass:** a criterion you could not assess (source-only, image-only, tool absent) is
   reported as a gap, never silently as conformant.
 

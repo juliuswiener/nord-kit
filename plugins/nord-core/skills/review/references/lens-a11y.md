@@ -57,7 +57,11 @@ export const meta = {
   ],
 }
 const target = (args && args.target) || 'the page/source described in the conversation'
-const toolFindings = (args && args.toolFindings) || 'none supplied (tool gate not run or page not renderable)'
+let toolFindings = (args && args.toolFindings) || 'none supplied (tool gate not run or page not renderable)'
+// An object or array (axe/pa11y JSON) goes into the prompts as JSON text; a text stays as it is. What JSON.stringify cannot serialise (cycle, BigInt) stops the run here, before the first agent.
+if (typeof toolFindings === 'object') {
+  try { toolFindings = JSON.stringify(toolFindings) } catch (e) { throw new Error(`lens-a11y: args.toolFindings cannot be serialised (${e.message}); pass it as text`) }
+}
 const tiles = (args && args.tiles) || 'no rendered tiles supplied'
 const CHECKLIST = 'Score against the exact success criteria in lens-a11y/wcag-bitv-checklist.md. Tag every finding with its WCAG SC number + level (e.g. "1.4.3 Contrast (Minimum)" AA) and, where it maps, the BITV 2.0 / EN 301 549 clause.'
 const DIMENSIONS = [

@@ -96,8 +96,9 @@ const results = await pipeline(
   (review, d) => parallel(((review && review.findings) || []).map(f => () =>
     // ponytail: toolEvidence is taken as given - this script has no shell and cannot rerun the command, so an invented one still skips the verifier.
     // ponytail: upgrade path = match toolEvidence against args.toolFindings before it counts.
+    // checked:'tool-reported' is this script's own label (not in the verifier's enum): 'confirmed' means a verifier re-checked, and the filter below keeps it.
     (f.toolVerified === true && typeof f.toolEvidence === 'string' && f.toolEvidence.trim() !== ''
-      ? Promise.resolve({ ...f, dimension:d.key, verdict:{ isReal:true, checked:'confirmed', reason:'tool-reported (toolEvidence, not rerun)' } })
+      ? Promise.resolve({ ...f, dimension:d.key, verdict:{ isReal:true, checked:'tool-reported', reason:'tool-reported (toolEvidence, not rerun)' } })
       : agent(`Verify this ${d.key} finding. If it is machine-checkable (contrast, alt/label presence, ARIA validity, lang, target size), RE-CHECK it against the actual page/DOM/tile — holds → checked="confirmed", does not → checked="refuted". If it is a judgement (usability, plain-language, visual, trust), set checked="na" and adversarially REFUTE it — default isReal=false if the impact is overstated or the citizen would not actually be blocked.\nFinding: "${f.title}" @ ${f.where}${f.wcagSC ? ' ['+f.wcagSC+']' : ''} — ${f.detail}`,
             { label:`verify:${d.key}`, phase:'Verify', schema:VERDICT_SCHEMA })
         .then(v => ({ ...f, dimension:d.key, verdict:v }))) ))

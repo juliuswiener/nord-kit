@@ -41,7 +41,7 @@ const CAND_SCHEMA = { type:'object', properties:{ candidates:{ type:'array', ite
   properties:{ file:{type:'string'}, lines:{type:'string'}, what:{type:'string'}, why:{type:'string'} },
   required:['file','what','why'] } } }, required:['candidates'] }
 const SAFE_SCHEMA = { type:'object', properties:{ safeToRemove:{type:'boolean'}, reason:{type:'string'},
-  refsFound:{type:'integer', description:'count of real references found by grep (0 required for symbol removals)'},
+  refsFound:{type:'integer', description:'count of real references found by grep, as you report it (the workflow keeps every candidate only at 0)'},
   refCmd:{type:'string', description:'the exact grep/search command you ran'},
   references:{type:'string'} }, required:['safeToRemove','reason','refsFound','refCmd'] }
 
@@ -51,13 +51,13 @@ const found = await parallel(DETECTORS.map(d => () =>
     .then(r => ((r && r.candidates) || []).map(c => ({ ...c, detector:d.key })))))
 const cands = found.filter(Boolean).flat()
 const verified = await parallel(cands.map(c => () =>
-  agent(`Verify SAFE TO REMOVE — DETERMINISTIC gate, not a judgement call.\n` +
-        `1. RUN a real reference search (grep -rn / rg) for the symbol/file across the WHOLE repo (incl. dynamic uses: strings, configs, re-exports, DI, reflection). Report the exact command in refCmd and the real hit count in refsFound.\n` +
-        `2. safeToRemove=true ONLY if refsFound==0 (for a symbol/file removal) AND it is not an external/public API / entrypoint. ANY real reference, doubt, or public surface → safeToRemove=false. Dead-code with 0 refs is the clean case.\n` +
+  agent(`Verify SAFE TO REMOVE. Decide by a reference search you run, not by opinion.\n` +
+        `1. RUN a real reference search (grep -rn / rg) for the symbol/file across the WHOLE repo (incl. dynamic uses: strings, configs, re-exports, DI, reflection). Report the exact command in refCmd and the real hit count in refsFound. The workflow acts on refsFound and safeToRemove as you report them and does not rerun the search.\n` +
+        `2. safeToRemove=true ONLY if refsFound==0 (the workflow drops every candidate with any other count) AND it is not an external/public API / entrypoint. ANY real reference, doubt, or public surface → safeToRemove=false. Dead-code with 0 refs is the clean case.\n` +
         `Candidate (${c.detector}): "${c.what}" in ${c.file} ${c.lines||''} — ${c.why}`,
         { label:`safe:${c.file}`, phase:'VerifySafe', schema:SAFE_SCHEMA })
     .then(v => ({ ...c, ...v }))))
-// deterministic gate: drop anything the grep didn't clear, regardless of the agent's own boolean
+// gate on the verifier's report: this script has no shell and does not rerun refCmd (nothing reads it). A candidate stays only with safeToRemove true AND a reported refsFound of exactly 0; any other count drops it, a true safeToRemove included; nothing turns a false one true.
 const safe = verified.filter(Boolean).filter(c => c.safeToRemove && (c.refsFound === 0 || c.refsFound == null && false))
 return { totalCandidates: cands.length, safeToRemove: safe.length, plan: safe }
 ```
@@ -129,15 +129,16 @@ Run one smell-focused pass at a time. Re-verify after each pass. Do not bundle u
 - **Pass 3** — Naming and error-handling cleanup
 - **Pass 4** — Test reinforcement: add or strengthen tests to lock the surviving behavior
 
-## Deterministic delete gate (the verdict — no LLM judge)
+## Delete gates (a reported reference count, then exit codes)
 
 Deletion is the one place where "looks safe" is not good enough — a wrong delete is data loss. Two
-deterministic gates, both exit-code, gate the plan AND each apply pass:
+gates gate the plan AND each apply pass:
 
 1. **Reference gate (per candidate, in VerifySafe):** a real `grep -rn`/`rg` for the symbol/file over the
    whole repo must return **0** real references (incl. dynamic: strings, configs, re-exports, DI,
-   reflection) before it's eligible. The workflow drops any candidate whose `refsFound != 0` regardless of
-   the agent's own opinion. Public API / entrypoints are never auto-safe.
+   reflection) before it's eligible. A verifier agent runs the search; the workflow takes its `refsFound`
+   as reported, does not rerun `refCmd`, and drops any candidate whose `refsFound != 0`, whatever `safeToRemove` says.
+   Public API / entrypoints are never auto-safe.
 2. **Build/test gate (per apply pass):** capture a GREEN baseline (`build` + the narrowest relevant
    `test`/`lint`/`typecheck`) BEFORE deleting. After each pass re-run the SAME commands —
    - still exit 0 → keep the pass.
@@ -145,7 +146,7 @@ deterministic gates, both exit-code, gate the plan AND each apply pass:
      cleanup regression; back it out.
 
 Baseline must be green first — if the suite is red before cleanup, record that and only gate on *new*
-failures. The gate is the exit code, not anyone's judgement.
+failures. The build/test gate is the exit code, not anyone's judgement.
 
 ## Scoped File-List Semantics
 

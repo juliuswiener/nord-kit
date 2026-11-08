@@ -51,7 +51,8 @@ const found = await parallel(DETECTORS.map(d => () =>
   agent(`Scan ${target} for ${d.key}: ${d.prompt} Report concrete removable candidates with file and line range. Only real, removable items.`,
         { label:`detect:${d.key}`, phase:'Detect', schema:CAND_SCHEMA })
     .then(r => ((r && r.candidates) || []).map(c => ({ ...c, detector:d.key })))))
-const cands = found.filter(Boolean).flat()
+// a candidate is what the detector reported under its five keys; a verdict key it sent along (safeToRemove, refsFound, reason, refCmd, references) is dropped here, because only the verifier's answer is a judgement.
+const cands = found.filter(Boolean).flat().map(c => ({ file:c.file, lines:c.lines, what:c.what, why:c.why, detector:c.detector }))
 // the entry is the candidate as the detector reported it; the verdict adds its own fields (safeToRemove, reason, refsFound, refCmd, references) and never replaces file, lines, what, why or detector.
 const verified = await parallel(cands.map(c => () =>
   agent(`Verify SAFE TO REMOVE. Decide by a reference search you run, not by opinion.\n` +

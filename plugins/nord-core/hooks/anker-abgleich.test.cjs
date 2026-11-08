@@ -346,7 +346,7 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
     gateIntro !== "" && gateIntro.includes("toolEvidence") && !/get `toolVerified:true` and bypass adversarial verify/.test(gateIntro),
     [gateIntro === "" ? "gate intro not found" : `says: ${around(gateIntro, /args\.toolFindings[^)]*\)/)}; toolEvidence named: ${gateIntro.includes("toolEvidence")}`]);
 
-  // ---- K1..K4: the verdict lens-a11y.md gives a finding that skipped the verifier (ticket "weitere-selbstflag-stellen-a11y-checked-confirmed-...", part 1) ----
+  // ---- K1..K5: the verdict lens-a11y.md gives a finding that skipped the verifier (ticket "weitere-selbstflag-stellen-a11y-checked-confirmed-...", part 1) ----
   // Its schema calls checked:'confirmed' "re-ran the tool / inspected the actual DOM-or-tile", and the filter reads the value. K2..K4 hold the
   // report, the filter and the verifier's schema in place; K1 asks the synthetic verdict for a label that says what happened.
   // ponytail: kf() builds its own findings, because `plain` above spreads the verdict-less `base` of S1, not the a11y one (own ticket).
@@ -374,15 +374,27 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
   kase("K2", "control: the a11y report does not depend on the label: tool-reported findings stay whatever the verifier says, the judged one follows isReal, order by severity",
     k2y.titles.join() === "k-t1,k-j1,k-t2" && k2n.titles.join() === "k-t1,k-t2", [`approving verifier: ${k2y.titles.join() || "(nothing)"} (want k-t1,k-j1,k-t2); refuting verifier: ${k2n.titles.join() || "(nothing)"} (want k-t1,k-t2)`]);
 
+  // K3 and K5 (ticket "ein-a11y-befund-bleibt-bei-checked-confirmed-ohne-nachpruefung-auch-wenn-der-verifizierer-isreal-false-sagt", variant V4): while checked and isReal agree the filter reads them;
+  // when they contradict each other (confirmed + isReal:false, refuted + isReal:true) the report is no verdict: the finding stays, labelled unverified, with a reason that names the contradiction (K5: the text says so).
   const k3 = {};
-  for (const [c, isReal] of [["confirmed", false], ["refuted", true], ["na", true], ["na", false]]) k3[`${c}/${isReal}`] = (await kRun([kf("k-j")], { isReal, reason: "r", checked: c })).titles.length;
-  kase("K3", "control: the filter reads checked from the verifier: confirmed keeps, refuted drops, na follows isReal",
-    k3["confirmed/false"] === 1 && k3["refuted/true"] === 0 && k3["na/true"] === 1 && k3["na/false"] === 0, [`kept (1) or dropped (0) by checked/isReal: ${JSON.stringify(k3)}; want confirmed/false 1, refuted/true 0, na/true 1, na/false 0`]);
+  for (const [c, isReal] of [["confirmed", true], ["confirmed", false], ["refuted", true], ["refuted", false], ["na", true], ["na", false]]) {
+    const r = await kRun([kf("k-j")], { isReal, reason: "r", checked: c });
+    const v = (r.out.findings[0] && r.out.findings[0].verdict) || {};
+    k3[c + "/" + isReal] = r.titles.length ? "1 " + v.checked + (/contradict/i.test(v.reason || "") ? " (contradiction named)" : "") : "0";
+  }
+  const k3want = { "confirmed/true": "1 confirmed", "confirmed/false": "1 unverified (contradiction named)", "refuted/true": "1 unverified (contradiction named)", "refuted/false": "0", "na/true": "1 na", "na/false": "0" };
+  kase("K3", "the filter reads checked from the verifier while it agrees with isReal (confirmed keeps, refuted drops, na follows isReal); a verdict whose checked and isReal contradict each other is no verdict: the finding stays, labelled unverified",
+    Object.keys(k3want).every((k) => k3[k] === k3want[k]), ["kept (1 + label) or dropped (0) by checked/isReal: " + JSON.stringify(k3) + " ; want " + JSON.stringify(k3want)]);
 
   const k4 = await kRun([kf("k-j")], { isReal: true, reason: "r", checked: "na" });
   const k4enum = ((k4.seen.schema && k4.seen.schema.properties.checked.enum) || []).slice().sort().join();
   kase("K4", "control: the verifier is offered confirmed, refuted and na only ('tool-reported' is the workflow's own label, a verifier never picks it)",
     k4enum === "confirmed,na,refuted", [`verdict schema offers checked: ${k4enum || "(none)"}`]);
+
+  const k5 = section(a11yConf, "checked:unverified", "stays in the report");
+  kase("K5", "lens-a11y.md prose (confidence rule): a verdict whose checked and isReal contradict each other counts as no verdict, like one whose isReal is no boolean",
+    /contradict/i.test(k5), ["confidence rule around checked:unverified: " + (k5 || "(not found)")]);
+  // ponytail: K5 matches a word; a rewording that keeps the word but drops the rule passes. Upgrade path: a case that reads the clause.
 
   // ---- Q0..Q4: cleanup/references/remove.md — what its "DETERMINISTIC gate" does, and what the text says (part 2) ----
   const REMOVE_MD = read("skills/cleanup/references/remove.md");

@@ -940,6 +940,8 @@ const laneResults = await pipeline(
     const passThrough = [...toolFacts, ...judgedFindings.filter(f => sev(f) < threshold)]
     if (!toVerify.length) return { lane, result, verified: passThrough }
 
+    // A verdict counts only when isReal is a boolean: null, {}, 'yes' and a missing field are no verdict (kept, unverified), as in diff-deep and a11y.
+    const judged = v => typeof v?.isReal === 'boolean'
     if (verifyIntensity === 'thorough') {
       // High-stakes path: 3 independent skeptics per finding, majority-refute drops.
       const verdicts = await parallel(
@@ -954,7 +956,7 @@ const laneResults = await pipeline(
           )
         )
       )
-      const answered = f => verdicts.filter(Boolean).filter(v => v.findingId === f.id).map(v => v.verdict).filter(Boolean) // a skeptic that returned null left no vote
+      const answered = f => verdicts.filter(Boolean).filter(v => v.findingId === f.id).map(v => v.verdict).filter(judged) // a skeptic that returned null, or a verdict without a boolean isReal, left no vote
       // Drop only on two explicit refutations (isReal === false), as the batch path drops only on an explicit one: a missing vote is not a refutation.
       const surviving = toVerify.filter(f => answered(f).filter(v => v.isReal === false).length < 2)
       // ponytail: unverified = no skeptic answered at all; one or two answers count as checked. Upgrade path: name the partly answered ones with their vote count.
@@ -970,8 +972,8 @@ const laneResults = await pipeline(
       schema: VERDICT_BATCH,
       agentType: 'nord-core:reviewer',
     })
-    const byId = new Map((batch?.verdicts ?? []).map(v => [v.findingId, v]))
-    // Owed a verdict and got none (null, verdicts: [], or no entry for this id): the finding stays (below), the ledger names it.
+    const byId = new Map((batch?.verdicts ?? []).filter(judged).map(v => [v.findingId, v]))
+    // Owed a verdict and got none (null, verdicts: [], no entry for this id, or an entry whose isReal is no boolean): the finding stays (below), the ledger names it.
     // ponytail: only the lane row carries the ids; a checked:'unverified' field on the finding itself is the upgrade path, only on request.
     const unverified = toVerify.filter(f => !byId.has(f.id)).map(f => f.id)
     const surviving = toVerify.filter(f => {

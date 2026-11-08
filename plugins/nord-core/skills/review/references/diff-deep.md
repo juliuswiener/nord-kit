@@ -69,7 +69,7 @@ of an argument alone caps at `medium`.
 ---
 
 After the workflow returns, present `findings` grouped by severity (critical→low) as
-`path:line — title. fix.`; a finding whose verdict reads `reproduced:unverified` (the verifier returned no verdict) stays in the list, marked `(unverified: no verifier verdict)`, and is not counted as having survived the refute; if `--fix` was requested, apply the confirmed findings and leave the unverified ones.
+`path:line — title. fix.`; a finding whose verdict reads `reproduced:unverified` (the verifier returned no verdict, or one whose `isReal` is neither true nor false) stays in the list, marked `(unverified: no verifier verdict)`, and is not counted as having survived the refute; if `--fix` was requested, apply the confirmed findings and leave the unverified ones.
 
 ```javascript
 export const meta = {
@@ -99,6 +99,8 @@ const VERDICT_SCHEMA = { type:'object', properties:{ isReal:{type:'boolean'}, co
   reproduced:{type:'string', enum:['confirmed','refuted','na'], description:'confirmed = you ran a test/repro and it failed as predicted; refuted = you ran it and it did NOT fail; both count only with the command in reproCmd (the workflow takes your report as given and does not rerun it); na, or no reproCmd = adversarial judgement (isReal) decides'},
   reproCmd:{type:'string', description:'the exact test/command run; required for confirmed or refuted to count (empty if na)'} }, required:['isReal','reason','reproduced'] }
 
+const ran = v => typeof v?.reproCmd === 'string' && v.reproCmd.trim() !== ''
+const reproduced = v => ran(v) && (v.reproduced === 'confirmed' || v.reproduced === 'refuted')
 const results = await pipeline(
   DIMENSIONS,
   d => agent(`Review ${target} for ${d.key} issues. ${d.prompt} Report concrete findings with exact file:line and a one-line fix. Annotate each finding with severity (critical/high/medium/low) AND confidence (high/medium/low). No praise, no nits.`,
@@ -109,17 +111,16 @@ const results = await pipeline(
           `2. Only if it genuinely cannot be reduced to a runnable check (e.g. a design/perf judgement), set reproduced="na" and fall back to adversarially REFUTING it — default isReal=false if uncertain.\n` +
           `Finding: "${f.title}" at ${f.file}:${f.line||'?'} — ${f.detail}`,
           { label:`verify:${f.file}`, phase:'Verify', schema:VERDICT_SCHEMA })
-      // a verifier that returns null left no verdict: the finding stays, labelled reproduced:'unverified' (this script's own label, not in the verifier's enum)
-      .then(v => ({ ...f, dimension:d.key, verdict: v ?? { isReal:true, reproduced:'unverified', reason:'the verifier returned no verdict; kept, unverified' } }))))
+      // a verifier that returns null, or a verdict whose isReal is no boolean and that carries no reproduction, left no verdict: the finding stays, labelled reproduced:'unverified' (this script's own label, not in the verifier's enum)
+      .then(v => ({ ...f, dimension:d.key, verdict: typeof v?.isReal === 'boolean' || reproduced(v) ? v : { isReal:true, reproduced:'unverified', reason:'the verifier returned no verdict; kept, unverified' } }))))
 )
 const order = { critical:0, high:1, medium:2, low:3 }
 // a reproduction the verifier reports WITH the command it ran wins over the LLM boolean; this script
 // has no shell and does not rerun it. na, or a report without a command, falls back to adversarial isReal
 const confirmed = results.flat().filter(Boolean).filter(f => {
   const v = f.verdict
-  const ran = typeof v.reproCmd === 'string' && v.reproCmd.trim() !== ''
-  if (ran && v.reproduced === 'confirmed') return true
-  if (ran && v.reproduced === 'refuted') return false
+  if (ran(v) && v.reproduced === 'confirmed') return true
+  if (ran(v) && v.reproduced === 'refuted') return false
   return !!v.isReal
 })
 confirmed.sort((a,b) => (order[a.severity]??9) - (order[b.severity]??9))

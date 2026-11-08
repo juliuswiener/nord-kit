@@ -214,6 +214,86 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
     gateIntro !== "" && gateIntro.includes("toolEvidence") && !/get `toolVerified:true` and bypass adversarial verify/.test(gateIntro),
     [gateIntro === "" ? "gate intro not found" : `says: ${around(gateIntro, /args\.toolFindings[^)]*\)/)}; toolEvidence named: ${gateIntro.includes("toolEvidence")}`]);
 
+  // ---- K1..K4: the verdict lens-a11y.md gives a finding that skipped the verifier (ticket "weitere-selbstflag-stellen-a11y-checked-confirmed-...", part 1) ----
+  // Its schema calls checked:'confirmed' "re-ran the tool / inspected the actual DOM-or-tile", and the filter reads the value. K2..K4 hold the
+  // report, the filter and the verifier's schema in place; K1 asks the synthetic verdict for a label that says what happened.
+  // ponytail: kf() builds its own findings, because `plain` above spreads the verdict-less `base` of S1, not the a11y one (own ticket).
+  const kf = (title, extra = {}) => ({ title, detail: "d", where: "a.btn", severity: "high", confidence: "high", ...extra });
+  const kTool = { toolVerified: true, toolEvidence: TOOL_LINE };
+  async function kRun(findings, verdict) {
+    const seen = {};
+    const agent = async (prompt, opts) => {
+      if (opts.label === "review:perceivable") return { findings };
+      if (opts.label.startsWith("review:")) return { findings: [] };
+      if (opts.label.startsWith("verify:")) { seen.schema = opts.schema; return verdict; }
+      return {};
+    };
+    const { out } = A11Y ? await runScript(A11Y, { target: "x" }, agent) : { out: { count: -1, findings: [] } };
+    return { titles: out.findings.map((f) => f.title), out, seen };
+  }
+  const k1 = await kRun([kf("k-tool", kTool)], { isReal: false, reason: "r", checked: "na" });
+  const k1v = (k1.out.findings[0] && k1.out.findings[0].verdict) || {};
+  kase("K1", "lens-a11y.md: the verdict of a finding that skipped the verifier says 'tool-reported', not checked:'confirmed' (re-ran the tool / inspected the DOM)",
+    k1.titles.join() === "k-tool" && k1v.checked === "tool-reported", [`kept: ${k1.titles.join() || "(nothing)"} ; verdict: ${JSON.stringify(k1v)} ; want checked "tool-reported"`]);
+
+  const kSet = () => [kf("k-t1", kTool), kf("k-j1"), kf("k-t2", { ...kTool, severity: "low" })];
+  const k2y = await kRun(kSet(), { isReal: true, reason: "r", checked: "na" });
+  const k2n = await kRun(kSet(), { isReal: false, reason: "r", checked: "na" });
+  kase("K2", "control: the a11y report does not depend on the label: tool-reported findings stay whatever the verifier says, the judged one follows isReal, order by severity",
+    k2y.titles.join() === "k-t1,k-j1,k-t2" && k2n.titles.join() === "k-t1,k-t2", [`approving verifier: ${k2y.titles.join() || "(nothing)"} (want k-t1,k-j1,k-t2); refuting verifier: ${k2n.titles.join() || "(nothing)"} (want k-t1,k-t2)`]);
+
+  const k3 = {};
+  for (const [c, isReal] of [["confirmed", false], ["refuted", true], ["na", true], ["na", false]]) k3[`${c}/${isReal}`] = (await kRun([kf("k-j")], { isReal, reason: "r", checked: c })).titles.length;
+  kase("K3", "control: the filter reads checked from the verifier: confirmed keeps, refuted drops, na follows isReal",
+    k3["confirmed/false"] === 1 && k3["refuted/true"] === 0 && k3["na/true"] === 1 && k3["na/false"] === 0, [`kept (1) or dropped (0) by checked/isReal: ${JSON.stringify(k3)}; want confirmed/false 1, refuted/true 0, na/true 1, na/false 0`]);
+
+  const k4 = await kRun([kf("k-j")], { isReal: true, reason: "r", checked: "na" });
+  const k4enum = ((k4.seen.schema && k4.seen.schema.properties.checked.enum) || []).slice().sort().join();
+  kase("K4", "control: the verifier is offered confirmed, refuted and na only ('tool-reported' is the workflow's own label, a verifier never picks it)",
+    k4enum === "confirmed,na,refuted", [`verdict schema offers checked: ${k4enum || "(none)"}`]);
+
+  // ---- Q0..Q4: cleanup/references/remove.md — what its "DETERMINISTIC gate" does, and what the text says (part 2) ----
+  const REMOVE_MD = read("skills/cleanup/references/remove.md");
+  const REMOVE = (/```javascript\n([\s\S]*?)\n```/.exec(REMOVE_MD) || [, ""])[1];
+  async function qRun(verdict, detector = "dead-code") {
+    const seen = {};
+    const agent = async (prompt, opts) => {
+      if (opts.label === `detect:${detector}`) return { candidates: [{ file: "a.js", lines: "1-3", what: "fn foo", why: "unused" }] };
+      if (opts.label.startsWith("detect:")) return { candidates: [] };
+      if (opts.label.startsWith("safe:")) { seen.prompt = prompt; seen.schema = opts.schema; return verdict; }
+      return {};
+    };
+    const { out } = REMOVE ? await runScript(REMOVE, { target: "x" }, agent) : { out: { safeToRemove: -1 } };
+    return { kept: out.safeToRemove, seen };
+  }
+  const qV = (extra) => ({ safeToRemove: true, reason: "r", refsFound: 0, refCmd: "grep -rn foo .", ...extra });
+  const q = {
+    "0 refs, no refCmd": (await qRun(qV({ refCmd: "" }))).kept, "0 refs, refCmd is no search": (await qRun(qV({ refCmd: "echo 0" }))).kept,
+    "1 ref": (await qRun(qV({ refsFound: 1 }))).kept, "safe=false, 0 refs": (await qRun(qV({ safeToRemove: false }))).kept,
+    "refsFound missing": (await qRun(qV({ refsFound: undefined }))).kept, "ai-slop, 2 refs": (await qRun(qV({ refsFound: 2 }), "ai-slop")).kept, "verifier null": (await qRun(null)).kept,
+  };
+  kase("Q0", "control (what the filter does): a candidate stays only with safeToRemove true AND refsFound exactly 0, for every detector; refCmd is never read; a null verifier drops it",
+    q["0 refs, no refCmd"] === 1 && q["0 refs, refCmd is no search"] === 1 && Object.entries(q).filter(([k]) => !k.startsWith("0 refs")).every(([, n]) => n === 0), [`candidates kept: ${JSON.stringify(q)}`]);
+
+  const qSeen = (await qRun(qV())).seen;
+  const qPrompt = flat(qSeen.prompt || "");
+  kase("Q1", "remove.md verifier prompt: not called a DETERMINISTIC gate / 'not a judgement call', and says the workflow does not rerun the search",
+    qPrompt !== "" && !/deterministic|not a judgement call/i.test(qPrompt) && /does not rerun/i.test(qPrompt),
+    [`prompt says: ${around(qPrompt, /deterministic[^.]*|not a judgement call/i)} ; "does not rerun" present: ${/does not rerun/i.test(qPrompt)}`]);
+
+  const qRefs = flat((qSeen.schema && qSeen.schema.properties.refsFound.description) || "");
+  kase("Q2", "remove.md schema: refsFound is not '0 required for symbol removals' (the script requires 0 for every candidate) and is a count the verifier reports",
+    qRefs !== "" && !/symbol removals/i.test(qRefs) && /every candidate/i.test(qRefs) && /report/i.test(qRefs), [`refsFound says: ${qRefs || "(missing)"}`]);
+
+  const qCmt = flat((/((?:^\/\/.*\n)+)const safe =/m.exec(REMOVE) || [, ""])[1]);
+  kase("Q3", "remove.md comment above the filter: not 'deterministic gate ... regardless of the agent's own boolean', and says the script does not rerun refCmd",
+    qCmt !== "" && !/deterministic|regardless of the agent/i.test(qCmt) && /does not rerun/i.test(qCmt), [qCmt === "" ? "comment above `const safe` not found" : `says: ${qCmt}`]);
+
+  const qSec = flat(section(REMOVE_MD, "\n## Deterministic delete gate", "\n## Scoped File-List") || section(REMOVE_MD, "\n## Delete gate", "\n## Scoped File-List"));
+  kase("Q4", "remove.md delete-gate section: the reference gate is not called deterministic / 'no LLM judge' / exit-code, and it says the workflow does not rerun refCmd",
+    qSec !== "" && !/deterministic|no LLM judge|both exit-code|regardless of\s+the agent/i.test(qSec) && qSec.includes("does not rerun `refCmd`") && !/The gate is the exit code/.test(qSec),
+    [qSec === "" ? "section not found" : `says: ${around(qSec, /deterministic[^.]*|no LLM judge|both exit-code|regardless of\s+the agent[^.]*/i)} ; "does not rerun \`refCmd\`": ${qSec.includes("does not rerun `refCmd`")}`]);
+
   // ---- W0..W9: the words the scripts hand to the agents and to the progress display ----
   // One run of audit.workflow.js shows what the lanes and the synthesis are told: a high finding (verified), a medium one (passes
   // the threshold unverified) and a tool finding with its command (skips the verifier); the verifier approves what it is shown.

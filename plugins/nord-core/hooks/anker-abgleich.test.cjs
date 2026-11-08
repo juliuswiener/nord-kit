@@ -239,6 +239,48 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
   kase("D9", "repo-deep.md limitations: the unverified rule is not tied to the batch verifier alone; thorough is named",
     rdLimit !== "" && /unverified/.test(rdLimit) && /thorough/i.test(rdLimit), [rdLimit === "" ? "bullet not found" : `says: ${around(rdLimit, /A finding the[^.]*\./)} ; thorough named: ${/thorough/i.test(rdLimit)}`]);
 
+  // ---- N1..N8: a verdict counts only when isReal is a boolean; any other answer is no verdict: the finding stays, marked unverified, in all three workflows ----
+  // (ticket "ein-verifizierer-urteil-ohne-isreal-verwirft-den-befund-in-diff-deep-und-a11y-still-der-batch-weg-behaelt-ihn"; the rule follows the decision of 2026-11-08)
+  // An explicit refutation stays isReal === false. A verdict that carries its own evidence (diff-deep: reproCmd + confirmed/refuted; a11y: checked confirmed/refuted) is read as before (N5).
+  const nBad = { "{}": {}, "{isReal:null}": { isReal: null }, "{isReal:'false'}": { isReal: "false" }, "{isReal:'yes'}": { isReal: "yes" }, "{reason:'x'}": { reason: "x" } };
+  const nAudit = async (intensity, wrap) => { const r = {}; for (const [k, v] of Object.entries(nBad)) r[k] = await dAudit(intensity, [wrap({ ...v, reasoning: "r" })]); return r; };
+  const nShow = (r) => Object.entries(r).map(([k, x]) => `${k}: ${dShow(x)}`).join(" | ");
+  const n1 = await nAudit("thorough", (v) => v);
+  const n1m = [await dAudit("thorough", [dFake, dFake, {}]), await dAudit("thorough", [dFake, {}, {}])];
+  kase("N1", "audit.workflow.js thorough: skeptics whose isReal is no boolean cast no vote: the finding stays, the row names it unverified; two explicit refutations still drop it",
+    Object.values(n1).every((x) => x.kept === "d1" && x.state === "covered" && x.unverified === "d1") && n1m[0].kept === "" && n1m[1].kept === "d1",
+    [`${nShow(n1)} ; [false,false,{}] kept=[${n1m[0].kept}] (want none); [false,{},{}] kept=[${n1m[1].kept}] (want d1)`]);
+
+  const n2 = await nAudit("standard", (v) => ({ verdicts: [{ findingId: "d1", ...v }] }));
+  const n2c = await dAudit("standard", [{ verdicts: [{ findingId: "d1", isReal: false, reasoning: "r" }] }]);
+  kase("N2", "audit.workflow.js batch: a batch entry whose isReal is no boolean is no verdict: the finding stays, the row names it unverified; isReal false still drops it",
+    Object.values(n2).every((x) => x.kept === "d1" && x.state === "covered" && x.unverified === "d1") && n2c.kept === "",
+    [`${nShow(n2)} ; isReal false: kept=[${n2c.kept}] (want none)`]);
+
+  const nScript = async (src, label, finding) => { const r = {}; for (const [k, v] of Object.entries(nBad)) r[k] = await dScript(src, label, finding, v); return r; };
+  const nShowS = (r, key) => Object.entries(r).map(([k, x]) => `${k}: count=${x.count} ${key}=${x.verdict && x.verdict[key]}${x.threw ? ` threw ${x.threw}` : ""}`).join(" | ");
+  const n3 = DIFF ? await nScript(DIFF, "review:correctness", dDiffF) : {};
+  kase("N3", "diff-deep.md: a verdict whose isReal is no boolean keeps the finding with verdict.reproduced 'unverified' and a reason that says there was no verdict",
+    Object.keys(n3).length === 5 && Object.values(n3).every((x) => x.count === 1 && x.verdict && x.verdict.reproduced === "unverified" && /no verdict/i.test(x.verdict.reason || "")), [nShowS(n3, "reproduced") + " ; want count=1 and reproduced=unverified each"]);
+
+  const n4 = A11Y ? await nScript(A11Y, "review:perceivable", dA11yF) : {};
+  kase("N4", "lens-a11y.md: a verdict whose isReal is no boolean keeps the finding with verdict.checked 'unverified' and a reason that says there was no verdict",
+    Object.keys(n4).length === 5 && Object.values(n4).every((x) => x.count === 1 && x.verdict && x.verdict.checked === "unverified" && /no verdict/i.test(x.verdict.reason || "")), [nShowS(n4, "checked") + " ; want count=1 and checked=unverified each"]);
+
+  const n5 = DIFF && A11Y ? [
+    await dScript(DIFF, "review:correctness", dDiffF, { reproduced: "confirmed", reproCmd: "node t.js" }), await dScript(DIFF, "review:correctness", dDiffF, { reproduced: "refuted", reproCmd: "node t.js" }),
+    await dScript(A11Y, "review:perceivable", dA11yF, { checked: "confirmed" }), await dScript(A11Y, "review:perceivable", dA11yF, { checked: "refuted" })] : [];
+  kase("N5", "control: a verdict without isReal that carries its own evidence is read as before: diff-deep reproCmd + confirmed keeps, + refuted drops; a11y checked confirmed keeps, refuted drops; the kept ones are not labelled unverified",
+    n5.length === 4 && n5.map((r) => r.count).join() === "1,0,1,0" && n5[0].verdict.reproduced === "confirmed" && n5[2].verdict.checked === "confirmed",
+    [n5.length ? `diff confirmed/refuted: ${n5[0].count}/${n5[1].count}, a11y confirmed/refuted: ${n5[2].count}/${n5[3].count} (want 1/0 and 1/0); labels: ${n5[0].verdict && n5[0].verdict.reproduced}, ${n5[2].verdict && n5[2].verdict.checked}` : "no script block"]);
+
+  const nPhrase = /isReal[^.;)]*\b(neither true nor false|boolean)\b/i;
+  const nDiffTxt = diffAfter;
+  kase("N6", "diff-deep.md prose: says that a verdict whose isReal is no boolean counts as no verdict", nPhrase.test(nDiffTxt), [`after-the-workflow paragraph: ${nDiffTxt.slice(0, 260)}`]);
+  kase("N7", "lens-a11y.md prose (confidence rule): says that a verdict whose isReal is no boolean counts as no verdict", nPhrase.test(a11yConf), [`confidence section around unverified: ${around(a11yConf, /unverified/)}`]);
+  kase("N8", "repo-deep.md limitations (coverage table): the batch entry and the thorough skeptic with an isReal that is no boolean count as no verdict", nPhrase.test(rdLimit) && (rdLimit.match(new RegExp(nPhrase.source, "gi")) || []).length >= 2,
+    [`bullet around unverified: ${around(rdLimit, /A finding the[^.]*\./)} ; isReal clauses: ${(rdLimit.match(new RegExp(nPhrase.source, "gi")) || []).length} (want 2)`]);
+
   // ---- L0..L3: lens-a11y.md — toolVerified skips the verifier only when the lane names the tool run it rests on ----
   const plain = (title, extra = {}) => ({ title, ...base, ...extra });
   const l0no = await a11yRun(() => [plain("plain")], false);

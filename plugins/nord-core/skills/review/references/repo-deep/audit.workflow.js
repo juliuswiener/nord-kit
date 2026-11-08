@@ -48,12 +48,11 @@ const extraLanes = resolvedArgs.extraLanes ?? []
 const severityFloor = resolvedArgs.severityFloor ?? 'low'
 const maxFindingsPerLane = resolvedArgs.maxFindingsPerLane ?? 20
 
-// Verification intensity — the single biggest cost lever. Phase 3 used to spawn
-// 3 independent skeptics PER high-severity finding (e.g. 11 highs → 33 agents,
-// ~45% of total spend). 'standard' instead runs ONE batched verifier per lane
+// Verification intensity. Phase 3 used to spawn
+// 3 independent skeptics PER high-severity finding (e.g. 11 highs → 33 agents).
+// 'standard' instead runs ONE batched verifier per lane
 // that reviews all of that lane's high+critical findings in a single call
-// (reads the cited files once), cutting verification agents ~80% with the same
-// false-positive protection. Tiers:
+// (reads the cited files once). Tiers:
 //   'off'      — trust lanes, no verification (fastest; use only for a quick look)
 //   'lite'     — batch-verify CRITICAL findings only; high+ pass through
 //   'standard' — batch-verify high+critical, one verifier per lane (DEFAULT)

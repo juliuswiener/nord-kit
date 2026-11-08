@@ -478,7 +478,7 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
   // The candidate schema names file/lines/what/why (the script adds detector), the verdict schema safeToRemove/reason/refsFound/refCmd/references: the two share no key. Neither schema forbids more keys and the harness strips none,
   // so an answer can still send some. The plan is the list of what gets deleted: it names the candidate the verifier was asked about, never a file the verifier chose to send.
   // ponytail: Q11 and Q12 send the keys the two schemas name. The script lists the candidate's five keys by hand, so a key added to CAND_SCHEMA later stays overridable until it joins that list, and no case notices.
-  // A key outside both schemas (say `severity`) rides along into the plan entry. Upgrade path: read the key list from the schema the stub sees.
+  // A key outside both schemas (say `severity`) is dropped where `cands` is built and reaches no entry (Q13). Upgrade path: read the key list from the schema the stub sees.
   const q11own = { file: "other.js", what: "fn other", lines: "9-9", detector: "ui-design", why: "other reason" }; // fields a verdict has no business sending
   const q11bad = { safeToRemove: "yes", reason: "r", refCmd: "x" }; // no usable judgement: refsFound is missing
   const q11cand = { file: "b.js", what: "fn bar", why: "unused" }; // b.js without `lines`, the one optional candidate key
@@ -513,6 +513,31 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
       && q11at(q11b(q12det), { file: "b.js", detector: "dead-code" }) && q11at(q11one(q12detn), { file: "b.js", detector: "dead-code" }),
     [`candidate says safe/0 refs, verdict says refused/3 refs: plan=[${q12ref.plan}] noJudgement=[${q12ref.named}] ; want plan [a.js] and noJudgement []`,
       `candidate labelled by the detector: plan entry ${JSON.stringify(q11b(q12det))} ; noJudgement entry ${JSON.stringify(q11one(q12detn))} ; want detector "dead-code" in both`]);
+
+  // ---- Q13, Q14: a candidate is not its own verdict (ticket "remove-md-nimmt-einen-kandidaten-mit-urteilsschluesseln-vom-detektor-ohne-pruefung-in-den-plan") ----
+  // The candidate schema names file/lines/what/why, but nothing stops a detector's answer from carrying the verdict's keys (the harness strips none; whether the real runtime does is not measured).
+  // The filter reads safeToRemove and refsFound off the merged entry, so a detector's own true/0 would stand for a judgement nobody made when the verifier answers null, dies, or leaves one of the two keys out.
+  // Only the verifier's answer is a judgement: the candidate is cut to its five keys where `cands` is built (not inside the detector's own `.then`: Q14), so a verdict key the detector sent reaches no entry.
+  // ponytail: Q13 sends safeToRemove, refsFound, reason, refCmd and references from the detector. The five candidate keys are listed by hand where `cands` is built and again in the merge (Q11), and a key added to CAND_SCHEMA is dropped until it joins the first list. Upgrade path: read the key list from the schema the stub sees.
+  const q13cand = { ...q12cand, safeToRemove: true, refsFound: 0 }; // the detector's own verdict: safe, 0 refs
+  const q13 = {
+    "verifier null": await q2Run(null, q13cand),
+    "agent throws": await q2Run(() => { throw new Error("agent died"); }, q13cand),
+    "answer without safeToRemove and refsFound": await q2Run({ reason: "r", refCmd: "x" }, q13cand),
+    "answer without refsFound": await q2Run({ safeToRemove: true, reason: "r", refCmd: "x" }, q13cand),
+    "answer without safeToRemove": await q2Run({ refsFound: 0, reason: "r", refCmd: "x" }, q13cand),
+  };
+  const q13yes = await q2Run({ safeToRemove: true, refsFound: 0 }, { ...q12cand, reason: "from the detector", refCmd: "from the detector", references: "from the detector" }); // a usable verdict that sends no reason, refCmd or references
+  kase("Q13", "remove.md: a candidate that brings verdict keys from the detector is not its own verdict: if the verifier answers null, dies, or leaves safeToRemove or refsFound out, it is named in noJudgement and not in the plan; a plan entry holds no reason, refCmd or references the verifier did not send",
+    Object.values(q13).every((r) => r.plan.join() === "a.js" && q11at(q11one(r), { file: "b.js", lines: "4-6", what: "fn bar", detector: "dead-code" }))
+      && q13yes.plan.join() === "a.js,b.js" && q11at(q11b(q13yes), { file: "b.js", safeToRemove: true, refsFound: 0, reason: undefined, refCmd: undefined, references: undefined }),
+    [`${Object.entries(q13).map(([k, r]) => `${k}: plan=[${r.plan}] noJudgement entry ${JSON.stringify(q11one(r))}`).join(" | ")} ; want plan [a.js] and {"file":"b.js","lines":"4-6","what":"fn bar","detector":"dead-code"} each`,
+      `usable verdict without reason/refCmd/references, the detector sent its own: plan=[${q13yes.plan}] entry ${JSON.stringify(q11b(q13yes))} ; want b.js in the plan with safeToRemove true, refsFound 0 and none of the three`]);
+
+  // Q14 (pin, green today): the cut sits where `cands` is built, not inside the detector's own `.then`, where a null element would throw and drop that detector's whole list.
+  const q14 = await q2Run(qV(), null); // the detector's list is [a.js, null]
+  kase("Q14", "remove.md: a null element in a detector's candidate list does not take the detector's other candidates with it (a.js still reaches its verifier and the plan)",
+    q14.plan.join() === "a.js", [`list [a.js, null]: plan=[${q14.plan}] total=${q14.total} ; want plan [a.js]`]);
 
   // ---- W0..W9: the words the scripts hand to the agents and to the progress display ----
   // One run of audit.workflow.js shows what the lanes and the synthesis are told: a high finding (verified), a medium one (passes

@@ -69,7 +69,7 @@ of an argument alone caps at `medium`.
 ---
 
 After the workflow returns, present `findings` grouped by severity (critical→low) as
-`path:line — title. fix.`; if `--fix` was requested, apply the confirmed findings.
+`path:line — title. fix.`; a finding whose verdict reads `reproduced:unverified` (the verifier returned no verdict) stays in the list, marked `(unverified: no verifier verdict)`, and is not counted as having survived the refute; if `--fix` was requested, apply the confirmed findings and leave the unverified ones.
 
 ```javascript
 export const meta = {
@@ -109,13 +109,14 @@ const results = await pipeline(
           `2. Only if it genuinely cannot be reduced to a runnable check (e.g. a design/perf judgement), set reproduced="na" and fall back to adversarially REFUTING it — default isReal=false if uncertain.\n` +
           `Finding: "${f.title}" at ${f.file}:${f.line||'?'} — ${f.detail}`,
           { label:`verify:${f.file}`, phase:'Verify', schema:VERDICT_SCHEMA })
-      .then(v => ({ ...f, dimension:d.key, verdict:v }))))
+      // a verifier that returns null left no verdict: the finding stays, labelled reproduced:'unverified' (this script's own label, not in the verifier's enum)
+      .then(v => ({ ...f, dimension:d.key, verdict: v ?? { isReal:true, reproduced:'unverified', reason:'the verifier returned no verdict; kept, unverified' } }))))
 )
 const order = { critical:0, high:1, medium:2, low:3 }
 // a reproduction the verifier reports WITH the command it ran wins over the LLM boolean; this script
 // has no shell and does not rerun it. na, or a report without a command, falls back to adversarial isReal
 const confirmed = results.flat().filter(Boolean).filter(f => {
-  const v = f.verdict; if (!v) return false
+  const v = f.verdict
   const ran = typeof v.reproCmd === 'string' && v.reproCmd.trim() !== ''
   if (ran && v.reproduced === 'confirmed') return true
   if (ran && v.reproduced === 'refuted') return false

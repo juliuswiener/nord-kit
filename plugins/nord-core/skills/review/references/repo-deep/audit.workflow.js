@@ -954,11 +954,12 @@ const laneResults = await pipeline(
           )
         )
       )
-      const surviving = toVerify.filter(f => {
-        const vs = verdicts.filter(Boolean).filter(v => v.findingId === f.id).map(v => v.verdict)
-        return vs.filter(v => v.isReal).length >= 2 // default to refuted if uncertain
-      })
-      return { lane, result, verified: [...surviving, ...passThrough] }
+      const answered = f => verdicts.filter(Boolean).filter(v => v.findingId === f.id).map(v => v.verdict).filter(Boolean) // a skeptic that returned null left no vote
+      // Drop only on two explicit refutations (isReal === false), as the batch path drops only on an explicit one: a missing vote is not a refutation.
+      const surviving = toVerify.filter(f => answered(f).filter(v => v.isReal === false).length < 2)
+      // ponytail: unverified = no skeptic answered at all; one or two answers count as checked. Upgrade path: name the partly answered ones with their vote count.
+      const unverified = toVerify.filter(f => answered(f).length === 0).map(f => f.id)
+      return { lane, result, verified: [...surviving, ...passThrough], unverified }
     }
 
     // 'standard' / 'lite': ONE batched verifier reviews all of this lane's

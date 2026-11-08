@@ -101,11 +101,12 @@ const results = await pipeline(
       ? Promise.resolve({ ...f, dimension:d.key, verdict:{ isReal:true, checked:'tool-reported', reason:'tool-reported (toolEvidence, not rerun)' } })
       : agent(`Verify this ${d.key} finding. If it is machine-checkable (contrast, alt/label presence, ARIA validity, lang, target size), RE-CHECK it against the actual page/DOM/tile — holds → checked="confirmed", does not → checked="refuted". If it is a judgement (usability, plain-language, visual, trust), set checked="na" and adversarially REFUTE it — default isReal=false if the impact is overstated or the citizen would not actually be blocked.\nFinding: "${f.title}" @ ${f.where}${f.wcagSC ? ' ['+f.wcagSC+']' : ''} — ${f.detail}`,
             { label:`verify:${d.key}`, phase:'Verify', schema:VERDICT_SCHEMA })
-        .then(v => ({ ...f, dimension:d.key, verdict:v }))) ))
+        // a verifier that returns null left no verdict: the finding stays, labelled checked:'unverified' (this script's own label, not in the verifier's enum)
+        .then(v => ({ ...f, dimension:d.key, verdict: v ?? { isReal:true, checked:'unverified', reason:'the verifier returned no verdict; kept, unverified' } }))) ))
 )
 const order = { blocker:0, critical:1, high:2, medium:3, low:4 }
 const confirmed = results.flat().filter(Boolean).filter(f => {
-  const v = f.verdict; if (!v) return false
+  const v = f.verdict
   if (v.checked === 'confirmed') return true
   if (v.checked === 'refuted') return false
   return !!v.isReal
@@ -131,7 +132,8 @@ return { count: confirmed.length, findings: confirmed }
 - **high** = `toolVerified` with the tool run in `toolEvidence` (axe/pa11y/Lighthouse/measured contrast — the
   caller or the lane reports the run; the workflow does not rerun it) OR `checked:confirmed`
   (re-inspected the actual DOM/tile). **medium** = judgement finding that survived adversarial refute.
-  **low** → Open Questions, not asserted. Nothing is `high` on argument alone.
+  **low** → Open Questions, not asserted. Nothing is `high` on argument alone. A finding with `checked:unverified`
+  (the verifier returned no verdict) stays in the report and shows `unverified` in place of a confidence: nobody checked it, and it did not survive a refute.
 - **coverage_gap ≠ pass:** a criterion you could not assess (source-only, image-only, tool absent) is
   reported as a gap, never silently as conformant.
 
@@ -145,6 +147,7 @@ return { count: confirmed.length, findings: confirmed }
 ```
 [SEVERITY | conf] where — [WCAG SC, level] title. fix.
 ```
+A finding whose verdict reads `checked:unverified` shows `unverified` in place of `conf`.
 
 **Bürgernähe / plain-language** (worst sentences quoted + plainer rewrite; Leichte-Sprache offer present?)
 

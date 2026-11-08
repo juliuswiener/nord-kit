@@ -282,7 +282,7 @@ already wires, anchored:
 ## Honest limitations
 
 - **Sampling, not exhaustive.** Each lane has a finding cap (default 20) and reads excerpts, not entire trees. Large repos get represented, not surveyed.
-- **The coverage table checks form only.** It shows which lane ended in which state and that every `skipped` entry is non-blank. It cannot show what a lane really read or whether a `skipped` text is a true reason. `summary.md` opens with it, written by the script, not by the synthesis model. A finding the batch verifier returned no verdict for (null, `verdicts: []`, or no entry for its id) stays in the report, unverified, and the table names it; the lane stays `covered`.
+- **The coverage table checks form only.** It shows which lane ended in which state and that every `skipped` entry is non-blank. It cannot show what a lane really read or whether a `skipped` text is a true reason. `summary.md` opens with it, written by the script, not by the synthesis model. A finding the batch verifier returned no verdict for (null, `verdicts: []`, or no entry for its id) stays in the report, unverified, and the table names it; the lane stays `covered`. With `thorough` the same holds for a finding that none of its three skeptics answered; a skeptic that returns null casts no vote, and only two explicit refutations drop the finding.
 - **No runtime verification.** Findings are static-analysis-grade. The audit can flag "no health check endpoint" but won't probe a running service.
 - **Adversarial verification is necessary but not sufficient.** Skeptics can miss subtle real findings just as the original lane can produce false positives.
 - **Untested for codebases >500k LOC.** Token budget and synthesis quality degrade.

@@ -557,6 +557,39 @@ const metaOf = (src) => { const m = /export const meta = (\{[\s\S]*?\n\})/.exec(
   kase("Q14", "remove.md: a null element in a detector's candidate list does not take the detector's other candidates with it (a.js still reaches its verifier and the plan)",
     q14.plan.join() === "a.js", [`list [a.js, null]: plan=[${q14.plan}] total=${q14.total} ; want plan [a.js]`]);
 
+  // ---- Q15, Q16: a detector that gave no answer is named in the result (ticket "remove-md-ein-toter-detektor-hinterlaesst-keine-spur-im-ergebnis") ----
+  // A detector that answers null, answers without a candidates list, or dies (a thrown agent) read like "that detector found nothing". The result lists the keys of such detectors in `noAnswer`;
+  // the plan, the counts and `noJudgement` are what they were. Deleting less is the safe direction, so nothing else changes: the report only has to say that the plan may be smaller than it should be.
+  // ponytail: the harness drops a thrown detector to null (our reading of parallel()), the real runtime is not measured. A detector whose answer is no list at all is named, whatever the runtime hands back.
+  // q3Run: dead-code finds a.js (clean verdict); `answers` maps a detector key to its answer (a function = a dead agent); every other detector answers an empty list.
+  async function q3Run(answers) {
+    const agent = async (prompt, opts) => {
+      const key = opts.label.startsWith("detect:") ? opts.label.slice(7) : "";
+      if (key && key in answers) return typeof answers[key] === "function" ? answers[key]() : answers[key];
+      if (key === "dead-code") return { candidates: [{ file: "a.js", lines: "1-3", what: "fn foo", why: "unused" }] };
+      if (key) return { candidates: [] };
+      if (opts.label === "safe:a.js") return qV();
+      return {};
+    };
+    if (!REMOVE) return null;
+    return (await runScript(REMOVE, { target: "x" }, agent)).out;
+  }
+  const q15dead = { "answers null": null, "answers {}": {}, "candidates is no list": { candidates: "none" }, "agent throws": () => { throw new Error("detector died"); } };
+  const q15live = { "answers an empty list": { candidates: [] }, "answers a list of one": { candidates: [{ file: "c.js", lines: "1", what: "fn c", why: "unused" }] } };
+  const q15 = {};
+  for (const [k, v] of Object.entries({ ...q15dead, ...q15live })) q15[k] = await q3Run({ duplication: v });
+  const q15all = await q3Run(Object.fromEntries(["dead-code", "duplication", "ai-slop", "over-abstraction", "unused-deps", "ui-design", "boundary-violations", "missing-tests"].map((k) => [k, null])));
+  const q15show = (o) => (o === null ? "(no run)" : `plan=[${(o.plan || []).map((c) => c.file)}] noAnswer=${Array.isArray(o.noAnswer) ? `[${o.noAnswer}]` : "(missing)"}`);
+  kase("Q15", "remove.md: a detector that answers null, answers without a candidates list, or dies is named in noAnswer (its key); a detector that answered, an empty list included, is not; the plan and noJudgement stay what they were; when all eight are silent the plan is empty and all eight are named",
+    Object.keys(q15dead).every((k) => q15[k] && Array.isArray(q15[k].noAnswer) && q15[k].noAnswer.join() === "duplication" && q15[k].plan.map((c) => c.file).join() === "a.js" && q15[k].noJudgement.length === 0)
+      && Object.keys(q15live).every((k) => q15[k] && Array.isArray(q15[k].noAnswer) && q15[k].noAnswer.length === 0)
+      && q15all && Array.isArray(q15all.noAnswer) && q15all.noAnswer.length === 8 && q15all.totalCandidates === 0 && q15all.plan.length === 0,
+    [`${Object.entries({ ...q15dead, ...q15live }).map(([k]) => `${k}: ${q15show(q15[k])}`).join(" | ")} ; all eight silent: ${q15show(q15all)} total=${q15all && q15all.totalCandidates} ; want noAnswer [duplication] for the first four, [] for the next two, all eight named when all are silent`]);
+
+  kase("Q16", "remove.md prose (REPORT-FIRST paragraph): says that a detector without an answer is named in the report (noAnswer), so a reader knows the plan may be smaller than it should be",
+    qLead !== "" && qLead.includes("noAnswer") && /detector[^.]*no answer|no answer[^.]*detector/i.test(qLead) && qLead.includes("noJudgement"),
+    [qLead === "" ? "paragraph not found" : `says: ${qLead.slice(0, 500)}`]);
+
   // ---- W0..W9: the words the scripts hand to the agents and to the progress display ----
   // One run of audit.workflow.js shows what the lanes and the synthesis are told: a high finding (verified), a medium one (passes
   // the threshold unverified) and a tool finding with its command (skips the verifier); the verifier approves what it is shown.

@@ -18,6 +18,8 @@ removals only after the user confirms (or if they said "apply"/"--fix"). Never d
 candidate that wasn't marked `safeToRemove`. A candidate whose verifier gave no usable judgement (no answer,
 or `safeToRemove` not a boolean, or `refsFound` not an integer) is never proposed for deletion; the result lists
 it in `noJudgement`, and your report names those candidates (count and file) so the drop is not silent.
+A detector that gave no answer (no candidates list, or it died) is listed by key in `noAnswer`; your report names it,
+because the plan may then be smaller than it should be.
 
 ```javascript
 export const meta = {
@@ -50,9 +52,11 @@ const SAFE_SCHEMA = { type:'object', properties:{ safeToRemove:{type:'boolean'},
 const found = await parallel(DETECTORS.map(d => () =>
   agent(`Scan ${target} for ${d.key}: ${d.prompt} Report concrete removable candidates with file and line range. Only real, removable items.`,
         { label:`detect:${d.key}`, phase:'Detect', schema:CAND_SCHEMA })
-    .then(r => ((r && r.candidates) || []).map(c => ({ ...c, detector:d.key })))))
+    .then(r => (r && Array.isArray(r.candidates)) ? r.candidates.map(c => ({ ...c, detector:d.key })) : null)))
+// a detector has answered only with a candidates list (an empty one is an answer); null, no list, or a thrown agent (parallel() leaves null for it) give none, and the result names that detector in noAnswer.
+const noAnswer = DETECTORS.filter((d, i) => !Array.isArray(found[i])).map(d => d.key)
 // a candidate is what the detector reported under its five keys; a verdict key it sent along (safeToRemove, refsFound, reason, refCmd, references) is dropped here, because only the verifier's answer is a judgement.
-const cands = found.filter(Boolean).flat().map(c => ({ file:c.file, lines:c.lines, what:c.what, why:c.why, detector:c.detector }))
+const cands = found.filter(Array.isArray).flat().map(c => ({ file:c.file, lines:c.lines, what:c.what, why:c.why, detector:c.detector }))
 // the entry is the candidate as the detector reported it; the verdict adds its own fields (safeToRemove, reason, refsFound, refCmd, references) and never replaces file, lines, what, why or detector.
 const verified = await parallel(cands.map(c => () =>
   agent(`Verify SAFE TO REMOVE. Decide by a reference search you run, not by opinion.\n` +
@@ -67,7 +71,7 @@ const judged = c => typeof c.safeToRemove === 'boolean' && Number.isInteger(c.re
 // gate on the verifier's report: this script has no shell and does not rerun refCmd (nothing reads it). A candidate stays only with safeToRemove true AND a reported refsFound of exactly 0; any other count drops it, a true safeToRemove included; nothing turns a false one true.
 const safe = rows.filter(c => judged(c) && c.safeToRemove && c.refsFound === 0)
 const noJudgement = rows.filter(c => !judged(c)).map(c => ({ file: c.file, lines: c.lines, what: c.what, detector: c.detector }))
-return { totalCandidates: cands.length, safeToRemove: safe.length, plan: safe, noJudgement }
+return { totalCandidates: cands.length, safeToRemove: safe.length, plan: safe, noJudgement, noAnswer }
 ```
 
 ## When to Use

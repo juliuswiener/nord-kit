@@ -71,12 +71,32 @@ const TUNING = {
 
 // ---- graph ------------------------------------------------------------
 
+// The files git has seen: the index plus the tree the graph was built at. A graph is built
+// over the working tree, so it also holds folders no commit ever held (orch_tui's
+// .review-tmp/: 22 nodes that landed in all three tiers). The built-at tree stays in the
+// set because a graph older than the branch still names files deleted since (taxgraph:
+// 8232 of 13706 nodes) — that is staleness, graphCommit shows it, not a leak. Null when
+// the graph's commit is missing or unknown to git: no reference, nothing is filtered.
+// ponytail: all-or-nothing on the reference commit; a graph with a lost commit keeps its
+// untracked nodes until it is rebuilt.
+function gitKnownFiles(repo, builtAt) {
+  const names = (args) => execFileSync("git", ["-C", repo, ...args],
+    { encoding: "utf8", maxBuffer: 1 << 28, stdio: ["pipe", "pipe", "ignore"] }).split("\0").filter(Boolean);
+  let built;
+  try { built = names(["ls-tree", "-r", "--name-only", "-z", builtAt]); } catch { return null; }
+  return new Set([...names(["ls-files", "-z"]), ...built]);
+}
+
 function loadGraph(repo) {
   const raw = fs.readFileSync(path.join(repo, "graphify-out", "graph.json"), "utf8");
   const data = JSON.parse(raw);
+  const known = gitKnownFiles(repo, data.built_at_commit);
   const nodesById = new Map();
   const codeNodes = [];
   for (const n of data.nodes) {
+    // An edge to a node dropped here stays in adjacency; every reader resolves its far end
+    // through nodesById and skips what is not there.
+    if (known && typeof n.source_file === "string" && n.source_file && !known.has(n.source_file)) continue;
     nodesById.set(n.id, n);
     if (isCode(n)) codeNodes.push(n);
   }

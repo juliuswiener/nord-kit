@@ -66,7 +66,7 @@ Fire independent facets in parallel via Task:
 Task(subagent_type="nord-core:researcher", model="sonnet", prompt="FACET: <facet description>.
 STAGE 1 FIND: run 2-4 real WebSearch / web_search_exa queries; collect >=5 candidate URLs (prefer official docs, primary sources, arXiv, 2024-2026).
 STAGE 2 FETCH: WebFetch the 3-5 highest-value URLs. For EVERY source you cite you MUST include a verbatimQuote — one sentence copied EXACTLY from the fetched page (proof the fetch happened). If a URL fails, mark it and pick another. Answering from memory without fetched quotes = FAILURE.
-Return: findings + sources[{url, verbatimQuote, supports}]. Tag each numeric/claim explicit|derived per BEHAVIOUR.md.")
+Return: findings + sources[{url, verbatimQuote, supports}]. Tag each numeric/claim explicit (the quote is on the fetched page) or derived (computed from values you name).")
 ```
 
 - Maximum 5 parallel document-specialist agents.
@@ -86,7 +86,7 @@ against plausibility. You run the checks; no script runs them for you and no pag
 2. **Quote is real** — any quoted/paraphrased claim attributed to a source must appear in that source's
    fetched text (substring / near-substring match of the key phrase). You compare; no script does. If
    the phrase isn't in the page, the citation is hallucinated → drop the claim or re-fetch.
-3. Tag each finding with its provenance grade (A — canonical vocab, see BEHAVIOUR.md): quote
+3. Tag each finding with its provenance grade: quote
    substring-matches the fetched page → `explicit`; synthesized across sources, in no single one →
    `derived`; sources disagree → `conflicts`; URL 404/timeout or quote not found → `source_unavailable`.
 4. C rule — keep "checked & wrong" distinct from "couldn't check": a quote that loaded but did NOT match

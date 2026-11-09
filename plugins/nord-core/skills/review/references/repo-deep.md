@@ -264,7 +264,7 @@ Lane prompts live inside `repo-deep/audit.workflow.js` as top-level constants (`
 2. Re-invoke Workflow with the modified `scriptPath`
 3. Resume with `resumeFromRunId` if you only edited one lane — the others return cached results instantly
 
-## Finding confidence + provenance (anchored — A/B/C, see BEHAVIOUR.md)
+## Finding confidence + provenance (anchored)
 
 The finding/verdict schema lives in `repo-deep/audit.workflow.js` (not this file) — the script sets no confidence on a
 finding, so these are the rules for the labels you state in the report, anchored:

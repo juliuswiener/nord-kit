@@ -113,7 +113,7 @@ For every match, verify:
 
 If ambiguous, ask the user. A wrong part is worse than a missing part.
 
-**Grade each match (A+C — canonical vocab, see BEHAVIOUR.md).** Replace a boolean "validated" with an
+**Grade each match.** Replace a boolean "validated" with an
 evidence grade — this gates the write-back/order in Step 5, and a wrong part written/ordered is the single
 most expensive failure in the chain:
 - distributor API / datasheet confirms package + specs → `explicit` → safe to write back + order (cite the PN).

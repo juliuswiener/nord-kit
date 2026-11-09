@@ -3227,7 +3227,7 @@ def analyze_signal_paths(components: list[dict], nets: dict, lib_symbols: dict |
                 "estimated_vout": reg["estimated_vout"],
                 "assumed_vref": reg.get("assumed_vref"),
                 "vref_source": reg.get("vref_source", "heuristic"),
-                # Provenance grade (canonical vocab — see nord BEHAVIOUR.md):
+                # Provenance grade:
                 # datasheet-verified Vref lookup = explicit; heuristic guess = derived.
                 "evidence_grade": "explicit" if reg.get("vref_source") == "lookup" else "derived",
                 "feedback_divider": reg.get("feedback_divider"),

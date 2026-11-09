@@ -148,7 +148,7 @@ Stance: This is the honest view, not the gentle one.
 - **Where:** `path/to/file.ts:42`, or module `pkg/foo`
 - **What:** one paragraph, concrete
 - **Why it's bad:** principle violated; observable consequence
-- **Evidence:** `explicit` | `derived` (provenance — canonical vocab, see BEHAVIOUR.md). `explicit` = the
+- **Evidence:** `explicit` | `derived` (provenance). `explicit` = the
   cited `file:line` literally exhibits it (function length, dead import, layering call you can point at);
   `derived` = inferred judgement (module half-life, "hard to extend", cross-file pattern). Formalizes the
   red-flag below — no `file:line` → grade `derived` and own it's a judgement, or find the line → `explicit`.

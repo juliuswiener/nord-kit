@@ -46,7 +46,6 @@ export const SHIPPED_DIRS = ['agents', 'skills', 'commands', 'hooks', 'hud'];
  * One list, not two, so the two facts cannot drift apart.
  */
 const SHIPPED_FILE_ENTRIES = [
-  { path: 'BEHAVIOUR.md', generated: false },
   { path: 'ROUTING.md', generated: false },
   { path: 'WORKERS.md', generated: false },
   { path: 'TOOLING.md', generated: false },

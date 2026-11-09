@@ -55,7 +55,7 @@ Dimension reviewers surface ALL findings annotated with `severity` + `confidence
 
 **Verify = reproducer-gate first, adversarial second.** Where a finding can be reduced to a runnable check, the verifier writes + runs a minimal failing test/repro and reports the result: it fails as predicted → finding counts as REAL without a vote (`reproduced:confirmed`); it doesn't trigger → dropped (`reproduced:refuted`). The report counts only with the command in `reproCmd`; the workflow takes it as reported and does not rerun `reproCmd`. Findings that are genuinely non-runnable (design/perf judgement), and reports without a command, fall back to the adversarial REFUTE vote (`reproduced:na` → `isReal`). A reproduction that ran beats a plausible argument; one that is only reported is a claim, which is why the command is in the output.
 
-**Confidence scale (anchored — B, see BEHAVIOUR.md).** The `confidence` enum ships tied to the evidence
+**Confidence scale (anchored).** The `confidence` enum ships tied to the evidence
 tier it survived, never a bare label:
 - **high** — `reproduced:confirmed` with its `reproCmd` (the verifier reports a failing repro that ran as
   predicted) OR a deterministic `lsp_diagnostics` type error. Reported as run, not only argued.

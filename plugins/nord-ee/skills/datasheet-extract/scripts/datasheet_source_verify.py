@@ -11,7 +11,7 @@ it once via nord-web:  `bash <nord-web>/bin/nw doc <datasheet.pdf>`  → markdow
 under ./mineru-out/<name>/, then passes that markdown path here. This script is
 pure text-matching (no subprocess, no GPU) so it is fast and unit-testable.
 
-Grades (canonical vocab — see nord BEHAVIOUR.md):
+Grades:
   explicit          field value found verbatim (normalized) in the MinerU markdown
   conflicts         markdown present but the value is NOT found — a likely
                     hallucination OR a table-extraction miss; FLAGGED for review,

@@ -109,7 +109,7 @@ python3 <skill-path>/scripts/simulate_subcircuits.py analysis.json --monte-carlo
 
 Read the JSON report and incorporate findings into the design review. See the "Interpreting Results" and "Presenting to Users" sections below.
 
-**Verification grade (A+C — canonical vocab, see BEHAVIOUR.md).** This skill verifies calculated values
+**Verification grade.** This skill verifies calculated values
 against simulation — grade each comparison so "sim refuted the calc" never reads like "couldn't simulate":
 - sim ran and matches the calc within tolerance → `explicit` (measured, confirmed).
 - sim ran and **DISAGREES** with the calc (delta beyond tolerance) → `conflicts` — a real discrepancy;

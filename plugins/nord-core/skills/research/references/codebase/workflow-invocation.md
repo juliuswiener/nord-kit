@@ -87,7 +87,7 @@ const FINDING_SCHEMA = {
             },
           },
           confidence:       { type: 'string', enum: ['HIGH', 'MEDIUM', 'LOW'], description: 'Anchored to evidence tier (B): HIGH = passed the citation gate AND a single unambiguous file:line; MEDIUM = derived / multi-site, no single snippet; LOW = pattern-level inference, no exact citation. Never the model\'s vibe.' },
-          evidenceGrade:    { type: 'string', enum: ['explicit', 'derived', 'conflicts', 'source_unavailable'], description: 'Provenance (A — canonical vocab, see BEHAVIOUR.md). Computed by the Phase-3 citation gate: snippet found verbatim at cited path = explicit; inferred from code present, no single literal site = derived; snippet NOT at path = conflicts; path missing/unreadable = source_unavailable.' },
+          evidenceGrade:    { type: 'string', enum: ['explicit', 'derived', 'conflicts', 'source_unavailable'], description: 'Provenance. Computed by the Phase-3 citation gate: snippet found verbatim at cited path = explicit; inferred from code present, no single literal site = derived; snippet NOT at path = conflicts; path missing/unreadable = source_unavailable.' },
           confidenceReason: { type: 'string' },
         },
         required: ['id', 'title', 'evidence', 'confidence'],
@@ -206,8 +206,7 @@ All findings:
 ${JSON.stringify(allFindings, null, 2)}
 
 Cross-validate for:
-0. CITATION GATE (deterministic — RUN it, don't eyeball) + PROVENANCE GRADE (A, canonical vocab — see
-   BEHAVIOUR.md). For each finding's evidence run \`test -f <path>\` and \`grep -nF "<cited snippet/symbol>"
+0. CITATION GATE (deterministic — RUN it, don't eyeball) + PROVENANCE GRADE. For each finding's evidence run \`test -f <path>\` and \`grep -nF "<cited snippet/symbol>"
    <path>\`, and set its \`evidenceGrade\`:
    - snippet found verbatim at the cited path → \`explicit\`.
    - inferred from code that IS present but no single literal site → \`derived\`.

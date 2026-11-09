@@ -1108,8 +1108,7 @@ EVALUATOR_REGISTRY = {
 
 
 def _evidence_grade(run):
-    """Deterministic provenance grade from the run's status (canonical vocab —
-    see nord BEHAVIOUR.md). The status was set by the evaluate_* comparison, so
+    """Deterministic provenance grade from the run's status. The status was set by the evaluate_* comparison, so
     the grade is a fact, not an LLM judgement:
       pass  -> explicit   (sim ran, matched the calculated value within tolerance)
                BUT a result resting on a generic/ideal/approximate model is only

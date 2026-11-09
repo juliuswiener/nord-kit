@@ -71,7 +71,7 @@ python3 <skill-path>/scripts/analyze_emc.py --schematic schematic.json --pcb pcb
 
 Read the JSON report and incorporate findings into the design review. Each finding has a severity, rule ID, description, and actionable recommendation. See "Interpreting Results" below.
 
-**Evidence grade (A+C — canonical vocab, see BEHAVIOUR.md), to align with the EE chain (datasheet/kicad/spice):**
+**Evidence grade, to align with the EE chain (datasheet/kicad/spice):**
 - geometric rule violation measured from the PCB layout JSON → `explicit` (measured fact).
 - analytical emission / PDN-impedance FORMULA estimate (order-of-magnitude, ±10–20 dB) → `derived`.
 - frequency- / context-dependent finding (e.g. decoupling distance vs harmonic) → `conditional`.

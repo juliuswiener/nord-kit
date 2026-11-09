@@ -131,7 +131,7 @@ return { count: confirmed.length, findings: confirmed }
    **MAJOR** (a Leichte-Sprache edition, a full design-system a11y retrofit).
 3. **Never auto-fix.** Read-only review; hand fixes to the user or to `implement` after they pick.
 
-## Confidence + provenance (anchored — A/B/C, see BEHAVIOUR.md)
+## Confidence + provenance (anchored)
 - **high** = `toolVerified` with the tool run in `toolEvidence` (axe/pa11y/Lighthouse/measured contrast — the
   caller or the lane reports the run; the workflow does not rerun it) OR `checked:confirmed`
   (re-inspected the actual DOM/tile). **medium** = judgement finding that survived adversarial refute.

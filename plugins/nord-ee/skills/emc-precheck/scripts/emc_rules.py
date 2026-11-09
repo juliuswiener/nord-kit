@@ -285,7 +285,7 @@ def _normalize_severity(sev):
 
 
 def _emc_evidence_grade(confidence, title, description):
-    """Deterministic provenance grade (canonical vocab — see nord BEHAVIOUR.md).
+    """Deterministic provenance grade.
       geometric/topology rule measured from the layout (confidence=deterministic
         or datasheet-backed)            -> explicit
       analytical emission/PDN FORMULA estimate (confidence=heuristic)

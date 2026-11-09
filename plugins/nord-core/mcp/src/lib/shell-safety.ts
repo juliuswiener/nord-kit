@@ -7,8 +7,8 @@
  * logic lives here instead, so it applies to every call of the MCP shell rather
  * than to a hook nobody wired up. The original is in git history.
  *
- * The port is NOT literal. Four defects in the original were corrected, each
- * pinned by a test in __tests__/shell-safety.test.ts:
+ * The port is NOT literal. Five defects in the original were corrected, each
+ * pinned by a case in shell-safety.test.mjs (run: node shell-safety.test.mjs):
  *
  *  1. check_protected_paths built `\brm\s+.*{path}(/|\s|$)` for every protected
  *     path, and `/` is one of them. Measured against the original:
@@ -28,6 +28,10 @@
  *  4. analyze_rm_command deferred to `target.startswith(protected)` with `/`
  *     in the set, so every absolute path was "a protected system path".
  *     Containment is now `t === p || t.startsWith(p + '/')`.
+ *  5. Containment under /var also refused /var/tmp/<anything>, the place for
+ *     scratch files: `rm -f /var/tmp/x/nichts-da` -> DENY "deletes /var". A path
+ *     strictly below /var/tmp is now allowed; /var, /var/log, /var/tmp itself
+ *     and every path that `..` leads out of /var/tmp stay refused.
  *
  * Verdicts: 'deny' blocks, 'warn' executes with a warning line prepended.
  * The original's ASK bucket contains every `rm -rf <anything>`; treating that
@@ -174,7 +178,14 @@ function protectedHit(operand: string): string | null {
   const normalized = posix.normalize(operand.replace(/\/\*+$/, '/')).replace(/\/+$/, '') || '/';
   for (const p of PROTECTED_PATHS) {
     if (normalized === p) return p;
-    if (p !== '/' && normalized.startsWith(p + '/')) return p;
+    if (p !== '/' && normalized.startsWith(p + '/')) {
+      // Correction 5: scratch space. A path strictly BELOW /var/tmp is not the system directory /var.
+      // /var/tmp itself (also as /var/tmp/ or /var/tmp/*) and /var/tmpx stay refused; `..` is already
+      // resolved above, so /var/tmp/../log is /var/log.
+      // ponytail: lexical only — a symlink below /var/tmp that points into /var is not followed.
+      if (p === '/var' && normalized.startsWith('/var/tmp/')) continue;
+      return p;
+    }
   }
   // A bare wildcard directly under root is root deletion by another spelling.
   if (/^\/\*+$/.test(operand)) return '/';

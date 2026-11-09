@@ -63,6 +63,7 @@ const B = [
   'rm -f /var/tmp/a /var/log/b',
   'rm -f /var/log/b /var/tmp/a',
   'rm -rf /var/tmp/../..',
+  'rm -rf /var/tmp/../*',
   'rm -rf /etc',
   'rm -rf /usr/lib/x',
 ];

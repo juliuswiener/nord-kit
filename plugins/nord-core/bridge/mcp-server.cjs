@@ -23765,7 +23765,10 @@ function protectedHit(operand) {
   const normalized = import_node_path.posix.normalize(operand.replace(/\/\*+$/, "/")).replace(/\/+$/, "") || "/";
   for (const p of PROTECTED_PATHS) {
     if (normalized === p) return p;
-    if (p !== "/" && normalized.startsWith(p + "/")) return p;
+    if (p !== "/" && normalized.startsWith(p + "/")) {
+      if (p === "/var" && normalized.startsWith("/var/tmp/")) continue;
+      return p;
+    }
   }
   if (/^\/\*+$/.test(operand)) return "/";
   return null;

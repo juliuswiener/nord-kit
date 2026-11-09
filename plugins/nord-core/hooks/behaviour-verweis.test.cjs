@@ -38,9 +38,19 @@ for (const f of files) {
   text.split("\n").forEach((l, i) => { if (WORD.test(l)) hits.push(`${path.relative(CORE, f)}:${i + 1}`); });
 }
 
-// Controls: the matcher matches the pointer it is meant to find, and the walk is not empty (a zero over no files proves nothing).
+// Controls (a zero over a walk that skipped something proves nothing):
+// - the matcher matches the pointer it is meant to find;
+// - every top-level directory of nord-core that is not skipped contributed a file, so no directory fell out of the walk;
+// - in the repo layout (plugins/nord-core next to plugins/nord-ee) nord-ee is read. The cache holds nord-core alone.
 if (!WORD.test("(canonical vocab, see BEHAVIOUR.md)")) { red++; console.log("FAIL control: the matcher misses the pointer"); }
-if (files.length < 50) { red++; console.log(`FAIL control: only ${files.length} files read`); }
+for (const e of fs.readdirSync(CORE, { withFileTypes: true })) {
+  // The three names are spelled out here on purpose: a control that reads SKIP_DIR would shrink together with the walk.
+  if (!e.isDirectory() || ["node_modules", "bridge", "dist"].includes(e.name) || e.name.startsWith(".")) continue;
+  if (!files.some((f) => f.startsWith(path.join(CORE, e.name) + path.sep))) { red++; console.log(`FAIL control: no file read under ${e.name}/`); }
+}
+if (path.basename(path.dirname(CORE)) === "plugins" && !ROOTS.includes(path.join(CORE, "..", "nord-ee"))) {
+  red++; console.log("FAIL control: nord-ee is not read although it sits next to nord-core");
+}
 
 for (const h of hits) { red++; console.log(`FAIL ${h} points to BEHAVIOUR.md`); }
 console.log(`${files.length} files read, ${hits.length} pointers, ${red} red`);

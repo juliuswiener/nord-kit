@@ -25,6 +25,22 @@ function check(name, ok, detail) {
 const near = (a, b) => Math.abs(a - b) < 1e-6;
 const DAY = 86400;
 
+// The `echt` budget counts CPU seconds, not wall seconds: sessions that share the machine
+// stretch the wall clock (83-153 s for the same code) but not the work. The work sits in the
+// git child processes (77-82 of ~93 s), so process.cpuUsage() alone would miss it; utime,
+// stime, cutime and cstime of /proc/self/stat (ticks of 1/100 s) cover process and the
+// children it waited for. null without /proc: the caller falls back to the wall clock.
+// ponytail: absolute budget, ~1.35x of the 93-112 CPU s measured on 2196 commits; it grows
+// with orch_tui, so switch to CPU seconds per commit once the repo outgrows it.
+const CPU_BUDGET_S = 150;
+function cpuSeconds() {
+  try {
+    const s = fs.readFileSync("/proc/self/stat", "utf8");
+    const f = s.slice(s.lastIndexOf(")") + 2).split(" "); // fields from the 3rd (state) on
+    return (Number(f[11]) + Number(f[12]) + Number(f[13]) + Number(f[14])) / 100;
+  } catch { return null; }
+}
+
 // ---- synthetic repo -------------------------------------------------------------
 // a/a.go: A1, A2, A3   b/b.go: B1   c/c.go: C1   gen/x.pb.go: G1 (generated)
 function goFile(pkg, funcs, tag) {
@@ -152,10 +168,12 @@ const SECTIONS = {
   },
 
   echt() {
-    const t0 = Date.now();
+    const c0 = cpuSeconds(), t0 = Date.now();
     const ov = cc.build(REPO, {});
-    const secs = (Date.now() - t0) / 1000;
-    check("echt: full build on orch_tui under 120 s", secs < 120, `${secs}s`);
+    const wall = (Date.now() - t0) / 1000;
+    const cpu = c0 === null ? wall : cpuSeconds() - c0;
+    console.log(`echt: ${cpu.toFixed(1)} CPU s, ${wall.toFixed(1)} s wall${c0 === null ? " (no /proc: wall clock decides)" : ""}`);
+    check(`echt: full build on orch_tui under ${CPU_BUDGET_S} CPU s`, cpu < CPU_BUDGET_S, `${cpu}s cpu, ${wall}s wall`);
     check("echt: 94cab77 is in the overlay with Deliver", Object.entries(ov.commits)
       .some(([sha, c]) => sha.startsWith("94cab77") && c.syms.includes("internal/agent/agent.go#Deliver")));
     const p = cc.pair(ov, "agent_agent_deliver", "agent_agent_interrupt");

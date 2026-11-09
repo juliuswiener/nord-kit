@@ -11,36 +11,18 @@
 // Vault: backlog/nord/zerlegung-verfehlt-ein-viertel-der-geaenderten-symbole.
 
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
-const zlib = require("zlib");
-const { execFileSync } = require("child_process");
 
 const wp = require(path.join(__dirname, "work-package.cjs"));
 const FX = JSON.parse(fs.readFileSync(path.join(__dirname, "work-package.recall.fixture.json"), "utf8"));
 const bare = (s) => String(s).replace(/^\./, "").replace(/\(\)$/, "");
 
-// Frozen bench: the git history of WP_TEST_REPO (commits are immutable) plus the graph of
-// 2026-09-25 (built at ddca425c), kept as work-package.recall.graph.json.gz. buildPackage
-// reads the LIVE graphify-out/graph.json whatever commit it builds at, and graphify rebuilds
-// that file in orch_tui: it grew from 7182 to 15496 nodes in six weeks, and the unchanged
-// code of 2026-09-25 fell from 0.83 to 0.78 (a562d32 and main alike, measured 2026-11-09).
-// The clone has no co-change overlay; the recall is the same with and without it.
+// Frozen bench (work-package.bench.cjs): the git history of WP_TEST_REPO plus the graph of
+// 2026-09-25, because the live graph moves: the unchanged code of 2026-09-25 fell from 0.83
+// to 0.78 (a562d32 and main alike, measured 2026-11-09). The clone has no co-change
+// overlay; the recall is the same with and without it.
 // This does not measure the package on today's graph.
-const SRC = process.env.WP_TEST_REPO || path.join(os.homedir(), "00_projects/169_orch_tui/orch_tui");
-const BENCH = fs.mkdtempSync(path.join(os.tmpdir(), "wp-recall-"));
-process.on("exit", () => fs.rmSync(BENCH, { recursive: true, force: true }));
-const REPO = path.join(BENCH, "repo");
-execFileSync("git", ["clone", "-q", "--shared", "--no-checkout", SRC, REPO]);
-fs.mkdirSync(path.join(REPO, "graphify-out"));
-fs.writeFileSync(path.join(REPO, "graphify-out", "graph.json"),
-  zlib.gunzipSync(fs.readFileSync(path.join(__dirname, "work-package.recall.graph.json.gz"))));
-for (const c of Object.keys(FX.commits)) {
-  try { execFileSync("git", ["-C", REPO, "cat-file", "-e", `${c}^{commit}`], { stdio: "ignore" }); } catch {
-    console.error(`FAIL bench: commit ${c} is not in the history of ${SRC} (branch rewritten?)`);
-    process.exit(2);
-  }
-}
+const { REPO } = require("./work-package.bench.cjs")("wp-recall-", { commits: Object.keys(FX.commits) });
 
 let truth = 0, found = 0, aendernAll = 0, aendernHit = 0, tokens = 0;
 const missed = [];

@@ -3,8 +3,12 @@
 // Run: node work-package.test.cjs [section]   sections: ungueltig commitstand
 //      abweichung historie budget zeit nachkontrolle unversioniert   (no argument = all)
 //
-// Runs against the real orch_tui repo and its graphify-out/graph.json, because the
-// point is what the graph actually yields, not what a fixture graph would.
+// Runs on the real orch_tui history and a real graph of it, because the point is what a
+// graph actually yields, not what a hand-made fixture would. The graph stands still
+// (work-package.bench.cjs: the one of 2026-09-25, code checked out at its commit): the live
+// one moved under this test and turned it red
+// (nachkontrolle on 2026-09-25, subsysteme on 2026-11-09 through .review-tmp/).
+// This does not test the package on today's graph.
 // Vault: backlog/nord/implementierer-paket-aus-dem-graphen.
 
 const fs = require("fs");
@@ -13,9 +17,9 @@ const path = require("path");
 const { execFileSync, spawnSync } = require("child_process");
 
 const WP = path.join(__dirname, "work-package.cjs");
-const REPO = process.env.WP_TEST_REPO || path.join(os.homedir(), "00_projects/169_orch_tui/orch_tui");
 // AK1 replay: 94cab77 "fix(agent): hand the write's place on" changed Agent, Deliver, Interrupt.
 const HIST_COMMIT = "94cab77";
+const { REPO } = require("./work-package.bench.cjs")("wp-test-", { tree: true, commits: [HIST_COMMIT] });
 const FIXTURE = path.join(__dirname, "work-package.fixture.json");
 
 const git = (...a) => execFileSync("git", ["-C", REPO, ...a], { encoding: "utf8", maxBuffer: 1 << 28 });
@@ -120,10 +124,18 @@ const SECTIONS = {
       full.tiers.wahrscheinlich.filter((i) => i.code).length > def.tiers.wahrscheinlich.filter((i) => i.code).length);
     const nop = wp.buildPackage({ repo: REPO, questions: q, tuning: { pruefen: false } });
     check("tuning: pruefen=false empties the tier", nop.tiers.pruefen.length === 0 && def.tiers.pruefen.length > 0);
+    // The overlay is written by hand: two pairs for Deliver, one every threshold admits and one
+    // only the loose ones (count 1, confidence 0.2). It is gone again before the next section.
+    const dl = "agent_agent_deliver";
+    const pair = (other, count, conf) => [`${dl}|${other}`, { count, support: 1, confidence: { [dl]: conf, [other]: conf }, lift: 1, last: 0 }];
+    const ccPath = path.join(REPO, "graphify-out", "cochange.json");
+    fs.writeFileSync(ccPath, JSON.stringify({ version: 1, opts: { minCount: 1 }, nodes: {}, links: [], packagePairs: {},
+      pairs: Object.fromEntries([pair("router_router_overview", 5, 0.9), pair("router_router_removeworktree", 1, 0.2)]) }));
     const cc = (pkg) => pkg.tiers.pruefen.filter((i) => i.via === "cochange").length;
     const loose = wp.buildPackage({ repo: REPO, questions: q, budgetTokens: 1e9, tuning: { ccMinConfidence: 0.15, ccMinCount: 1 } });
     const strict = wp.buildPackage({ repo: REPO, questions: q, budgetTokens: 1e9 });
-    check("tuning: looser AP12 thresholds admit more neighbours", cc(loose) > cc(strict), `${cc(loose)} vs ${cc(strict)}`);
+    fs.rmSync(ccPath);
+    check("tuning: looser AP12 thresholds admit more neighbours", cc(loose) === 2 && cc(strict) === 1, `${cc(loose)} vs ${cc(strict)}`);
   },
 
   // Messreihe 2 misses: terms are phrases, code has identifiers. "idle nudge" must find
@@ -263,9 +275,12 @@ const SECTIONS = {
     const patch = path.join(out, "diff.patch");
     fs.writeFileSync(patch, git("diff", `${HIST_COMMIT}~1`, HIST_COMMIT));
     const inside = "internal/agent/agent.go";
+    // go.mod holds no code node, so no graph can put it into a package. router.go sat inside
+    // the package on the graph of 2026-09-25 and made this check depend on the graph.
+    const outside = "go.mod";
     fs.writeFileSync(path.join(dir, "reads.jsonl"), [
       { file: inside, verdict: "deny" }, { file: inside, verdict: "deny" },
-      { file: "internal/router/router.go", verdict: "allow" },
+      { file: outside, verdict: "allow" },
     ].map((x) => JSON.stringify(x)).join("\n") + "\n");
     const c = spawnSync("node", [WP, "check", "--repo", REPO, "--out", out, "--diff", patch, run], { encoding: "utf8" });
     check("nachkontrolle: check exits 0", c.status === 0, c.stderr.slice(0, 300));
@@ -275,7 +290,7 @@ const SECTIONS = {
       check(`nachkontrolle: metrics has ${k}`, Array.isArray(m[k]), JSON.stringify(m).slice(0, 300));
     check("nachkontrolle: the test file of the diff is a change outside the package",
       (m.aenderungenAusserhalb || []).some((x) => String(x).includes("wedgedqueue_test.go")));
-    check("nachkontrolle: router.go is a read outside", (m.leseZugriffeAusserhalb || []).includes("internal/router/router.go"));
+    check("nachkontrolle: go.mod is a read outside", (m.leseZugriffeAusserhalb || []).includes(outside));
     check("nachkontrolle: agent.go read twice counts as re-read", (m.erneutGelesen || []).includes(inside));
     check("nachkontrolle: Deliver and Interrupt were changed", !(m.aendernOhneAenderung || ["x"]).length,
       JSON.stringify(m.aendernOhneAenderung));

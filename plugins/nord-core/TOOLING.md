@@ -111,10 +111,14 @@ were unreachable. Nobody noticed for three releases. The probe finds it in under
 1. `(cd mcp && npm run smoke)` — record the BEFORE surface.
 2. `node scripts/plugin-copies-diff.mjs` — record existing drift, so new drift is distinguishable.
 3. Make the change in `mcp/src/`; add or update the named assertion for it.
-4. `(cd mcp && npm run typecheck)`. Erased `import type … from './types.js'` targets and the
-   externalized `@ast-grep/napi`/`better-sqlite3` (no local `node_modules` for either, by design)
-   are pre-existing noise; a NEW error outside that set is the finding. No test suite ships with
-   this copy, so there is no `npm test` step here.
+4. `(cd mcp && npm run typecheck)`. It ends with exit 2 and exactly ten lines `TS2307 Cannot find
+   module '@ast-grep/napi'`: the package is externalized and has no local `node_modules`, by design.
+   That is the only pre-existing noise; any other line is the finding. This must print nothing:
+   `(cd mcp && npm run typecheck 2>&1 | grep 'error TS' | grep -v "Cannot find module '@ast-grep/napi'")`.
+   The type-only files `src/tools/types.ts` and `src/tools/python-repl/types.ts` are erased from the
+   bundle, so the metafile closure of 2026-09-06 missed them; they are restored byte for byte from
+   `juliuswiener/nord-core` at `2e531ad` (2026-11-09). No test suite ships with this copy, so there
+   is no `npm test` step here.
 5. `(cd mcp && npm run build)`.
 6. `(cd mcp && npm run smoke)` — diff against step 1. An unexplained count change is the finding.
 7. Bump `plugin.json` **and** `marketplace.json` in the same commit. They are separate files

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // work-package.test.cjs — plain-node checks for the implementer work package.
 // Run: node work-package.test.cjs [section]   sections: ungueltig commitstand
-//      abweichung historie budget zeit nachkontrolle   (no argument = all)
+//      abweichung historie budget zeit nachkontrolle unversioniert   (no argument = all)
 //
 // Runs against the real orch_tui repo and its graphify-out/graph.json, because the
 // point is what the graph actually yields, not what a fixture graph would.
@@ -320,6 +320,78 @@ const SECTIONS = {
       check(`graphrand: ${JSON.stringify(q)} does not crash and yields no file-less entry`, noFileless(r),
         JSON.stringify(r.threw || items(r).map((i) => i.file)));
     }
+    fs.rmSync(repo, { recursive: true, force: true });
+  },
+
+  // A graph built over a working tree also holds folders git never saw. orch_tui's
+  // .review-tmp/ (two mutation copies, 22 nodes) landed in aendern, wahrscheinlich and
+  // pruefen and turned "subsysteme" red (vault: backlog/nord, 2026-11-09). A throwaway repo
+  // carries the same shape; the untracked path sorts BEFORE the tracked one, so an
+  // unfiltered symbol pick takes it. Known files = index + tree the graph was built at:
+  // a file deleted since (taxgraph: 8232 of 13706 nodes) and one committed since the build
+  // both stay, only what no commit and no index ever held goes.
+  unversioniert() {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), "wp-unversioniert-"));
+    const g = (...a) => execFileSync("git", ["-C", repo, ...a], { encoding: "utf8" });
+    const commit = (msg) => g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", msg);
+    fs.mkdirSync(path.join(repo, "src"));
+    fs.writeFileSync(path.join(repo, "src/store.js"),
+      "function pending() { return helper() + 1; }\nfunction helper() { return lateral() + deep(); }\n" +
+      "function lateral() { return 2; }\nfunction deep() { return 3; }\n");
+    fs.writeFileSync(path.join(repo, "src/old.js"), "function oldFn() { return 4; }\n");
+    g("init", "-q");
+    g("add", "src");
+    commit("store, old");
+    const builtAt = g("rev-parse", "HEAD").trim();
+    g("rm", "-q", "src/old.js");
+    fs.writeFileSync(path.join(repo, "src/new.js"), "function newFn() { return 5; }\n");
+    g("add", "src/new.js");
+    commit("drop old, add new");
+    fs.mkdirSync(path.join(repo, ".review-tmp")); // on disk, never added
+    fs.writeFileSync(path.join(repo, ".review-tmp/store_mut.js"), "function pending() { return 0; }\n");
+
+    const node = (id, label, file, line) => ({ id, label, file_type: "code", source_file: file, source_location: `L${line}` });
+    const edge = (source, target, confidence) => ({ source, target, relation: "calls", confidence, source_location: "L2" });
+    const GHOST = ".review-tmp/store_mut.js";
+    const graphOf = (builtAtCommit) => ({
+      built_at_commit: builtAtCommit,
+      nodes: [node("pending", ".pending()", "src/store.js", 1), node("helper", ".helper()", "src/store.js", 2),
+        node("lateral", ".lateral()", "src/store.js", 3), node("deep", ".deep()", "src/store.js", 4),
+        node("old_fn", ".oldFn()", "src/old.js", 1), node("new_fn", ".newFn()", "src/new.js", 1),
+        node("g_pending", ".pending()", GHOST, 1), node("g_wahr", ".ghostWahr()", GHOST, 2), node("g_pruef", ".ghostPruef()", GHOST, 3)],
+      links: [edge("helper", "lateral", "EXTRACTED"), edge("helper", "old_fn", "EXTRACTED"), edge("helper", "new_fn", "EXTRACTED"),
+        edge("helper", "g_wahr", "EXTRACTED"), edge("helper", "deep", "INFERRED"), edge("helper", "g_pruef", "INFERRED")],
+    });
+    fs.mkdirSync(path.join(repo, "graphify-out"));
+    const build = (builtAtCommit, symbols) => {
+      fs.writeFileSync(path.join(repo, "graphify-out/graph.json"), JSON.stringify(graphOf(builtAtCommit)));
+      try { return wp.buildPackage({ repo, questions: { symbols }, cochange: false }); } catch (e) { return { threw: e.message }; }
+    };
+    const files = (tier) => tier.map((i) => `${i.file}:${bare(i.symbol)}`);
+    const has = (tier, want) => tier.some((i) => i.file === want[0] && bare(i.symbol) === want[1]);
+    const ghosts = (pkg) => files(items(pkg)).filter((f) => f.startsWith(".review-tmp/"));
+
+    const pick = build(builtAt, ["pending"]);
+    check("unversioniert: aendern takes the tracked pending, not the untracked twin",
+      !pick.threw && has(pick.tiers.aendern, ["src/store.js", "pending"]) && !ghosts(pick).length,
+      JSON.stringify(pick.threw || files(pick.tiers.aendern)));
+    const nb = build(builtAt, ["helper"]);
+    check("unversioniert: wahrscheinlich holds no untracked neighbour",
+      !nb.threw && !nb.tiers.wahrscheinlich.some((i) => i.file.startsWith(".review-tmp/")), JSON.stringify(nb.threw || files(nb.tiers.wahrscheinlich)));
+    check("unversioniert: pruefen holds no untracked neighbour",
+      !nb.threw && !nb.tiers.pruefen.some((i) => i.file.startsWith(".review-tmp/")), JSON.stringify(nb.threw || files(nb.tiers.pruefen)));
+    // positive controls: the filter must not eat what git knows
+    check("unversioniert: tracked neighbours stay (wahrscheinlich lateral, pruefen deep)",
+      !nb.threw && has(nb.tiers.wahrscheinlich, ["src/store.js", "lateral"]) && has(nb.tiers.pruefen, ["src/store.js", "deep"]),
+      JSON.stringify(nb.threw || [files(nb.tiers.wahrscheinlich), files(nb.tiers.pruefen)]));
+    check("unversioniert: a file deleted since the graph was built stays",
+      !nb.threw && has(nb.tiers.wahrscheinlich, ["src/old.js", "oldFn"]), JSON.stringify(nb.threw || files(nb.tiers.wahrscheinlich)));
+    check("unversioniert: a file committed since the graph was built stays",
+      !nb.threw && has(nb.tiers.wahrscheinlich, ["src/new.js", "newFn"]), JSON.stringify(nb.threw || files(nb.tiers.wahrscheinlich)));
+    // built_at_commit git does not know: no reference tree, so no filter and no crash
+    const lost = build("0".repeat(40), ["pending"]);
+    check("unversioniert: a built_at_commit git does not know leaves the graph unfiltered",
+      !lost.threw && has(lost.tiers.aendern, [GHOST, "pending"]), JSON.stringify(lost.threw || files(lost.tiers.aendern)));
     fs.rmSync(repo, { recursive: true, force: true });
   },
 };

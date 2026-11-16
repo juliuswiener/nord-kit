@@ -103,9 +103,20 @@ function resolveUnderRoot(root: string, candidate: string): string {
   if (!statSync(real).isDirectory()) throw new Error(`not a directory: ${candidate}`);
   const rel = relative(realpathSync(root), real);
   if (rel.startsWith('..') || isAbsolute(rel)) {
-    throw new Error(`cwd '${candidate}' is outside the worktree root '${root}'`);
+    throw new OutsideRootError(real, `cwd '${candidate}' is outside the worktree root '${root}'`);
   }
   return real;
+}
+
+/**
+ * The one failure of resolveUnderRoot that the caller reports instead of swallowing:
+ * the directory exists but lies outside the worktree root. It carries the resolved path.
+ * Every other failure (missing directory, not a directory) stays what it was.
+ */
+class OutsideRootError extends Error {
+  constructor(readonly target: string, message: string) {
+    super(message);
+  }
 }
 
 /**
@@ -206,6 +217,7 @@ function renderForeground(
   timeoutMs: number,
   warning: string | null,
   cwdChanged: string | null,
+  cwdDiscarded: string | null,
 ): { rendered: string; isError: boolean } {
   const lines: string[] = [];
   if (warning) lines.push(`[safety] ${warning}`);
@@ -217,6 +229,8 @@ function renderForeground(
   if (result.timedOut) lines.push(`[timed out after ${timeoutMs} ms — process group killed]`);
   if (result.signal && !result.timedOut) lines.push(`[terminated by signal ${result.signal}]`);
   if (cwdChanged) lines.push(`[cwd: ${cwdChanged}]`);
+  // Must not read "exit code: N": signal.ts classifies /exit code: [1-9]/i as a failure.
+  if (cwdDiscarded) lines.push(`[cd discarded: ${cwdDiscarded}]`);
 
   lines.push('--- stdout ---');
   lines.push(result.stdout.text.length ? result.stdout.text : '(empty)');
@@ -236,7 +250,7 @@ export const bashTool: ToolDefinition<{
 }> = {
   name: 'Bash',
   description:
-    'Run a bash command. Returns the exit code plus stdout and stderr on success and failure alike. The working directory persists between calls.',
+    'Run a bash command. Returns the exit code plus stdout and stderr on success and failure alike. A cd inside the worktree persists between calls; a cd outside it is discarded and reported.',
   annotations: {
     readOnlyHint: false,
     destructiveHint: true,
@@ -256,7 +270,7 @@ export const bashTool: ToolDefinition<{
       .optional(),
     cwd: z
       .string()
-      .describe('Directory for this call only. Otherwise the directory persists from the previous call.')
+      .describe('Directory for this call only. Otherwise the directory persists from the previous call, inside the worktree.')
       .optional(),
   },
 
@@ -300,6 +314,7 @@ export const bashTool: ToolDefinition<{
       // must not leak into the persisted session directory — otherwise a
       // one-off `cwd:"other"` silently relocates every later call.
       let cwdChanged: string | null = null;
+      let cwdDiscarded: string | null = null;
       if (!args?.cwd && !result.timedOut && result.reportedCwd) {
         try {
           const resolved = resolveUnderRoot(root, result.reportedCwd);
@@ -307,13 +322,22 @@ export const bashTool: ToolDefinition<{
             sessionCwd = resolved;
             cwdChanged = resolved;
           }
-        } catch {
+        } catch (error) {
           // A command writing to fd 3 itself, or cd-ing outside the worktree:
           // keep the previous directory rather than trusting the report.
+          // Only the cd that ended outside the root is said out loud (d-54 B-plus);
+          // garbage on fd 3 and a deleted directory stay silent as before.
+          // ponytail: only the final directory counts, so a cd out and back in one call stays
+          // silent. No notice for an explicit `cwd` argument, a background call, a timeout, or a
+          // command with its own EXIT trap or `exec` (no $PWD reaches fd 3). Upgrade path: report
+          // from the prelude instead of the final $PWD if one of these shows up in practice.
+          if (error instanceof OutsideRootError) {
+            cwdDiscarded = `${error.target} is outside the worktree root ${root}; the next call starts in ${sessionCwd ?? root}`;
+          }
         }
       }
 
-      const { rendered, isError } = renderForeground(result, timeoutMs, warning, cwdChanged);
+      const { rendered, isError } = renderForeground(result, timeoutMs, warning, cwdChanged, cwdDiscarded);
       return text(rendered, isError);
     } catch (error) {
       return text(`Error running command: ${error instanceof Error ? error.message : String(error)}`, true);

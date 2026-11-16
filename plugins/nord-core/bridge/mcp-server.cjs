@@ -24035,10 +24035,16 @@ function resolveUnderRoot(root, candidate) {
   if (!(0, import_node_fs2.statSync)(real).isDirectory()) throw new Error(`not a directory: ${candidate}`);
   const rel = (0, import_node_path3.relative)((0, import_node_fs2.realpathSync)(root), real);
   if (rel.startsWith("..") || (0, import_node_path3.isAbsolute)(rel)) {
-    throw new Error(`cwd '${candidate}' is outside the worktree root '${root}'`);
+    throw new OutsideRootError(real, `cwd '${candidate}' is outside the worktree root '${root}'`);
   }
   return real;
 }
+var OutsideRootError = class extends Error {
+  constructor(target, message) {
+    super(message);
+    this.target = target;
+  }
+};
 function foregroundPrelude() {
   return `__nord_r() { printf '%s' "$PWD" >&3 2>/dev/null; }
 trap __nord_r EXIT
@@ -24103,7 +24109,7 @@ function runForeground(command, cwd, timeoutMs) {
     });
   });
 }
-function renderForeground(result, timeoutMs, warning, cwdChanged) {
+function renderForeground(result, timeoutMs, warning, cwdChanged, cwdDiscarded) {
   const lines = [];
   if (warning) lines.push(`[safety] ${warning}`);
   const exitCode = result.timedOut ? 124 : result.code ?? (result.signal ? 137 : 0);
@@ -24111,6 +24117,7 @@ function renderForeground(result, timeoutMs, warning, cwdChanged) {
   if (result.timedOut) lines.push(`[timed out after ${timeoutMs} ms \u2014 process group killed]`);
   if (result.signal && !result.timedOut) lines.push(`[terminated by signal ${result.signal}]`);
   if (cwdChanged) lines.push(`[cwd: ${cwdChanged}]`);
+  if (cwdDiscarded) lines.push(`[cd discarded: ${cwdDiscarded}]`);
   lines.push("--- stdout ---");
   lines.push(result.stdout.text.length ? result.stdout.text : "(empty)");
   if (result.stderr.text.length) {
@@ -24121,7 +24128,7 @@ function renderForeground(result, timeoutMs, warning, cwdChanged) {
 }
 var bashTool = {
   name: "Bash",
-  description: "Run a bash command. Returns the exit code plus stdout and stderr on success and failure alike. The working directory persists between calls.",
+  description: "Run a bash command. Returns the exit code plus stdout and stderr on success and failure alike. A cd inside the worktree persists between calls; a cd outside it is discarded and reported.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: true,
@@ -24132,7 +24139,7 @@ var bashTool = {
     command: external_exports.string().describe("The bash command to run."),
     timeout: external_exports.number().int().describe("Timeout in milliseconds (default 300000, max 600000). On timeout the whole process group is killed and partial output is returned.").optional(),
     run_in_background: external_exports.boolean().describe("Run detached and return a bash_id immediately. Poll with BashOutput, stop with KillShell.").optional(),
-    cwd: external_exports.string().describe("Directory for this call only. Otherwise the directory persists from the previous call.").optional()
+    cwd: external_exports.string().describe("Directory for this call only. Otherwise the directory persists from the previous call, inside the worktree.").optional()
   },
   async handler(args) {
     const command = String(args?.command ?? "").trim();
@@ -24166,6 +24173,7 @@ No command was executed.`,
     try {
       const result = await runForeground(command, cwd, timeoutMs);
       let cwdChanged = null;
+      let cwdDiscarded = null;
       if (!args?.cwd && !result.timedOut && result.reportedCwd) {
         try {
           const resolved = resolveUnderRoot(root, result.reportedCwd);
@@ -24173,10 +24181,13 @@ No command was executed.`,
             sessionCwd = resolved;
             cwdChanged = resolved;
           }
-        } catch {
+        } catch (error2) {
+          if (error2 instanceof OutsideRootError) {
+            cwdDiscarded = `${error2.target} is outside the worktree root ${root}; the next call starts in ${sessionCwd ?? root}`;
+          }
         }
       }
-      const { rendered, isError } = renderForeground(result, timeoutMs, warning, cwdChanged);
+      const { rendered, isError } = renderForeground(result, timeoutMs, warning, cwdChanged, cwdDiscarded);
       return text(rendered, isError);
     } catch (error2) {
       return text(`Error running command: ${error2 instanceof Error ? error2.message : String(error2)}`, true);

@@ -511,12 +511,12 @@ SECTIONS.anleitung = function () {
 
   // AK5 of the hidden-Unicode entry: what to do when `write` refuses (exit 1, hidden characters). Wording only: no test
   // can show that an agent follows it. One line per SKILL.md carries the rule, so a wrapped sentence cannot dodge the check.
-  const refuseLine = (text) => text.split("\n").filter((l) => /exit 1/i.test(l) && /hidden|invisible/i.test(l)).join(" ");
+  const refuseLine = (text) => text.split("\n").filter((l) => /exits? 1/i.test(l) && /hidden|invisible/i.test(l)).join(" ");
   const isR = refuseLine(IS), ssR = refuseLine(SS), msR = refuseLine(region(MS, "edit"));
   check("anleitung: install-skill says what to do on exit 1 of write: delete the folder with the file tools (not rm), show the findings, report 'not installed'",
-    /delet/i.test(isR) && /file tools/i.test(isR) && /not rm|rather than `?rm/i.test(isR) && /findings/i.test(isR) && /not installed/i.test(isR), isR || "no line names exit 1 and hidden characters");
+    /delet/i.test(isR) && /file tools/i.test(isR) && /not `?rm|rather than `?rm/i.test(isR) && /findings/i.test(isR) && /not installed/i.test(isR), isR || "no line names exit 1 and hidden characters");
   check("anleitung: search-skills says what to do on exit 1 of write: delete the folder with the file tools (not rm), show the findings, report 'not installed'",
-    /delet/i.test(ssR) && /file tools/i.test(ssR) && /not rm|rather than `?rm/i.test(ssR) && /findings/i.test(ssR) && /not installed/i.test(ssR), ssR || "no line names exit 1 and hidden characters");
+    /delet/i.test(ssR) && /file tools/i.test(ssR) && /not `?rm|rather than `?rm/i.test(ssR) && /findings/i.test(ssR) && /not installed/i.test(ssR), ssR || "no line names exit 1 and hidden characters");
   check("anleitung: manage-skills (edit) says what to do on exit 1 of write: do not lock it again, show the findings",
     /do not lock/i.test(msR) && /findings/i.test(msR), msR || "no line names exit 1 and hidden characters");
   if (!needLib("anleitung")) return;

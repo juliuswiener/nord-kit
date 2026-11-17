@@ -1,19 +1,25 @@
 #!/usr/bin/env node
 // skill-lock.cjs — hash lock for skills installed from outside (install-skill, search-skills).
 // A lock records, per skill, a SHA-256 per file and one total. Later, `verify` (and the SessionStart
-// hook hooks/skill-lock-check.cjs) says which file changed. No scan, no network: this only notices
-// a change AFTER install. It does not judge whether a skill was bad on the day it was installed.
+// hook hooks/skill-lock-check.cjs) says which file changed. No network. The only scan is `write`'s look for
+// hidden Unicode characters (see scanSkillDir); `verify` and the hook only notice a change AFTER install.
+// Nothing here judges whether a skill is good.
 //
-//   node skill-lock.cjs write <skill-dir> --source <text>   lock (or re-lock) one skill
+//   node skill-lock.cjs write <skill-dir> --source <text>   lock (or re-lock) one skill; refuses hidden characters
 //   node skill-lock.cjs verify [<skill-dir>]                one skill, or every lock of user + project
 //   node skill-lock.cjs remove <slug> [--project]           drop an entry (the folder stays)
-//   exit: 0 all equal | 1 deviation | 2 not locked, lock unusable, usage error
+//   exit: 0 all equal | 1 deviation (verify) or hidden characters refused (write) | 2 not locked, lock unusable, usage error
 //
 // Lock file: <claude-dir>/nord-skill-lock.json, beside skills/ (user: $CLAUDE_CONFIG_DIR or ~/.claude;
 // project: <project>/.claude). { "version": 1, "skills": { "<slug>": { source, files, hash } } }.
 // Vault: backlog/nord/nord-kit-installiert-skills-ohne-pruefsumme-agent-skills-zeigt-ein-verfahren.
 // ponytail: whoever can rewrite the skill can rewrite the lock too; a PreToolUse guard would be its own ticket.
 // ponytail: no mutex around read-modify-write, two parallel writes lose one entry; upgrade: O_EXCL lock file.
+// ponytail: the hidden-character scan runs at `write` only; a skill that is locked already is never re-scanned
+//   (verify, hook); upgrade: scan in verify, inside the hook's 5 s budget.
+// ponytail: no override flag; no skill folder needed one (0 of 328 foreign folders refused); upgrade: --accept <U+XXXX>.
+// ponytail: a file with a NUL in its first 8000 bytes (so also UTF-16) is not scanned, its NAME always is; a payload
+//   made only of HINWEIS characters passes with a note; homoglyphs and visible prompt injection are not detected.
 
 "use strict";
 
@@ -25,6 +31,24 @@ const crypto = require("crypto");
 const LOCK_NAME = "nord-skill-lock.json";
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
 
+// Characters an editor does not show but a model reads (vault: backlog/nord/skill-installation-prueft-nicht-auf-
+// versteckte-unicode-zeichen). Two classes: SPERRE is refused by `write`; HINWEIS is said and locked anyway, because
+// emoji joiners and variation selectors stand in honest text (7 of 328 foreign skill folders, measured).
+// [from, to, category] as numbers: this file carries none of these characters itself.
+const SPERRE = [
+  [0xE0000, 0xE007F, "Tag-Zeichen"],
+  [0x202A, 0x202E, "Bidi-Steuerzeichen"], [0x2066, 0x2069, "Bidi-Steuerzeichen"],
+  [0x200B, 0x200B, "Zero-Width-Space"], [0x2060, 0x2060, "Word-Joiner"], [0x180E, 0x180E, "Mongolischer Vokaltrenner"],
+  [0x2061, 0x2064, "unsichtbarer Operator"], [0x206A, 0x206F, "veraltete Formatsteuerung"],
+  [0xE0100, 0xE01EF, "Variation-Selector (erweitert)"], [0xFEFF, 0xFEFF, "BOM mitten in der Datei"],
+];
+const HINWEIS = [
+  [0x200C, 0x200D, "Joiner (ZWNJ/ZWJ)"], [0xFE00, 0xFE0F, "Variation-Selector"], [0x200E, 0x200F, "Richtungsmarke"],
+  [0x061C, 0x061C, "Arabische Buchstabenmarke"], [0x034F, 0x034F, "Combining Grapheme Joiner"],
+];
+const HIDDEN = [...SPERRE.map((r) => [...r, true]), ...HINWEIS.map((r) => [...r, false])];
+const HIDDEN_RE = new RegExp("[" + HIDDEN.map(([a, b]) => String.fromCodePoint(a) + "-" + String.fromCodePoint(b)).join("") + "]", "gu");
+
 function validSlug(s) {
   return typeof s === "string" && s !== "" && s !== "." && s !== "__proto__" && !/[/\\\0]|\.\./.test(s);
 }
@@ -32,6 +56,7 @@ function validSlug(s) {
 // Names reach a terminal and the model's context: control characters out, length capped.
 function clean(s, max = Infinity) {
   s = String(s).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, "?");
+  s = s.replace(HIDDEN_RE, "?"); // the hidden characters of SPERRE and HINWEIS: a name must not turn the line around
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
 }
 
@@ -58,6 +83,50 @@ function hashSkillDir(dir) {
   const names = Object.keys(files).sort();
   const pairs = names.map((n) => [n, files[n]]);
   return { files: Object.fromEntries(pairs), hash: sha(JSON.stringify(pairs)) };
+}
+
+// Hidden characters in one text: [{ block, cat, cps }], one entry per category, code points as "U+XXXX" in order of
+// first appearance. block = SPERRE, else HINWEIS. 0x034F is the lowest code point of either class.
+function scanText(text) {
+  const by = new Map();
+  for (const ch of text) {
+    const c = ch.codePointAt(0);
+    if (c < 0x034F) continue;
+    const r = HIDDEN.find(([a, b]) => c >= a && c <= b);
+    if (!r) continue;
+    if (!by.has(r[2])) by.set(r[2], { block: r[3], cat: r[2], cps: [] });
+    const u = "U+" + c.toString(16).toUpperCase().padStart(4, "0"), e = by.get(r[2]);
+    if (!e.cps.includes(u)) e.cps.push(u);
+  }
+  return [...by.values()];
+}
+
+// Hidden characters in a skill folder: the names of all entries, and the contents of the regular files that are not
+// binary (NUL in the first 8000 bytes). A BOM at the very start of a file is no finding. `files` = hashSkillDir(dir).files,
+// so `write` walks the folder once. [{ file, where: "Dateiname" | "Inhalt", block, cat, cps }]
+function scanSkillDir(dir, files = hashSkillDir(dir).files) {
+  const root = fs.realpathSync(dir), out = [];
+  for (const [rel, v] of Object.entries(files)) {
+    for (const f of scanText(rel)) out.push({ file: rel, where: "Dateiname", ...f });
+    if (/^(symlink|special):/.test(v)) continue;
+    const buf = fs.readFileSync(path.join(root, rel));
+    if (buf.subarray(0, 8000).includes(0)) continue;
+    let text = buf.toString("utf8");
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    for (const f of scanText(text)) out.push({ file: rel, where: "Inhalt", ...f });
+  }
+  return out;
+}
+
+// One line per finding, names masked by clean(); at most 20 lines, the rest is counted.
+function findingLines(found) {
+  const line = (f) => {
+    const cps = f.cps.length > 5 ? `${f.cps.slice(0, 5).join(" ")} … (${f.cps.length} verschiedene)` : f.cps.join(" ");
+    const place = f.where === "Dateiname" ? `Dateiname ${clean(f.file)}` : `${clean(f.file)} (Inhalt)`;
+    return `${f.block ? "SPERRE" : "HINWEIS"} ${place}: ${f.cat} ${cps}`;
+  };
+  const lines = found.slice(0, 20).map(line);
+  return found.length > 20 ? lines.concat(`… und ${found.length - 20} weitere Befunde`) : lines;
 }
 
 // null = no lock file. Anything unusable throws with a short reason.
@@ -186,6 +255,12 @@ function cmdWrite(pos, opt) {
   const file = lockFileFor(dir);
   const lock = lockOrExit(file) || { version: 1, skills: {} };
   const h = hashSkillDir(dir);
+  const found = scanSkillDir(dir, h.files), blocked = found.filter((f) => f.block);
+  if (found.length) console.log(findingLines(found).join("\n"));
+  if (blocked.length) {
+    console.log(`skill-lock: ${clean(slug, 60)} NICHT gesperrt: unsichtbare Zeichen der Klasse SPERRE in ${new Set(blocked.map((f) => f.file)).size} Datei(en)`);
+    return 1;
+  }
   lock.skills[slug] = { source: opt.source, files: h.files, hash: h.hash };
   writeLock(file, lock);
   console.log(`skill-lock: ${clean(slug, 60)} gesperrt (${Object.keys(h.files).length} Dateien) in ${file}`);
@@ -236,7 +311,7 @@ function main(argv) {
   return usage("Aufruf: write <skill-dir> --source <text> | verify [<skill-dir>] | remove <slug> [--project]");
 }
 
-module.exports = { LOCK_NAME, clean, hashSkillDir, verifyEntry, checkLock, scopeLocks };
+module.exports = { LOCK_NAME, clean, hashSkillDir, verifyEntry, checkLock, scopeLocks, scanText, scanSkillDir };
 
 if (require.main === module) {
   try { process.exitCode = main(process.argv.slice(2)); } catch (e) {

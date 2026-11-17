@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // skill-lock.test.cjs — plain-node checks for scripts/skill-lock.cjs (hash lock for installed skills).
 // Run: node skill-lock.test.cjs [section]
-//      sections: hash aenderung dateien links lock schreiben exit anleitung   (no argument = all)
+//      sections: hash aenderung dateien links lock schreiben exit scan anleitung   (no argument = all)
 //
 // Fixtures live under $TMPDIR and every child process gets HOME and CLAUDE_CONFIG_DIR pointed at
 // a fixture: nothing here reads or writes the real ~/.claude. Vault: backlog/nord/nord-kit-installiert-
@@ -11,6 +11,9 @@
 //   SED_M1 ='s/if (now.hash !== entry.hash)/if (now.hash === entry.hash)/'   verifyEntry compares inverted
 //   SED_M1B='s/sha(JSON.stringify(pairs))/sha(JSON.stringify(pairs.map((p) => p.slice(1))))/'
 //                                                                              hashSkillDir drops the path from the total
+
+// Mutation sed for the hidden-Unicode check (AK1; same rule: a COPY of plugins/nord-core, never the real file):
+//   SED_M2 ='s/if (blocked.length)/if (false)/'   cmdWrite stops refusing a SPERRE finding; section `scan` must go red by FAIL lines
 
 const fs = require("fs");
 const os = require("os");
@@ -323,6 +326,147 @@ SECTIONS.exit = function () {
   const ctl = cli(["verify"], { home });
   check("exit: control characters in file names are replaced in the output", !/[\u0000-\u0009\u000b-\u001f\u007f]/.test(ctl.out) && !ctl.out.split("\n").some((l) => l.startsWith("y")), JSON.stringify(ctl.out));
   check("exit: no command and an unknown command -> exit 2", cli([], { home }).code === 2 && cli(["bogus"], { home }).code === 2);
+
+  // AK4 of the hidden-Unicode entry: a name with a bidi override, a zero-width space and a variation selector
+  // is not printed raw (U+202E would turn the line around on a terminal).
+  const hid = [0x202e, 0x200b, 0xfe0f].map((n) => String.fromCodePoint(n));
+  const odd = `notes${hid[0]}txt${hid[1]}.md${hid[2]}`;
+  put(b, odd);
+  if (!fs.readdirSync(b).includes(odd)) check("exit: FIXTURE-DEFEKT, the file name lost its characters on disk", false);
+  else {
+    const m = cli(["verify"], { home });
+    check("exit: SPERRE and HINWEIS characters in file names are replaced in the output (verify)",
+      m.out.includes("notes?txt?.md?") && hid.every((c) => !m.out.includes(c)), JSON.stringify(m.out));
+  }
+};
+
+// Hidden Unicode at lock time (vault: backlog/nord/skill-installation-prueft-nicht-auf-versteckte-unicode-zeichen,
+// AK1-AK3). SPERRE = refused: exit 1, the lock stays as it is, the output names place, category and U+XXXX.
+// HINWEIS = harmless in most files (emoji joiners): said, exit 0, locked.
+// Fixtures are built with String.fromCodePoint and read back from disk: a fixture that lost its character ends
+// in "FIXTURE-DEFEKT", never in a green line.
+const cpStr = (n) => String.fromCodePoint(n);
+const uplus = (n) => "U+" + n.toString(16).toUpperCase().padStart(4, "0");
+const SPERRE = [ // [code point, what the output must call it]
+  [0xe0000, /Tag-Zeichen/], [0xe0069, /Tag-Zeichen/], [0xe007f, /Tag-Zeichen/],
+  [0x202a, /Bidi-Steuerzeichen/], [0x202e, /Bidi-Steuerzeichen/], [0x2066, /Bidi-Steuerzeichen/], [0x2069, /Bidi-Steuerzeichen/],
+  [0x200b, /Zero-Width-Space/], [0x2060, /Word-Joiner/], [0x180e, /Mongolischer Vokaltrenner/],
+  [0x2061, /unsichtbarer Operator/], [0x2064, /unsichtbarer Operator/],
+  [0x206a, /veraltete Formatsteuerung/], [0x206f, /veraltete Formatsteuerung/],
+  [0xe0100, /Variation-Selector/], [0xe01ef, /Variation-Selector/],
+  [0xfeff, /BOM mitten in der Datei/],
+];
+const HINWEIS = [0x200c, 0x200d, 0xfe00, 0xfe0f, 0x200e, 0x200f, 0x061c, 0x034f];
+const PLACES = {
+  "SKILL.md": (ch) => ({ "SKILL.md": `---\nname: demo\ndescription: d\n---\nvisible ${ch} text\n`, "scripts/run.sh": BASE["scripts/run.sh"] }),
+  "scripts/run.sh": (ch) => ({ ...BASE, "scripts/run.sh": `#!/bin/sh\necho hi ${ch}\n` }),
+  "file name": (ch) => ({ ...BASE, [`notes${ch}.txt`]: "x\n" }),
+};
+// A skill whose hidden character is proven to be on disk, or null after a FIXTURE-DEFEKT line.
+function hiddenSkill(label, files, ch, where) {
+  const home = fx();
+  const dir = mkSkill(home, "demo", files);
+  const seen = where === "file name" ? fs.readdirSync(dir).some((n) => n.includes(ch)) : fs.readFileSync(path.join(dir, where), "utf8").includes(ch);
+  if (!seen) { check(`scan: FIXTURE-DEFEKT ${label}: the character is not on disk`, false); return null; }
+  return { home, dir };
+}
+const lockHas = (home, slug) => fs.existsSync(lockOf(home)) && slug in readJson(lockOf(home)).skills;
+
+SECTIONS.scan = function () {
+  // AK1 + AK2: every SPERRE category, in SKILL.md, in a script and in a file name.
+  for (const [n, cat] of SPERRE) {
+    for (const where of Object.keys(PLACES)) {
+      const ch = cpStr(n), label = `${uplus(n)} in ${where}`;
+      const s = hiddenSkill(label, PLACES[where](ch), ch, where);
+      if (!s) continue;
+      const r = cli(["write", s.dir, "--source", "t"], { home: s.home });
+      const place = where === "file name" ? r.out.includes("Dateiname") && r.out.includes("notes?.txt") : r.out.includes(where);
+      check(`scan: ${label} -> exit 1, not locked, the output names place, category and ${uplus(n)}, no raw character`,
+        r.code === 1 && !fs.existsSync(lockOf(s.home)) && r.out.includes(uplus(n)) && cat.test(r.out) && place && !r.out.includes(ch), JSON.stringify(r));
+    }
+  }
+  // AK1: a skill that is locked already keeps its old lock when the re-lock is refused.
+  {
+    const home = fx(), dir = mkSkill(home, "demo");
+    cli(["write", dir, "--source", "t"], { home });
+    const before = fs.readFileSync(lockOf(home), "utf8");
+    const ch = cpStr(0x202e);
+    fs.appendFileSync(path.join(dir, "SKILL.md"), `late ${ch} edit\n`);
+    if (!fs.readFileSync(path.join(dir, "SKILL.md"), "utf8").includes(ch)) check("scan: FIXTURE-DEFEKT re-lock case", false);
+    else {
+      const r = cli(["write", dir, "--source", "t"], { home });
+      check("scan: re-locking a skill that gained a hidden character -> exit 1, the old lock file is byte for byte unchanged",
+        r.code === 1 && fs.readFileSync(lockOf(home), "utf8") === before, JSON.stringify(r));
+    }
+  }
+  // AK2: a binary file is not scanned for content, its NAME always is.
+  {
+    const ch = cpStr(0x200b), bin = Buffer.concat([Buffer.from([0, 1, 2]), Buffer.from(`a${ch}b`)]);
+    const home = fx(), dir = mkSkill(home, "demo", { ...BASE, "data.bin": bin });
+    if (!fs.readFileSync(path.join(dir, "data.bin")).includes(Buffer.from(ch))) check("scan: FIXTURE-DEFEKT binary case", false);
+    else {
+      const r = cli(["write", dir, "--source", "t"], { home });
+      check("scan: a hidden character inside a binary file (NUL in the first bytes) is not scanned -> exit 0, locked", r.code === 0 && lockHas(home, "demo"), JSON.stringify(r));
+    }
+    const ch2 = cpStr(0x202e), nm = `x${ch2}y.bin`, d2 = mkSkill(fx(), "demo", { ...BASE, [nm]: bin });
+    if (!fs.readdirSync(d2).includes(nm)) check("scan: FIXTURE-DEFEKT binary name case", false);
+    else {
+      const home2 = path.resolve(d2, "..", "..", "..");
+      const r = cli(["write", d2, "--source", "t"], { home: home2 });
+      check("scan: the NAME of a binary file is scanned -> exit 1, not locked", r.code === 1 && !fs.existsSync(lockOf(home2)), JSON.stringify(r));
+    }
+  }
+  // AK3: harmless Unicode stays lockable. HINWEIS characters are said, the lock is written.
+  for (const n of HINWEIS) {
+    const ch = cpStr(n), s = hiddenSkill(`${uplus(n)} (HINWEIS)`, PLACES["SKILL.md"](ch), ch, "SKILL.md");
+    if (!s) continue;
+    const r = cli(["write", s.dir, "--source", "t"], { home: s.home });
+    check(`scan: ${uplus(n)} in SKILL.md -> exit 0, locked, one HINWEIS line names it`,
+      r.code === 0 && lockHas(s.home, "demo") && r.out.split("\n").some((l) => l.includes("HINWEIS") && l.includes(uplus(n))) && !r.out.includes("SPERRE"), JSON.stringify(r));
+  }
+  {
+    const zwj = cpStr(0x200d), vs16 = cpStr(0xfe0f), home = fx();
+    const dir = mkSkill(home, "demo", { ...BASE, "SKILL.md": `---\nname: demo\ndescription: d\n---\nfamily ${cpStr(0x1f468)}${zwj}${cpStr(0x1f469)}${vs16} ok\n` });
+    const text = fs.readFileSync(path.join(dir, "SKILL.md"), "utf8");
+    if (!text.includes(zwj) || !text.includes(vs16)) check("scan: FIXTURE-DEFEKT emoji case", false);
+    else {
+      const r = cli(["write", dir, "--source", "t"], { home });
+      check("scan: an emoji with ZWJ and VS16 -> exit 0, locked", r.code === 0 && lockHas(home, "demo") && !r.out.includes("SPERRE"), JSON.stringify(r));
+    }
+    const bom = cpStr(0xfeff), hb = fx();
+    const db = mkSkill(hb, "demo", { ...BASE, "SKILL.md": `${bom}---\nname: demo\ndescription: d\n---\nbody\n` });
+    if (fs.readFileSync(path.join(db, "SKILL.md"), "utf8").charCodeAt(0) !== 0xfeff) check("scan: FIXTURE-DEFEKT BOM case", false);
+    else {
+      const r = cli(["write", db, "--source", "t"], { home: hb });
+      check("scan: a BOM at the start of a file stays silent -> exit 0, locked, no HINWEIS and no SPERRE line",
+        r.code === 0 && lockHas(hb, "demo") && !r.out.includes("HINWEIS") && !r.out.includes("SPERRE"), JSON.stringify(r));
+    }
+    const ha = fx(), da = mkSkill(ha, "demo");
+    const r = cli(["write", da, "--source", "t"], { home: ha });
+    check("scan: plain ASCII -> exit 0, locked, no HINWEIS and no SPERRE line", r.code === 0 && lockHas(ha, "demo") && !r.out.includes("HINWEIS") && !r.out.includes("SPERRE"), JSON.stringify(r));
+  }
+  // AK3: the base rate. Our own skill folders and the two source files carry none of these characters.
+  // The count must be above zero, and the function must find a planted character: "0 found" alone proves nothing.
+  if (!needLib("scan")) return;
+  if (typeof L.scanSkillDir !== "function" || typeof L.scanText !== "function") { check("scan: scanSkillDir and scanText are exported", false); return; }
+  const plugins = path.resolve(PLUGIN_ROOT, "..");
+  let folders = 0; const dirty = [];
+  for (const p of fs.readdirSync(plugins)) {
+    const sd = path.join(plugins, p, "skills");
+    if (!fs.existsSync(sd)) continue;
+    for (const s of fs.readdirSync(sd)) {
+      const d = path.join(sd, s);
+      if (!fs.statSync(d).isDirectory()) continue;
+      folders++;
+      const f = L.scanSkillDir(d);
+      if (f.length) dirty.push(`${p}/${s}: ${f.map((x) => x.file + " " + x.cps.join(",")).join("; ")}`);
+    }
+  }
+  check(`scan: our own skill folders (${folders}, must be >= 1) carry no SPERRE and no HINWEIS character`, folders >= 1 && dirty.length === 0, dirty.slice(0, 3).join(" | "));
+  const own = [LIB, __filename].filter((f) => L.scanText(fs.readFileSync(f, "utf8")).length);
+  check("scan: skill-lock.cjs and skill-lock.test.cjs carry no SPERRE and no HINWEIS character", own.length === 0, own.join(", "));
+  check("scan: positive control: scanText finds a planted zero-width space, a planted ZWJ, and nothing in plain text",
+    L.scanText(`a${cpStr(0x200b)}b`).length === 1 && L.scanText(`a${cpStr(0x200d)}b`).length === 1 && L.scanText("plain text, ascii only\n").length === 0);
 };
 
 // AK9 / AK10 / AK11 / AK18 — the instructions. The commands are taken OUT of the SKILL.md text,
@@ -364,6 +508,17 @@ SECTIONS.anleitung = function () {
   const mr = pick(MS, "remove", "manage-skills has a lock remove command"), mw = pick(MS, "write", "manage-skills has a lock write command");
   check("anleitung: manage-skills: remove command under 'remove', write command under 'edit', sync points at the write",
     !!mr && !!mw && region(MS, "remove").includes(mr) && region(MS, "edit").includes(mw) && /locked/i.test(region(MS, "sync")) && /write/.test(region(MS, "sync")));
+
+  // AK5 of the hidden-Unicode entry: what to do when `write` refuses (exit 1, hidden characters). Wording only: no test
+  // can show that an agent follows it. One line per SKILL.md carries the rule, so a wrapped sentence cannot dodge the check.
+  const refuseLine = (text) => text.split("\n").filter((l) => /exit 1/i.test(l) && /hidden|invisible/i.test(l)).join(" ");
+  const isR = refuseLine(IS), ssR = refuseLine(SS), msR = refuseLine(region(MS, "edit"));
+  check("anleitung: install-skill says what to do on exit 1 of write: delete the folder with the file tools (not rm), show the findings, report 'not installed'",
+    /delet/i.test(isR) && /file tools/i.test(isR) && /not rm|rather than `?rm/i.test(isR) && /findings/i.test(isR) && /not installed/i.test(isR), isR || "no line names exit 1 and hidden characters");
+  check("anleitung: search-skills says what to do on exit 1 of write: delete the folder with the file tools (not rm), show the findings, report 'not installed'",
+    /delet/i.test(ssR) && /file tools/i.test(ssR) && /not rm|rather than `?rm/i.test(ssR) && /findings/i.test(ssR) && /not installed/i.test(ssR), ssR || "no line names exit 1 and hidden characters");
+  check("anleitung: manage-skills (edit) says what to do on exit 1 of write: do not lock it again, show the findings",
+    /do not lock/i.test(msR) && /findings/i.test(msR), msR || "no line names exit 1 and hidden characters");
   if (!needLib("anleitung")) return;
 
   // AK9 run: write -> entry in the lock, verify -> 0; changed file -> 1.

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // skill-lock.test.cjs — plain-node checks for scripts/skill-lock.cjs (hash lock for installed skills).
 // Run: node skill-lock.test.cjs [section]
-//      sections: hash aenderung dateien links lock schreiben exit scan anleitung   (no argument = all)
+//      sections: hash aenderung dateien links lock schreiben exit scan nachscan anleitung   (no argument = all)
 //
 // Fixtures live under $TMPDIR and every child process gets HOME and CLAUDE_CONFIG_DIR pointed at
 // a fixture: nothing here reads or writes the real ~/.claude. Vault: backlog/nord/nord-kit-installiert-
@@ -14,6 +14,7 @@
 
 // Mutation sed for the hidden-Unicode check (AK1; same rule: a COPY of plugins/nord-core, never the real file):
 //   SED_M2 ='s/if (blocked.length)/if (false)/'   cmdWrite stops refusing a SPERRE finding; section `scan` must go red by FAIL lines
+//   SED_M13='s/{ only, scan: true }/{ only }/'      cmdVerify stops scanning; section `nachscan` must go red by FAIL lines
 
 const fs = require("fs");
 const os = require("os");
@@ -467,6 +468,86 @@ SECTIONS.scan = function () {
   check("scan: skill-lock.cjs and skill-lock.test.cjs carry no SPERRE and no HINWEIS character", own.length === 0, own.join(", "));
   check("scan: positive control: scanText finds a planted zero-width space, a planted ZWJ, and nothing in plain text",
     L.scanText(`a${cpStr(0x200b)}b`).length === 1 && L.scanText(`a${cpStr(0x200d)}b`).length === 1 && L.scanText("plain text, ascii only\n").length === 0);
+};
+
+// Skills locked BEFORE the scan existed (vault: backlog/nord/bereits-gesperrte-skills-werden-nie-auf-versteckte-unicode-zeichen-
+// nachgescannt, AK1-AK4; Julius d-67: only `verify` scans, on request; the session-start hook stays as it is).
+// The lock is built by hand with hashSkillDir (it equals the old writer's lock, probe C3), not with `write`, which refuses
+// such a skill since 1.72.0. `verify` reports a SPERRE character as a deviation (exit 1, "Abweichungen: 1") and a HINWEIS
+// character as one line (exit 0), also for an unchanged hash. Same fixtures rule as `scan`: built with String.fromCodePoint,
+// read back from disk.
+function altlock(home, dir, slug = "demo") {
+  const h = L.hashSkillDir(dir);
+  fs.writeFileSync(lockOf(home), JSON.stringify({ version: 1, skills: { [slug]: { source: "t", files: h.files, hash: h.hash } } }, null, 2) + "\n");
+}
+// The one command shape both `verify <dir>` and `verify` (every lock of the fixture home) share.
+const verifyBoth = (home, dir) => [cli(["verify", dir], { home }), cli(["verify"], { home })];
+
+SECTIONS.nachscan = function () {
+  if (!needLib("nachscan")) return;
+  // AK1 + AK2: every SPERRE category, in SKILL.md, in a script and in a file name, in a skill whose hash is unchanged.
+  for (const [n, cat] of SPERRE) {
+    for (const where of Object.keys(PLACES)) {
+      const ch = cpStr(n), label = `${uplus(n)} in ${where}`;
+      const s = hiddenSkill(label, PLACES[where](ch), ch, where);
+      if (!s) continue;
+      altlock(s.home, s.dir);
+      const rs = verifyBoth(s.home, s.dir);
+      const place = (o) => (where === "file name" ? o.includes("Dateiname") && o.includes("notes?.txt") : o.includes(where));
+      check(`nachscan: ${label}, hash unchanged -> verify <dir> and verify exit 1, "Abweichungen: 1", names skill, place, category and ${uplus(n)}, no raw character`,
+        rs.every((r) => r.code === 1 && r.out.includes("Abweichungen: 1") && r.out.includes("demo") && r.out.includes(uplus(n)) && cat.test(r.out) && place(r.out) && !r.out.includes(ch)),
+        JSON.stringify(rs));
+    }
+  }
+  // AK3: HINWEIS is one line, exit 0, "Abweichungen: 0"; clean, BOM at the start and emoji stay free of SPERRE.
+  for (const n of HINWEIS) {
+    const ch = cpStr(n), s = hiddenSkill(`${uplus(n)} (HINWEIS)`, PLACES["SKILL.md"](ch), ch, "SKILL.md");
+    if (!s) continue;
+    altlock(s.home, s.dir);
+    const rs = verifyBoth(s.home, s.dir);
+    check(`nachscan: ${uplus(n)} in SKILL.md of a locked skill -> verify exit 0, "Abweichungen: 0", exactly one HINWEIS line naming skill and ${uplus(n)}, no SPERRE`,
+      rs.every((r) => r.code === 0 && r.out.includes("Abweichungen: 0") && !r.out.includes("SPERRE")
+        && r.out.split("\n").filter((l) => l.includes("HINWEIS")).length === 1 && r.out.split("\n").some((l) => l.includes("HINWEIS") && l.includes("demo") && l.includes(uplus(n)))), JSON.stringify(rs));
+  }
+  {
+    const zwj = cpStr(0x200d), vs16 = cpStr(0xfe0f), bom = cpStr(0xfeff);
+    const cases = [
+      ["a clean skill", BASE, null],
+      ["a BOM at the start of a file", { ...BASE, "SKILL.md": `${bom}---\nname: demo\ndescription: d\n---\nbody\n` }, bom],
+      ["an emoji with ZWJ and VS16", { ...BASE, "SKILL.md": `---\nname: demo\ndescription: d\n---\nfamily ${cpStr(0x1f468)}${zwj}${cpStr(0x1f469)}${vs16} ok\n` }, vs16],
+    ];
+    for (const [label, files, must] of cases) {
+      const home = fx(), dir = mkSkill(home, "demo", files);
+      if (must && !fs.readFileSync(path.join(dir, "SKILL.md"), "utf8").includes(must)) { check(`nachscan: FIXTURE-DEFEKT ${label}`, false); continue; }
+      altlock(home, dir);
+      const rs = verifyBoth(home, dir);
+      check(`nachscan: ${label} in a locked skill -> verify exit 0, "Abweichungen: 0", no SPERRE line`,
+        rs.every((r) => r.code === 0 && r.out.includes("Abweichungen: 0") && !r.out.includes("SPERRE")), JSON.stringify(rs));
+    }
+  }
+  // AK4: the hash changed AND a SPERRE character stands in the file: both are reported, exit 1.
+  {
+    const ch = cpStr(0x200b), home = fx(), dir = mkSkill(home, "demo");
+    altlock(home, dir);
+    fs.appendFileSync(path.join(dir, "SKILL.md"), `late ${ch} edit\n`);
+    if (!fs.readFileSync(path.join(dir, "SKILL.md"), "utf8").includes(ch)) check("nachscan: FIXTURE-DEFEKT changed-and-hidden case", false);
+    else {
+      const rs = verifyBoth(home, dir);
+      check("nachscan: hash changed AND U+200B -> verify exit 1, \"Abweichungen: 1\", reports the change (SKILL.md, geändert) and the finding (U+200B)",
+        rs.every((r) => r.code === 1 && r.out.includes("Abweichungen: 1") && /SKILL\.md geändert/.test(r.out) && r.out.includes("U+200B") && !r.out.includes(ch)), JSON.stringify(rs));
+    }
+  }
+  // Guard for the session-start hook (d-67 E1, option A): checkLock without the `scan` option, as the hook calls it, finds nothing.
+  {
+    const ch = cpStr(0x202e), home = fx(), dir = mkSkill(home, "demo", PLACES["SKILL.md"](cpStr(0x202e)));
+    if (!fs.readFileSync(path.join(dir, "SKILL.md"), "utf8").includes(ch)) check("nachscan: FIXTURE-DEFEKT hook guard", false);
+    else {
+      altlock(home, dir);
+      const hook = L.checkLock(lockOf(home)), scanned = L.checkLock(lockOf(home), { scan: true });
+      check("nachscan: hook path: checkLock without `scan` reports no deviation and no hint for a locked skill with U+202E; with `scan: true` it does (positive control)",
+        hook.devs.length === 0 && (hook.hints || []).length === 0 && scanned.devs.length === 1, JSON.stringify([hook, scanned]));
+    }
+  }
 };
 
 // AK9 / AK10 / AK11 / AK18 — the instructions. The commands are taken OUT of the SKILL.md text,

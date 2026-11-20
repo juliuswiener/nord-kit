@@ -1,22 +1,23 @@
 #!/usr/bin/env node
 // skill-lock.cjs — hash lock for skills installed from outside (install-skill, search-skills).
 // A lock records, per skill, a SHA-256 per file and one total. Later, `verify` (and the SessionStart
-// hook hooks/skill-lock-check.cjs) says which file changed. No network. The only scan is `write`'s look for
-// hidden Unicode characters (see scanSkillDir); `verify` and the hook only notice a change AFTER install.
-// Nothing here judges whether a skill is good.
+// hook hooks/skill-lock-check.cjs) says which file changed. No network. The only check beyond the hash is the look
+// for hidden Unicode characters (see scanSkillDir), done by `write` and by `verify`; the hook only notices a change AFTER
+// install and does not scan (Julius d-67). Nothing here judges whether a skill is good.
 //
 //   node skill-lock.cjs write <skill-dir> --source <text>   lock (or re-lock) one skill; refuses hidden characters
-//   node skill-lock.cjs verify [<skill-dir>]                one skill, or every lock of user + project
+//   node skill-lock.cjs verify [<skill-dir>]                one skill, or every lock of user + project; also scans for hidden characters
 //   node skill-lock.cjs remove <slug> [--project]           drop an entry (the folder stays)
-//   exit: 0 all equal | 1 deviation (verify) or hidden characters refused (write) | 2 not locked, lock unusable, usage error
+//   exit: 0 all equal | 1 deviation or a hidden SPERRE character (verify), or hidden characters refused (write) | 2 not locked, lock unusable, usage error
 //
 // Lock file: <claude-dir>/nord-skill-lock.json, beside skills/ (user: $CLAUDE_CONFIG_DIR or ~/.claude;
 // project: <project>/.claude). { "version": 1, "skills": { "<slug>": { source, files, hash } } }.
 // Vault: backlog/nord/nord-kit-installiert-skills-ohne-pruefsumme-agent-skills-zeigt-ein-verfahren.
 // ponytail: whoever can rewrite the skill can rewrite the lock too; a PreToolUse guard would be its own ticket.
 // ponytail: no mutex around read-modify-write, two parallel writes lose one entry; upgrade: O_EXCL lock file.
-// ponytail: the hidden-character scan runs at `write` only; a skill that is locked already is never re-scanned
-//   (verify, hook); upgrade: scan in verify, inside the hook's 5 s budget.
+// ponytail: `write` and `verify` scan for hidden characters, the session-start hook does not (Julius d-67, E1 option A);
+//   a skill that was never locked is not scanned either (E2); upgrade: `scan: true` in the hook's checkLock call, inside
+//   its 5 s budget (measured +48 ms for 42 skill folders), or a read-only command over a skills/ folder.
 // ponytail: no override flag; no skill folder needed one (0 of 328 foreign folders refused); upgrade: --accept <U+XXXX>.
 // ponytail: a file with a NUL in its first 8000 bytes (so also UTF-16) is not scanned, its NAME always is; a payload
 //   made only of HINWEIS characters passes with a note; homoglyphs and visible prompt injection are not detected.
@@ -172,32 +173,38 @@ function diffFiles(locked, now) {
   return d.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
 }
 
-// { state: "ok" | "changed" | "missing", diffs: [{ file, kind: "geändert" | "neu" | "fehlt" }] }
-function verifyEntry(skillDir, entry) {
-  if (!fs.existsSync(skillDir)) return { state: "missing", diffs: [] };
+// { state: "ok" | "changed" | "hidden" | "missing", diffs: [{ file, kind: "geändert" | "neu" | "fehlt" }], found: [...] }
+// `scan` (default off: the session-start hook shares this function and does not scan, Julius d-67 E1): `found` holds the
+// hidden-character findings of scanSkillDir. A SPERRE finding in a skill whose hash is unchanged makes the state "hidden"
+// (diffs empty); with a changed hash the state stays "changed" and `found` rides along. HINWEIS findings never change the state.
+function verifyEntry(skillDir, entry, { scan = false } = {}) {
+  if (!fs.existsSync(skillDir)) return { state: "missing", diffs: [], found: [] };
   const now = hashSkillDir(skillDir);
+  const found = scan ? scanSkillDir(skillDir, now.files) : [];
   if (now.hash !== entry.hash) {
     const diffs = diffFiles(entry.files, now.files);
-    return { state: "changed", diffs: diffs.length ? diffs : [{ file: "(Gesamt-Hash)", kind: "geändert" }] };
+    return { state: "changed", diffs: diffs.length ? diffs : [{ file: "(Gesamt-Hash)", kind: "geändert" }], found };
   }
-  return { state: "ok", diffs: [] };
+  return { state: found.some((f) => f.block) ? "hidden" : "ok", diffs: [], found };
 }
 
 // Checks the entries of one lock (or only `only`). null = no lock file; throws if the lock is unusable.
 // A skill that cannot be read is a deviation of its own, it must not hide the others.
 // `deadline` (ms since epoch): stop before the next skill once it has passed -> incomplete.
-function checkLock(file, { deadline = Infinity, only } = {}) {
+// `scan`: see verifyEntry. HINWEIS findings of an otherwise equal skill land in `hints`, not in `devs`.
+function checkLock(file, { deadline = Infinity, only, scan = false } = {}) {
   const lock = readLock(file);
   if (!lock) return null;
   const skillsDir = path.join(path.dirname(file), "skills");
-  const out = { count: 0, devs: [], incomplete: false };
+  const out = { count: 0, devs: [], hints: [], incomplete: false };
   for (const [slug, entry] of Object.entries(lock.skills)) {
     if (only && slug !== only) continue;
     if (Date.now() >= deadline) { out.incomplete = true; break; }
     out.count++;
     try {
-      const v = verifyEntry(path.join(skillsDir, slug), entry);
+      const v = verifyEntry(path.join(skillsDir, slug), entry, { scan });
       if (v.state !== "ok") out.devs.push({ slug, ...v });
+      else if (v.found.length) out.hints.push({ slug, found: v.found });
     } catch (e) {
       out.devs.push({ slug, state: "unreadable", diffs: [], error: e.code || e.message });
     }
@@ -282,23 +289,28 @@ function devLines(d) {
   const s = clean(d.slug, 60);
   if (d.state === "missing") return [`ABWEICHUNG ${s}: Skill-Ordner fehlt (Eintrag löschen: skill-lock.cjs remove ${s})`];
   if (d.state === "unreadable") return [`ABWEICHUNG ${s}: nicht lesbar (${clean(d.error, 60)})`];
-  return d.diffs.map((x) => `ABWEICHUNG ${s}: ${clean(x.file)} ${x.kind}`);
+  return d.diffs.map((x) => `ABWEICHUNG ${s}: ${clean(x.file)} ${x.kind}`).concat(findLines(d.slug, d.found));
 }
+
+// The findings of one skill in the format of `write` (findingLines), with the skill name after the class word.
+const findLines = (slug, found) =>
+  findingLines(found || []).map((l) => l.replace(/^(SPERRE|HINWEIS) /, (m, k) => `${k} ${clean(slug, 60)}: `));
 
 function cmdVerify(pos) {
   if (pos.length > 1) usage("verify nimmt höchstens ein <skill-dir>");
   const only = pos.length ? slugOf(pos[0]) : undefined;
   const files = pos.length ? [lockFileFor(pos[0])] : scopeLocks();
-  let found = 0, count = 0, devs = [];
+  let found = 0, count = 0, devs = [], hints = [];
   for (const file of files) {
     let r;
-    try { r = checkLock(file, { only }); } catch (e) { usage(`Lock unlesbar: ${file}: ${e.message}`); }
+    try { r = checkLock(file, { only, scan: true }); } catch (e) { usage(`Lock unlesbar: ${file}: ${e.message}`); }
     if (!r) continue;
-    found++; count += r.count; devs = devs.concat(r.devs);
+    found++; count += r.count; devs = devs.concat(r.devs); hints = hints.concat(r.hints);
   }
   if (!found) usage(`kein Lock gefunden: ${files.join(", ")}`);
   if (!count) usage(only ? `„${clean(only, 60)}" ist nicht gelockt` : "Lock ohne Einträge, nichts geprüft");
-  console.log(devs.flatMap(devLines).concat(`skill-lock: geprüfte Skills: ${count}, Abweichungen: ${devs.length}`).join("\n"));
+  console.log(devs.flatMap(devLines).concat(hints.flatMap((h) => findLines(h.slug, h.found)),
+    `skill-lock: geprüfte Skills: ${count}, Abweichungen: ${devs.length}`).join("\n"));
   return devs.length ? 1 : 0;
 }
 

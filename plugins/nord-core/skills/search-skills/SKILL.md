@@ -39,7 +39,7 @@ at <https://skills.sh/>.
    and read it back with
    `node "${CLAUDE_PLUGIN_ROOT}/scripts/skill-lock.cjs" verify ~/.claude/skills/<skill>` (both must exit 0).
    The CLI usually leaves `~/.claude/skills/<skill>` as a symlink to a shared copy; the helper follows that
-   link and writes the lock beside `skills/`. If `write` exits 1, it found hidden Unicode characters (invisible text a model reads but an editor does not show; the output names file, category and U+XXXX) and did not lock: delete `~/.claude/skills/<skill>` and the shared copy it points to (with the file tools, not `rm`), show the findings to the user and report "not installed"; skip the read-back. Otherwise say it activates at the next session start, not in this one.
+   link and writes the lock beside `skills/`. If `write` exits 1, it found hidden Unicode characters (invisible text a model reads but an editor does not show; the output names file, category and U+XXXX) and did not lock: delete `~/.claude/skills/<skill>` and the shared copy it points to (with the file tools, not `rm`), show the findings to the user and report "not installed"; skip the read-back. Otherwise say it is available in this session within seconds, no restart needed (if it does not show up: `/reload-skills`).
 
 ## When nothing fits
 

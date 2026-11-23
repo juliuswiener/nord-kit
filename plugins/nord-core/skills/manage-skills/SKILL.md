@@ -40,7 +40,7 @@ SKILL.md is the thing worth seeing.
 
 Ask in one message: slug (lowercase and hyphens only, no spaces), one-line description,
 scope, and whether it has side effects. Then write the scaffold, report the path, and say
-it activates at the next session start.
+it is available in this session within seconds, no restart needed (if it does not show up: `/reload-skills`).
 
 ```yaml
 ---

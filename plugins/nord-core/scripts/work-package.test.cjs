@@ -409,6 +409,72 @@ const SECTIONS = {
       !lost.threw && has(lost.tiers.aendern, [GHOST, "pending"]), JSON.stringify(lost.threw || files(lost.tiers.aendern)));
     fs.rmSync(repo, { recursive: true, force: true });
   },
+  // decompose() calls `claude -p`. A stub on PATH stands in for it and answers like the real CLI did on
+  // 2026-11-25 (claude 2.1.327, no ANTHROPIC_API_KEY, as in the orch daemon): --bare is "Not logged in" as a
+  // JSON result with is_error on STDOUT, exit 1, stderr empty; without --bare the Abo login answers.
+  // ponytail: the stub proves the argument list and the error path, not the model. That claude --safe-mode
+  // really gives JSON is a measurement (vault: backlog/nord, the Messung of the ticket), not a unit test.
+  decompose() {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "wp-decompose-"));
+    const log = path.join(dir, "argv.log");
+    const out = path.join(dir, "out");
+    fs.writeFileSync(path.join(dir, "claude"), [
+      "#!/usr/bin/env node",
+      "const argv = process.argv.slice(2), mode = process.env.STUB_MODE;",
+      "require('fs').appendFileSync(process.env.STUB_LOG, JSON.stringify(argv) + '\\n');",
+      "const say = (o, code) => { process.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', num_turns: 1, usage: {}, ...o })); process.exit(code || 0); };",
+      "const nologin = () => say({ is_error: true, result: 'Not logged in · Please run /login' }, 1);",
+      "if (argv.includes('--bare') && !process.env.ANTHROPIC_API_KEY) nologin();",
+      "if (mode === 'nologin') nologin();",
+      "if (mode === 'question') say({ is_error: false, result: 'Welchen Auftrag meinst Du genau?' });",
+      "if (mode === 'stderr') { process.stderr.write('boom from stderr'); say({ is_error: true, result: 'from stdout' }, 2); }",
+      "if (mode === 'iserror0') say({ is_error: true, result: 'Credit balance is too low' });",
+      "if (mode === 'garbage') { process.stdout.write('not json at all'); process.exit(0); }",
+      "say({ is_error: false, structured_output: { symbols: ['Deliver'], affected: [], terms: ['wedge'], subsystems: ['agent'] } });",
+    ].join("\n"), { mode: 0o755 });
+    const run = (mode) => { // the way orch runs it: node work-package.cjs dispatch, PATH with the stub, no API key
+      fs.rmSync(log, { force: true });
+      const env = { ...process.env, PATH: dir + path.delimiter + process.env.PATH, STUB_MODE: mode, STUB_LOG: log };
+      delete env.ANTHROPIC_API_KEY;
+      const r = spawnSync("node", [WP, "dispatch", "--repo", REPO, "--out", out, "--no-activate", "Aendere Deliver"], { encoding: "utf8", env });
+      let argv = [];
+      try { argv = JSON.parse(fs.readFileSync(log, "utf8").trim().split("\n")[0]); } catch { /* claude never ran */ }
+      return { r, argv, first: r.stderr.split("\n")[0] };
+    };
+    const detail = (x) => `exit ${x.r.status}, argv ${JSON.stringify(x.argv).slice(0, 120)}, stderr ${JSON.stringify(x.r.stderr.slice(0, 200))}`;
+
+    const ok = run("ok");
+    const runId = ok.r.stdout.trim().split("\n").pop();
+    check("decompose: dispatch works without --bare and without ANTHROPIC_API_KEY (the Abo login)",
+      ok.r.status === 0 && /^run-\d+$/.test(runId) && fs.existsSync(path.join(out, runId, "package.json")), detail(ok));
+    const a = ok.argv, after = (flag) => a[a.indexOf(flag) + 1];
+    check("decompose: claude gets --safe-mode, no tools, no session file, a JSON schema, JSON output, and no --bare",
+      a.includes("--safe-mode") && !a.includes("--bare") && a.includes("--no-session-persistence") && a.includes("--tools") && after("--tools") === ""
+        && a.includes("--json-schema") && after("--output-format") === "json", JSON.stringify(a).slice(0, 200));
+
+    const nologin = run("nologin");
+    check("decompose: a failed call names its reason on the first stderr line (it is on claude's stdout)",
+      nologin.r.status === 1 && nologin.first === "Error: decompose failed: Not logged in · Please run /login", detail(nologin));
+    check("decompose: ...and that is all of it: no stack trace, under 300 bytes",
+      !/\n\s+at /.test(nologin.r.stderr) && nologin.r.stderr.length < 300, `${nologin.r.stderr.length} bytes`);
+    const said = run("stderr");
+    check("decompose: what claude wrote on stderr comes before its stdout",
+      said.r.status === 1 && said.first === "Error: decompose failed: boom from stderr", detail(said));
+    const iserr = run("iserror0");
+    check("decompose: is_error with exit 0 is a failure too",
+      iserr.r.status === 1 && iserr.first === "Error: decompose failed: Credit balance is too low", detail(iserr));
+    const question = run("question");
+    check("decompose: an answer without JSON is a clean error, not a SyntaxError",
+      question.r.status === 1 && question.first === "Error: decompose failed: no JSON in the answer: Welchen Auftrag meinst Du genau?", detail(question));
+    const garbage = run("garbage");
+    check("decompose: output that is not JSON at all is a clean error too",
+      garbage.r.status === 1 && garbage.first === "Error: decompose failed: not json at all", detail(garbage));
+    const gone = spawnSync(process.execPath, [WP, "dispatch", "--repo", REPO, "--out", out, "--no-activate", "Aendere Deliver"],
+      { encoding: "utf8", env: { ...process.env, PATH: path.join(dir, "none") } }); // no claude on PATH
+    check("decompose: no claude installed is a clean error that names it",
+      gone.status === 1 && gone.stderr.split("\n")[0] === "Error: decompose failed: spawnSync claude ENOENT", JSON.stringify(gone.stderr.slice(0, 200)));
+    fs.rmSync(dir, { recursive: true, force: true });
+  },
 };
 
 const only = process.argv[2];

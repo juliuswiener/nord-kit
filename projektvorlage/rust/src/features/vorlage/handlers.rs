@@ -5,7 +5,9 @@ use crate::atoms::vorlage::example::run as identity;
 use super::models::Example;
 
 pub fn handle(value: i64) -> Result<Example, String> {
-    Ok(Example { value: identity(value)? })
+    Ok(Example {
+        value: identity(value)?,
+    })
 }
 
 #[cfg(test)]

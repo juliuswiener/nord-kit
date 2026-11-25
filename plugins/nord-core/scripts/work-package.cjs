@@ -765,9 +765,19 @@ function computeMetrics(repo, pkg, reads, diffText) {
 
 // ---- decompose: cheap-model call, turns an auftrag into graph questions ---
 
+// One line and no stack: orch logs the first 300 bytes of stderr, and a node stack dump spends
+// 200 of them on source text before the reason.
+const decomposeError = (why) => Object.assign(
+  new Error("decompose failed: " + String(why).trim().replace(/\s+/g, " ").slice(0, 250)), { oneLine: true });
+
 function decompose(auftrag, { model = "sonnet" } = {}) {
-  // --bare and no tools: in the full harness Haiku sees CLAUDE.md and hooks and
-  // answers with a clarifying question instead of JSON (measured 2026-09-24).
+  // --safe-mode and no tools, not --bare: --bare never reads the Abo login, only ANTHROPIC_API_KEY, and
+  // the orch daemon has no key on purpose (a key in its environment costs every worker its 1 h cache).
+  // --safe-mode keeps the login and starts without CLAUDE.md, hooks, plugins, skills and MCP servers
+  // (claude 2.1.169 and later). Measured 2026-11-25, claude 2.1.327, sonnet: 20 of 20 JSON in the
+  // daemon's environment, 1.7k prompt tokens a call against 46k in the full harness, where Haiku
+  // answered with a clarifying question instead of JSON on 2026-09-24.
+  // --no-session-persistence: no transcript file in ~/.claude/projects per call.
   // symbols vs affected: the first real run put every function the order MENTIONED
   // into symbols, and 6 of 9 aendern entries were then only ever read.
   const system = "Du zerlegst einen Code-Änderungsauftrag in Graph-Fragen. symbols = exakte "
@@ -781,12 +791,19 @@ function decompose(auftrag, { model = "sonnet" } = {}) {
   const list = { type: "array", items: { type: "string" } };
   const schema = { type: "object", properties: { symbols: list, affected: list, terms: list, subsystems: list },
     required: ["symbols", "affected", "terms", "subsystems"] };
-  const r = spawnSync("claude", ["-p", `Auftrag: ${auftrag}`, "--model", model, "--bare",
-    "--tools", "", "--system-prompt", system, "--json-schema", JSON.stringify(schema),
+  const r = spawnSync("claude", ["-p", `Auftrag: ${auftrag}`, "--model", model, "--safe-mode",
+    "--no-session-persistence", "--tools", "", "--system-prompt", system, "--json-schema", JSON.stringify(schema),
     "--output-format", "json"], { encoding: "utf8", maxBuffer: 1 << 26 });
-  if (r.status !== 0) throw new Error("decompose failed: " + (r.stderr || "").slice(0, 300));
-  const outer = JSON.parse(r.stdout);
-  const inner = outer.structured_output || JSON.parse(outer.result);
+  // claude says why a call failed on STDOUT: "Not logged in" is a JSON result with is_error and an empty stderr.
+  let outer = null;
+  try { outer = JSON.parse(r.stdout); } catch { /* not JSON, said below */ }
+  if (r.error || r.status !== 0 || !outer || outer.is_error) {
+    throw decomposeError(r.error ? r.error.message : r.stderr || (outer && outer.result) || r.stdout || `claude exited ${r.status}`);
+  }
+  let inner = outer.structured_output;
+  if (!inner) {
+    try { inner = JSON.parse(outer.result); } catch { throw decomposeError("no JSON in the answer: " + outer.result); }
+  }
   return { symbols: inner.symbols || [], affected: inner.affected || [], terms: inner.terms || [],
     subsystems: inner.subsystems || [] };
 }
@@ -861,9 +878,15 @@ function main() {
   const activate = noActivateAt === -1;
   if (noActivateAt !== -1) rest.splice(noActivateAt, 1);
   const args = parseArgs(rest);
-  if (cmd === "dispatch") return cliDispatch(args, cochange, vault, activate);
-  if (cmd === "check") return cliCheck(args);
-  if (cmd === "decompose") return console.log(JSON.stringify(decompose(args._[0] || "")));
+  try {
+    if (cmd === "dispatch") return cliDispatch(args, cochange, vault, activate);
+    if (cmd === "check") return cliCheck(args);
+    if (cmd === "decompose") return console.log(JSON.stringify(decompose(args._[0] || "")));
+  } catch (e) {
+    if (!(e && e.oneLine)) throw e; // a bug keeps its stack
+    console.error("Error: " + e.message);
+    process.exit(1);
+  }
   console.error("usage: work-package.cjs dispatch|check|decompose ...");
   process.exit(1);
 }
